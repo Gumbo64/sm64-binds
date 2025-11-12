@@ -3,10 +3,6 @@ name = "sm64-binds"
 version = "0.1.0"
 edition = "2024"
 
-include = [
-    "../WASM_XOR/sm64_headless.us.wasm.xor",
-]
-
 
 [dependencies]
 sha1 = "0.10.6"
