@@ -1,5 +1,5 @@
 [package]
-name = "wasm-test"
+name = "sm64-binds"
 version = "0.1.0"
 edition = "2024"
 
