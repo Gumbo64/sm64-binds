@@ -2,170 +2,47 @@ use wasmtime::*;
 
 use std::convert::TryInto;
 
-#[derive(Clone, Debug)]
-pub struct GamePad {
-    button: u16,
-    stick_x: i8,
-    stick_y: i8,
+mod game_pad;
+mod game_state;
+mod rng_config;
+mod util;
+
+pub use game_pad::GamePad;
+pub use game_state::GameState;
+pub use rng_config::RandomConfig;
+
+pub struct SM64GameGenerator {
+    wasm_bytes: Vec<u8>,
 }
 
-impl GamePad {
-    pub fn new(button: u16, stick_x: i8, stick_y: i8) -> Self {
-        GamePad { button, stick_x, stick_y }
+impl SM64GameGenerator {
+    #[cfg(feature = "fs")]
+    pub fn new(rom_path: &str) -> Result<Self, Error> {
+        match util::check_hash(rom_path) {
+            Ok(_) => {},
+            Err(_) => {return Err(Error::msg("Invalid ROM. Should be a US copy, in z64 format (8.00MB)"));}
+        };
+        let rom_bytes = std::fs::read(rom_path)?;
+        Self::from_rom_bytes(rom_bytes)
     }
 
-    pub fn equals(&self, pad: &GamePad) -> bool {
-        self.button == pad.button && self.stick_x == pad.stick_x && self.stick_y == pad.stick_y
+    pub fn from_rom_bytes(rom_bytes: Vec<u8>) -> Result<Self, Error> {
+        let wasm_bytes = Self::rom_to_wasm_bytes(rom_bytes);
+        Ok(SM64GameGenerator { wasm_bytes })
     }
 
-    pub fn from_bytes(data: &[u8]) -> Self {
-        let button = u16::from_le_bytes(data[0..1].try_into().unwrap());
-        let stick_x = data[2] as i8;
-        let stick_y = data[3] as i8;
-        GamePad::new(button, stick_x, stick_y)
+    pub fn create_game(&self, cfg: Option<RandomConfig>) -> Result<SM64Game, Error>  {
+        SM64Game::new(self.wasm_bytes.clone(), cfg)
     }
 
-    pub fn is_pressed(&self, button_mask: u16) -> bool {
-        (self.button & button_mask) != 0
-    }
-
-    pub fn enable_button(&mut self, button_mask: u16) {
-        self.button |= button_mask;
-    }
-
-    pub fn disable_button(&mut self, button_mask: u16) {
-        self.button &= !button_mask;
-    }
-}
-
-
-#[derive(Debug)]
-pub struct GameState {
-    pub num_stars: i32,
-    pub pos: [f32; 3],
-    pub vel: [f32; 3],
-    pub lakitu_pos: [f32; 3],
-    pub lakitu_yaw: i32,
-    pub in_credits: i32,
-    pub course_num: i32,
-    pub act_num: i32,
-    pub area_index: i32,
-}
-
-impl GameState {
-    pub fn new(data: &[u8]) -> GameState {
-        let mut offset = 0;
-
-        let num_stars = i32::from_le_bytes(data[offset..offset + 4].try_into().unwrap());
-        offset += 4;
-
-        let pos = [
-            f32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()),
-            f32::from_le_bytes(data[offset + 4..offset + 8].try_into().unwrap()),
-            f32::from_le_bytes(data[offset + 8..offset + 12].try_into().unwrap()),
-        ];
-        offset += 12;
-
-        let vel = [
-            f32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()),
-            f32::from_le_bytes(data[offset + 4..offset + 8].try_into().unwrap()),
-            f32::from_le_bytes(data[offset + 8..offset + 12].try_into().unwrap()),
-        ];
-        offset += 12;
-
-        let lakitu_pos = [
-            f32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()),
-            f32::from_le_bytes(data[offset + 4..offset + 8].try_into().unwrap()),
-            f32::from_le_bytes(data[offset + 8..offset + 12].try_into().unwrap()),
-        ];
-        offset += 12;
-
-        let lakitu_yaw = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
-        offset += 4;
-
-        let in_credits = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
-        offset += 4; 
-
-        let course_num = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
-        offset += 4;
-
-        let act_num = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
-        offset += 4;
-
-        let area_index = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
-
-        // Construct GameState
-        GameState {
-            num_stars,
-            pos,
-            vel,
-            lakitu_pos,
-            lakitu_yaw,
-            in_credits,
-            course_num,
-            act_num,
-            area_index,
+    pub fn rom_to_wasm_bytes(rom_bytes: Vec<u8>) -> Vec<u8> {
+        let rom_len = rom_bytes.len();
+        let xor_bytes = include_bytes!("../../WASM_XOR/sm64_headless.us.wasm.xor");
+        let mut wasm_bytes: Vec<u8> = Vec::new();
+        for i in 0..xor_bytes.len() {
+            wasm_bytes.push(xor_bytes[i] ^ rom_bytes[i % rom_len]);
         }
-    }
-
-    pub fn has_won(&self) -> bool {
-        self.num_stars > 0
-    }
-
-    pub fn to_string(&self) -> String {
-        format!(
-            "GameState {{\n\
-                numStars: {},\n\
-                position: ({}, {}, {}),\n\
-                velocity: ({}, {}, {}),\n\
-                lakituPosition: ({}, {}, {}),\n\
-                lakituYaw: {},\n\
-                inCredits: {},\n\
-                courseNum: {},\n\
-                actNum: {},\n\
-                areaIndex: {}\n\
-            }}",
-            self.num_stars,
-            self.pos[0], self.pos[1], self.pos[2],
-            self.vel[0], self.vel[1], self.vel[2],
-            self.lakitu_pos[0], self.lakitu_pos[1], self.lakitu_pos[2],
-            self.lakitu_yaw,
-            self.in_credits,
-            self.course_num,
-            self.act_num,
-            self.area_index,
-        )
-    }
-}
-
-pub struct RandomConfig {
-    seed: u32,
-    max_random_action: u32,
-    max_window_length: u32,
-    a_prob: f32,
-    b_prob: f32,
-    z_prob: f32,
-}
-impl RandomConfig {
-    pub fn new(seed: u32) -> Self {
-        RandomConfig::full_new(
-            seed, 
-            5, 
-            100, 
-            0.5, 
-            0.5, 
-            0.2)
-    }
-
-    pub fn full_new(seed: u32, max_random_action: u32, max_window_length: u32, a_prob: f32, b_prob: f32, z_prob: f32) -> Self {
-        return RandomConfig { 
-            seed, 
-            max_random_action,
-            max_window_length, 
-            a_prob, 
-            b_prob,
-            z_prob 
-        }
+        wasm_bytes
     }
 }
 
@@ -178,10 +55,10 @@ pub struct SM64Game {
 }
 
 impl SM64Game {
-    pub fn new(module_path: &str, cfg: Option<RandomConfig>) -> Result<Self, Error> {
+    pub fn new(wasm_bytes: Vec<u8>, cfg: Option<RandomConfig>) -> Result<Self, Error> {
         let engine = Engine::default();
         let mut store: Store<u32> = Store::new(&engine, 4);
-        let module = Module::from_file(&engine, module_path)?;
+        let module = Module::new(&engine, wasm_bytes)?;
         
         let mut linker = Linker::new(&engine);
         linker.define_unknown_imports_as_traps(&module)?;
