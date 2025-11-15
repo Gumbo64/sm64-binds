@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 description = "Mario 64 using WASM. Requires a US .z64 version ROM to work (8.00MB)"
-license
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 sha1 = "0.10.6"
