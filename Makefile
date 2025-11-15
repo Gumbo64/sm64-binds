@@ -5,7 +5,7 @@ SM64PC = sm64-port
 
 WASM = WASM
 WASM_JS = WASM_JS
-WASM_XOR = WASM_XOR
+WASM_ZIP_XOR = WASM_ZIP_XOR
 
 JS_PKG = javascript/pkg
 PYTHON_PKG = python/pkg
@@ -29,8 +29,10 @@ sm64-build: copy-rom
 	@echo "$(GREEN)\nBUILDING WEB VERSION$(RESET)"	
 	@if [ -z "$(EMSDK_PATH)" ]; then \
 		echo "$(YELLOW)Emscripten SDK (emsdk) is not installed, recreating WASM from XOR files $(RESET)"; \
-		python3 maketools/xor.py $(WASM_XOR)/sm64.us.wasm.xor $(WASM)/sm64.us.wasm  $(ROM_FILE); \
-		python3 maketools/xor.py $(WASM_XOR)/sm64_headless.us.wasm.xor $(WASM)/sm64_headless.us.wasm $(ROM_FILE); \
+		python3 maketools/xor.py $(WASM_ZIP_XOR)/sm64.us.wasm.zip.xor $(WASM)/sm64.us.wasm.zip  $(ROM_FILE); \
+		python3 maketools/xor.py $(WASM_ZIP_XOR)/sm64_headless.us.wasm.zip.xor $(WASM)/sm64_headless.us.wasm.zip $(ROM_FILE); \
+		python3 maketools/zip.py $(WASM)/sm64.us.wasm $(WASM)/sm64.us.wasm.zip; \
+		python3 maketools/zip.py $(WASM)/sm64_headless.us.wasm $(WASM)/sm64_headless.us.wasm.zip; \
 	else \
 		echo "$(BLUE)\nNORMAL$(RESET)"; \
 		$(MAKE) -C $(SM64PC) -j TARGET_WEB=1; \
@@ -39,22 +41,24 @@ sm64-build: copy-rom
 		cp $(SM64PC)/build/us_web/sm64.us.js $(WASM_JS)/sm64.us.js; \
 		cp $(SM64PC)/build/us_web/sm64.us.wasm $(WASM)/sm64.us.wasm; \
 		cp $(SM64PC)/build/us_web_headless/sm64.us.wasm $(WASM)/sm64_headless.us.wasm; \
-		python3 maketools/xor.py $(WASM)/sm64.us.wasm $(WASM_XOR)/sm64.us.wasm.xor $(ROM_FILE); \
-		python3 maketools/xor.py $(WASM)/sm64_headless.us.wasm $(WASM_XOR)/sm64_headless.us.wasm.xor $(ROM_FILE); \
 	fi
 
-    # so that rust knows when there is an update, it can download again
+    # zip
+	python3 maketools/zip.py $(WASM)/sm64.us.wasm $(WASM)/sm64.us.wasm.zip
+	python3 maketools/zip.py $(WASM)/sm64_headless.us.wasm $(WASM)/sm64_headless.us.wasm.zip
 
-	cp $(WASM_JS)/sm64.us.js $(JS_PKG)/sm64.us.js
-	cp $(WASM_XOR)/sm64.us.wasm.xor $(JS_PKG)/sm64.us.wasm.xor;
+    # xor
+	python3 maketools/xor.py $(WASM)/sm64.us.wasm.zip $(WASM_ZIP_XOR)/sm64.us.wasm.zip.xor $(ROM_FILE);
+	python3 maketools/xor.py $(WASM)/sm64_headless.us.wasm.zip $(WASM_ZIP_XOR)/sm64_headless.us.wasm.zip.xor $(ROM_FILE);
 
-	cp $(WASM_XOR)/sm64_headless.us.wasm.xor $(JS_PKG)/sm64_headless.us.wasm.xor
-	cp $(WASM_XOR)/sm64_headless.us.wasm.xor $(PYTHON_PKG)/sm64_headless.us.wasm.xor
 
-# 	needs to be compressed
-	cp $(WASM_XOR)/sm64_headless.us.wasm.xor $(RUST_PKG)/sm64_headless.us.wasm.xor
-# 	python3 maketools/zip.py $(WASM_XOR)/sm64_headless.us.wasm.xor $(RUST_PKG)/sm64_headless.us.wasm.xor.zip
+# 	cp $(WASM_JS)/sm64.us.js $(JS_PKG)/sm64.us.js
+# 	cp $(WASM_ZIP_XOR)/sm64.us.wasm.xor $(JS_PKG)/sm64.us.wasm.xor;
 
+# 	cp $(WASM_ZIP_XOR)/sm64_headless.us.wasm.xor $(JS_PKG)/sm64_headless.us.wasm.xor
+# 	cp $(WASM_ZIP_XOR)/sm64_headless.us.wasm.xor $(PYTHON_PKG)/sm64_headless.us.wasm.xor
+
+	cp $(WASM_ZIP_XOR)/sm64_headless.us.wasm.zip.xor $(RUST_PKG)/sm64_headless.us.wasm.zip.xor
 
 # 	wasm-pack build browser-wasm --release -t bundler -d $(WEB_PROD)
 

@@ -10,7 +10,7 @@ mod util;
 pub use game_pad::GamePad;
 pub use game_state::GameState;
 pub use rng_config::RandomConfig;
-use util::get_xor_bytes;
+use util::unzip_bytes;
 
 pub struct SM64GameGenerator {
     wasm_bytes: Vec<u8>,
@@ -39,12 +39,13 @@ impl SM64GameGenerator {
     pub fn rom_to_wasm_bytes(rom_bytes: Vec<u8>) -> Vec<u8> {
         let rom_len = rom_bytes.len();
         // include_bytes!(concat!(env!("OUT_DIR"), "/sm64_headless.us.wasm.xor"));
-        let xor_bytes = get_xor_bytes();
-        let mut wasm_bytes: Vec<u8> = Vec::new();
+        let xor_bytes = include_bytes!("../pkg/sm64_headless.us.wasm.zip.xor");
+        let mut wasm_zip_bytes: Vec<u8> = Vec::new();
         for i in 0..xor_bytes.len() {
-            wasm_bytes.push(xor_bytes[i] ^ rom_bytes[i % rom_len]);
+            wasm_zip_bytes.push(xor_bytes[i] ^ rom_bytes[i % rom_len]);
         }
-        wasm_bytes
+
+        unzip_bytes(&wasm_zip_bytes)
     }
 }
 

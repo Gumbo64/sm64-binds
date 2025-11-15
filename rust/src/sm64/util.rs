@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::{self, Read, Cursor, Write};
 use sha1::{Sha1, Digest};
+use zip::read::ZipArchive;
 
 const ROM_HASH: &str = "9bef1128717f958171a4afac3ed78ee2bb4e86ce";
 
@@ -23,28 +24,16 @@ pub fn check_hash(file_path: &str) -> io::Result<bool> {
     Ok(hash_result == ROM_HASH)
 }
 
-use flate2;
-use flate2::read::GzDecoder;
 
-macro_rules! include_bytes_compressed {
-    ($path:expr) => {{
-        // Load the original bytes
-        let original_bytes = std::include_bytes!($path);
-        
-        // Compress the bytes
-        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-        encoder.write_all(original_bytes).expect("Failed to compress data");
-        let compressed_bytes = encoder.finish().expect("Failed to finish compression");
+pub fn unzip_bytes(zip_bytes: &[u8]) -> Vec<u8> {
+    let cursor = Cursor::new(zip_bytes);
+    let mut archive = ZipArchive::new(cursor).unwrap();
 
-        // Return the compressed bytes
-        compressed_bytes
-    }};
-}
-pub fn get_xor_bytes() -> Vec<u8> {
-    // Use a Cursor to wrap the byte vector
-    let bytes = include_bytes_compressed!("../../../WASM_XOR/sm64_headless.us.wasm.xor");
-    let mut d = GzDecoder::new(Cursor::new(bytes));
-    let mut buffer = Vec::new();
-    d.read_to_end(&mut buffer).expect("Failed to decompress data");
-    buffer
+    // We expect only one file in the ZIP archive
+    let mut file = archive.by_index(0).unwrap();
+    
+    let mut file_data = Vec::new();
+    file.read_to_end(&mut file_data).unwrap();
+
+    file_data
 }

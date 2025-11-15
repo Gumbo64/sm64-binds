@@ -7,7 +7,7 @@ edition = "2024"
 [dependencies]
 sha1 = "0.10.6"
 wasmtime = "38.0.3"
-flate2 = "1.0"
+zip = "6.0.0"
 
 [features]
 default = ["fs"]
