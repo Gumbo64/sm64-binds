@@ -1,3 +1,4 @@
+#[derive(Debug, Clone, Copy)]
 pub struct RandomConfig {
     pub(crate) max_random_action: u32,
     pub(crate) max_window_length: u32,
