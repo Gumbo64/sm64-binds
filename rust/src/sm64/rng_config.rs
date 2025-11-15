@@ -7,7 +7,7 @@ pub struct RandomConfig {
     pub(crate) z_prob: f32,
 }
 impl RandomConfig {
-    pub fn default() -> Self {
+    pub const fn default() -> Self {
         RandomConfig::new(
             5, 
             100, 
@@ -16,7 +16,7 @@ impl RandomConfig {
             0.2)
     }
 
-    pub fn new(max_random_action: u32, max_window_length: u32, a_prob: f32, b_prob: f32, z_prob: f32) -> Self {
+    pub const fn new(max_random_action: u32, max_window_length: u32, a_prob: f32, b_prob: f32, z_prob: f32) -> Self {
         return RandomConfig { 
             max_random_action,
             max_window_length, 
