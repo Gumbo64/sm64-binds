@@ -7,7 +7,7 @@ WASM = WASM
 WASM_JS = WASM_JS
 WASM_ZIP_XOR = WASM_ZIP_XOR
 
-JS_PKG = javascript/pkg
+JS_PKG = javascript/src/scripts/sm64/pkg
 PYTHON_PKG = python/pkg
 RUST_PKG = rust/pkg
 
@@ -59,6 +59,9 @@ sm64-build: copy-rom
 # 	cp $(WASM_ZIP_XOR)/sm64_headless.us.wasm.xor $(PYTHON_PKG)/sm64_headless.us.wasm.xor
 
 	cp $(WASM_ZIP_XOR)/sm64_headless.us.wasm.zip.xor $(RUST_PKG)/sm64_headless.us.wasm.zip.xor
+
+	cp $(WASM_JS)/sm64.us.js $(JS_PKG)/sm64.us.js
+	cp $(WASM_ZIP_XOR)/sm64.us.wasm.zip.xor $(JS_PKG)/sm64.us.wasm.zip.xor
 
 # 	wasm-pack build browser-wasm --release -t bundler -d $(WEB_PROD)
 
