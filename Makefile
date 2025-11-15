@@ -4,11 +4,14 @@ ROM_FILE = baserom.us.z64
 SM64PC = sm64-port
 
 WASM = WASM
+WASM_JS = WASM_JS
 WASM_XOR = WASM_XOR
 
 JS_PKG = javascript/pkg
 PYTHON_PKG = python/pkg
 RUST_PKG = rust/pkg
+
+RUST = rust
 
 RESET  = \033[0m
 RED    = \033[31m
@@ -33,16 +36,25 @@ sm64-build: copy-rom
 		$(MAKE) -C $(SM64PC) -j TARGET_WEB=1; \
 		echo "$(BLUE)\nHEADLESS$(RESET)"; \
 		$(MAKE) -C $(SM64PC) -j TARGET_WEB=1 HEADLESS_VERSION=1; \
-		cp $(SM64PC)/build/us_web/sm64.us.js $(JS_PKG)/sm64.us.js; \
+		cp $(SM64PC)/build/us_web/sm64.us.js $(WASM_JS)/sm64.us.js; \
 		cp $(SM64PC)/build/us_web/sm64.us.wasm $(WASM)/sm64.us.wasm; \
 		cp $(SM64PC)/build/us_web_headless/sm64.us.wasm $(WASM)/sm64_headless.us.wasm; \
 		python3 maketools/xor.py $(WASM)/sm64.us.wasm $(WASM_XOR)/sm64.us.wasm.xor $(ROM_FILE); \
 		python3 maketools/xor.py $(WASM)/sm64_headless.us.wasm $(WASM_XOR)/sm64_headless.us.wasm.xor $(ROM_FILE); \
 	fi
 
+    # so that rust knows when there is an update, it can download again
+
+	cp $(WASM_JS)/sm64.us.js $(JS_PKG)/sm64.us.js
+	cp $(WASM_XOR)/sm64.us.wasm.xor $(JS_PKG)/sm64.us.wasm.xor;
+
 	cp $(WASM_XOR)/sm64_headless.us.wasm.xor $(JS_PKG)/sm64_headless.us.wasm.xor
 	cp $(WASM_XOR)/sm64_headless.us.wasm.xor $(PYTHON_PKG)/sm64_headless.us.wasm.xor
-	cp $(WASM_XOR)/sm64_headless.us.wasm.xor $(RUST_PKG)/sm64_headless.us.wasm.xor
+
+# 	needs to be compressed
+# 	cp $(WASM_XOR)/sm64_headless.us.wasm.xor $(RUST_PKG)/sm64_headless.us.wasm.xor
+	python3 maketools/zip.py $(WASM_XOR)/sm64_headless.us.wasm.xor $(RUST_PKG)/sm64_headless.us.wasm.xor.zip
+
 
 # 	wasm-pack build browser-wasm --release -t bundler -d $(WEB_PROD)
 
