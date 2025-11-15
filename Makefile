@@ -52,8 +52,8 @@ sm64-build: copy-rom
 	cp $(WASM_XOR)/sm64_headless.us.wasm.xor $(PYTHON_PKG)/sm64_headless.us.wasm.xor
 
 # 	needs to be compressed
-# 	cp $(WASM_XOR)/sm64_headless.us.wasm.xor $(RUST_PKG)/sm64_headless.us.wasm.xor
-	python3 maketools/zip.py $(WASM_XOR)/sm64_headless.us.wasm.xor $(RUST_PKG)/sm64_headless.us.wasm.xor.zip
+	cp $(WASM_XOR)/sm64_headless.us.wasm.xor $(RUST_PKG)/sm64_headless.us.wasm.xor
+# 	python3 maketools/zip.py $(WASM_XOR)/sm64_headless.us.wasm.xor $(RUST_PKG)/sm64_headless.us.wasm.xor.zip
 
 
 # 	wasm-pack build browser-wasm --release -t bundler -d $(WEB_PROD)
