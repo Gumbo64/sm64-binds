@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{self, Read, Cursor, Write};
+use std::io::{self, Read, Cursor};
 use sha1::{Sha1, Digest};
 use zip::read::ZipArchive;
 
