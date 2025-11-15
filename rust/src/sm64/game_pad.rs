@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct GamePad {
     pub(crate) button: u16,
     pub(crate) stick_x: i8,
@@ -8,8 +8,12 @@ pub struct GamePad {
 }
 
 impl GamePad {
-    pub fn new(button: u16, stick_x: i8, stick_y: i8) -> Self {
+    pub const fn new(button: u16, stick_x: i8, stick_y: i8) -> Self {
         GamePad { button, stick_x, stick_y }
+    }
+
+    pub const fn default() -> Self {
+        GamePad::new(0,0,0)
     }
 
     pub fn equals(&self, pad: &GamePad) -> bool {
@@ -23,7 +27,7 @@ impl GamePad {
         GamePad::new(button, stick_x, stick_y)
     }
 
-    pub fn is_pressed(&self, button_mask: u16) -> bool {
+    pub const fn is_pressed(&self, button_mask: u16) -> bool {
         (self.button & button_mask) != 0
     }
 
