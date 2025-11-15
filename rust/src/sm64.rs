@@ -32,13 +32,12 @@ impl SM64GameGenerator {
         Ok(SM64GameGenerator { wasm_bytes })
     }
 
-    pub fn create_game(&self, cfg: Option<RandomConfig>) -> Result<SM64Game, Error>  {
-        SM64Game::new(self.wasm_bytes.clone(), cfg)
+    pub fn create_game(&self) -> Result<SM64Game, Error>  {
+        SM64Game::new(self.wasm_bytes.clone())
     }
 
     pub fn rom_to_wasm_bytes(rom_bytes: Vec<u8>) -> Vec<u8> {
         let rom_len = rom_bytes.len();
-        // include_bytes!(concat!(env!("OUT_DIR"), "/sm64_headless.us.wasm.xor"));
         let xor_bytes = include_bytes!("../pkg/sm64_headless.us.wasm.zip.xor");
         let mut wasm_zip_bytes: Vec<u8> = Vec::new();
         for i in 0..xor_bytes.len() {
@@ -58,7 +57,7 @@ pub struct SM64Game {
 }
 
 impl SM64Game {
-    pub fn new(wasm_bytes: Vec<u8>, cfg: Option<RandomConfig>) -> Result<Self, Error> {
+    pub fn new(wasm_bytes: Vec<u8>) -> Result<Self> {
         let engine = Engine::default();
         let mut store: Store<u32> = Store::new(&engine, 4);
         let module = Module::new(&engine, wasm_bytes)?;
@@ -69,17 +68,7 @@ impl SM64Game {
         let instance = linker.instantiate(&mut store, &module)?;
         let memory = instance.get_memory(&mut store, "memory").unwrap();
 
-        let using_rng;
-        if let Some(c) = cfg {
-            using_rng = true;
-            let rng_init = instance.get_typed_func::<(u32, u32, u32, f32, f32, f32), ()>(&mut store, "rng_init")?;
-            rng_init.call(&mut store, (
-                c.seed, c.max_random_action, c.max_window_length, 
-                c.a_prob, c.b_prob, c.z_prob)
-            )?;
-        } else {
-            using_rng = false;
-        }
+        let using_rng = false;
 
         let main_func = instance.get_typed_func::<(), ()>(&mut store, "main_func")?;
         main_func.call(&mut store, ())?;
@@ -92,8 +81,18 @@ impl SM64Game {
         })
     }
 
+    pub fn rng_init(&mut self, seed: u32, cfg: RandomConfig) -> Result<()> {
+        self.using_rng = true;
+        let rng_init = self.instance.get_typed_func::<(u32, u32, u32, f32, f32, f32), ()>(&mut self.store, "rng_init")?;
+        rng_init.call(&mut self.store, (
+            seed, cfg.max_random_action, cfg.max_window_length, 
+            cfg.a_prob, cfg.b_prob, cfg.z_prob)
+        )?;
+        Ok(())
+    }
 
-    pub fn step_game(&mut self, pad: GamePad) -> Result<(), Error> {
+
+    pub fn step_game(&mut self, pad: GamePad) -> Result<()> {
         let step_game = self.instance.get_typed_func::<(u32, i32, i32), ()>(&mut self.store, "step_game")?;
         step_game.call(&mut self.store, (pad.button.into(), pad.stick_x.into(), pad.stick_y.into()))?;
         Ok(())

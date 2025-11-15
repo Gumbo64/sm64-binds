@@ -1,5 +1,5 @@
 mod sm64;
-pub use sm64::{SM64GameGenerator, SM64Game, GamePad, GameState};
+pub use sm64::{SM64GameGenerator, SM64Game, GamePad, GameState, RandomConfig};
 pub mod buttons;
 
 
@@ -13,7 +13,7 @@ mod tests {
         let game_gen = SM64GameGenerator::new("../baserom.us.z64")?;
 
 
-        let mut game = game_gen.create_game(None)?;
+        let mut game = game_gen.create_game()?;
 
         let mut i = 0;
         while i < 2000 {
