@@ -1,4 +1,5 @@
 import FileUpload from "./src/components/FileUpload";
+import { make_config, DEFAULT_CONFIG } from "./src/scripts/sm64/randomConfig";
 import { Sm64VisualEngine, GamepadButtons, GamePad } from "./src/scripts/sm64/Sm64Game";
 
 
@@ -81,18 +82,18 @@ async function iter_with_anim_frame(func, get_speed) {
     });
 }
 
-async function sm64_evaluate(canvas, seed, solution_bytes = []) {
-    let [_, success] = sm64_playback(canvas, solution_bytes, seed)[1];
+async function sm64_evaluate(canvas, solution_bytes = [], seed, random_config=DEFAULT_CONFIG) {
+    let [_, success] = sm64_playback(canvas, solution_bytes, false, seed, random_config)[1];
     return success;
 }
 
-async function sm64_playback(canvas, inputs, seed=NaN, controllable=false, min_speed=2, max_speed=10000) {
+async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, random_config=DEFAULT_CONFIG, min_speed=2, max_speed=10000) {
     let success = false;
     let engine;
     if (isNaN(seed)) {
         engine = await Sm64VisualEngine.create(canvas, 22);
     } else {
-        engine = await Sm64VisualEngine.create(canvas, seed);
+        engine = await Sm64VisualEngine.create(canvas, seed, random_config);
     }
     let speed = max_speed;
     function get_speed() {return speed}
@@ -144,8 +145,8 @@ async function sm64_playback(canvas, inputs, seed=NaN, controllable=false, min_s
 }
 
 
-async function record_single(canvas, seed=NaN, starting_bytes = []) {
-    let [engine, success] = await sm64_playback(canvas, starting_bytes, seed, true);
+async function record_single(canvas, starting_bytes = [], seed=NaN, random_config=DEFAULT_CONFIG) {
+    let [engine, success] = await sm64_playback(canvas, starting_bytes, true, seed, random_config);
     if (success) return [success, solution_bytes];
 
     let solution_bytes = Array.from(starting_bytes); // shallow copy, use the same pad objects but different array
@@ -204,13 +205,13 @@ async function record_single(canvas, seed=NaN, starting_bytes = []) {
 
 }
 
-async function sm64_record(canvas, seed) {
+async function sm64_record(canvas, seed, random_config=DEFAULT_CONFIG) {
     var success = false;
     var starting_bytes = [];
     while (!success) {
-        [success, starting_bytes] = await record_single(canvas, seed, starting_bytes);
+        [success, starting_bytes] = await record_single(canvas, starting_bytes, seed, random_config);
     }
     return starting_bytes;
 }
 
-export {sm64_record, sm64_evaluate, sm64_playback, sm64_test, FileUpload};
+export { sm64_record, sm64_evaluate, sm64_playback, sm64_test, make_config, FileUpload };
