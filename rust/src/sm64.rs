@@ -20,10 +20,11 @@ pub struct SM64GameGenerator {
 
 impl SM64GameGenerator {
     pub fn new(rom_bytes: Vec<u8>) -> Result<Self, Error> {
-        let wasm_bytes = Self::rom_to_wasm_bytes(rom_bytes);
-        if !util::check_hash(&wasm_bytes) {
+        if !util::check_hash(&rom_bytes) {
             return Err(Error::msg("Invalid ROM. Should be a US copy, in z64 format (8.00MB)"));
         };
+        let wasm_bytes = Self::rom_to_wasm_bytes(rom_bytes);
+
         Ok(SM64GameGenerator { wasm_bytes })
     }
     #[cfg(feature = "fs")]
