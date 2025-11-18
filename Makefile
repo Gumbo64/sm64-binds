@@ -63,7 +63,7 @@ sm64-build: copy-rom
 	cp $(WASM_JS)/sm64.us.js $(JS_PKG)/sm64.us.js
 
 # 	just call it a png because webpack freaks out if it sees .xor
-	cp $(WASM_ZIP_XOR)/sm64.us.wasm.zip.xor $(JS_PKG)/sm64.us.wasm.zip.xor.wasm
+	cp $(WASM_ZIP_XOR)/sm64.us.wasm.zip.xor $(JS_PKG)/sm64.us.wasm.zip.xor.png
 
 # 	wasm-pack build browser-wasm --release -t bundler -d $(WEB_PROD)
 

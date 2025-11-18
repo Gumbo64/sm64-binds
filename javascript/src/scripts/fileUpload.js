@@ -1,4 +1,4 @@
-import sm64_ZIP_XOR from './sm64/pkg/sm64.us.wasm.zip.xor.wasm';
+import sm64_ZIP_XOR from './sm64/pkg/sm64.us.wasm.zip.xor.png';
 import JSZip from 'jszip';
 
 // Function to unzip and return the file bytes
