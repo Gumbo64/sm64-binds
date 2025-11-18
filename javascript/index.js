@@ -1,5 +1,5 @@
 import FileUpload from "./src/components/FileUpload";
-import { make_config, DEFAULT_CONFIG } from "./src/scripts/sm64/randomConfig";
+import { make_config } from "./src/scripts/sm64/randomConfig";
 import { Sm64VisualEngine, GamepadButtons, GamePad } from "./src/scripts/sm64/Sm64Game";
 import { getROM } from "./src/scripts/fileUpload";
 
@@ -82,19 +82,17 @@ async function iter_with_anim_frame(func, get_speed) {
     });
 }
 
-async function sm64_evaluate(canvas, solution_bytes = [], seed, random_config=DEFAULT_CONFIG) {
+async function sm64_evaluate(canvas, solution_bytes = [], seed, random_config=null) {
     let [_, success] = sm64_playback(canvas, solution_bytes, false, seed, random_config)[1];
     return success;
 }
 
-async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, random_config=DEFAULT_CONFIG, min_speed=2, max_speed=10000) {
+async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, random_config=null, min_speed=2, max_speed=10000) {
     let success = false;
-    let engine;
-    if (isNaN(seed)) {
-        engine = await Sm64VisualEngine.create(canvas, 22);
-    } else {
-        engine = await Sm64VisualEngine.create(canvas, seed, random_config);
-    }
+    let engine = await Sm64VisualEngine.create(canvas, seed, random_config);
+
+    let using_rng = (random_config === null);
+
     let speed = max_speed;
     function get_speed() {return speed}
     engine.set_audio_enabled(0);
@@ -109,7 +107,7 @@ async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, rando
 
         // assert that the playback matches the seed
         let r_pad = engine.rng_pad(pad);
-        if (!isNaN(seed) && !pad.equals(r_pad)) {
+        if (!using_rng && !pad.equals(r_pad)) {
             throw new Error("Replay inputs do not match seed")
         }
         
@@ -145,9 +143,11 @@ async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, rando
 }
 
 
-async function record_single(canvas, starting_bytes = [], seed=NaN, random_config=DEFAULT_CONFIG) {
+async function record_single(canvas, starting_bytes = [], seed=NaN, random_config=null) {
     let [engine, success] = await sm64_playback(canvas, starting_bytes, true, seed, random_config);
     if (success) return [success, solution_bytes];
+
+    let using_rng = (random_config === null);
 
     let solution_bytes = Array.from(starting_bytes); // shallow copy, use the same pad objects but different array
 
@@ -171,7 +171,7 @@ async function record_single(canvas, starting_bytes = [], seed=NaN, random_confi
         // true controller pad, other pad can change via RNG
 
         let pad = c_pad.clone();
-        if (!isNaN(seed)) pad = engine.rng_pad(pad);
+        if (!using_rng) pad = engine.rng_pad(pad);
         
         engine.step_game(pad);
         solution_bytes.push(pad);
@@ -205,7 +205,7 @@ async function record_single(canvas, starting_bytes = [], seed=NaN, random_confi
 
 }
 
-async function sm64_record(canvas, seed, random_config=DEFAULT_CONFIG) {
+async function sm64_record(canvas, seed=NaN, random_config=null) {
     var success = false;
     var starting_bytes = [];
     while (!success) {

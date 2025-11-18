@@ -1,6 +1,5 @@
 import { getSM64WASM } from "../fileUpload.js"
 import SM64_LIB from "./pkg/sm64.us.js"
-import { DEFAULT_CONFIG } from "./randomConfig.js";
 
 async function instantiateWasmSM64(info, func) {
     const wasmBuffer = await getSM64WASM();
@@ -144,7 +143,7 @@ class Sm64VisualEngine {
         this.memory = memory
         this.rng_config = rng_config;
     }
-    static async create(canvas, seed, rng_config=DEFAULT_CONFIG) {
+    static async create(canvas, seed=NaN, rng_config=null) {
         let memory = new WebAssembly.Memory({
             initial: 10000,
             maximum: 10000,
