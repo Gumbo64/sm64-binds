@@ -28,12 +28,15 @@ async function storeROM(romArrayBuffer) {
     await updateWASMs();
 }
 
-async function getROMBytes() {
-    return new Uint8Array(await getFile("ROM"));
+async function getROM() {
+    return await getFile("ROM");
+}
+async function getSM64WASM() {
+    return await getFile("sm64.us.wasm");
 }
 
 async function isRomCached() {
-    const request = await getFile("ROM");
+    const request = await getROM();
     return request !== undefined;
 }
 async function updateWASMs() {
@@ -138,4 +141,4 @@ async function openDatabase() {
 }
 
 
-export {calculateFileHash, storeROM, updateWASMs, isRomCached, getROMBytes};
+export {calculateFileHash, storeROM, updateWASMs, isRomCached, getROM, getSM64WASM};
