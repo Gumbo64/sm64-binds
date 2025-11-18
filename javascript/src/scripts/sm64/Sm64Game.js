@@ -1,9 +1,9 @@
-import { getFile } from "../fileUpload.js"
+import { getSM64WASM } from "../fileUpload.js"
 import SM64_LIB from "./pkg/sm64.us.js"
 import { DEFAULT_CONFIG } from "./randomConfig.js";
 
 async function instantiateWasmSM64(info, func) {
-    const wasmBuffer = await getFile("sm64.us.wasm");
+    const wasmBuffer = await getSM64WASM();
     const instance = await WebAssembly.instantiate(wasmBuffer, info);
     func(instance["instance"], instance["module"]);
 }

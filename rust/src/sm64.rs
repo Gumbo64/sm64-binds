@@ -133,6 +133,7 @@ impl SM64Game {
         let pad = GamePad::from_bytes(&buffer);
         Ok(pad)
     }
+    
     pub fn using_rng(&self) -> bool {
         self.using_rng
     }

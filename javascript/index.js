@@ -1,7 +1,7 @@
 import FileUpload from "./src/components/FileUpload";
 import { make_config, DEFAULT_CONFIG } from "./src/scripts/sm64/randomConfig";
 import { Sm64VisualEngine, GamepadButtons, GamePad } from "./src/scripts/sm64/Sm64Game";
-
+import { getROM } from "./src/scripts/fileUpload";
 
 async function sm64_test(canvas) {
     let engine = await Sm64VisualEngine.create(canvas, 22);
@@ -214,4 +214,4 @@ async function sm64_record(canvas, seed, random_config=DEFAULT_CONFIG) {
     return starting_bytes;
 }
 
-export { sm64_record, sm64_evaluate, sm64_playback, sm64_test, make_config, FileUpload };
+export { sm64_record, sm64_evaluate, sm64_playback, sm64_test, make_config, FileUpload, getROM };

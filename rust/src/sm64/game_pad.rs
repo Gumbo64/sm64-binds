@@ -20,8 +20,8 @@ impl GamePad {
         self.button == pad.button && self.stick_x == pad.stick_x && self.stick_y == pad.stick_y
     }
 
-    pub fn from_bytes(data: &[u8]) -> Self {
-        let button = u16::from_le_bytes(data[0..1].try_into().unwrap());
+    pub fn from_bytes(data: &[u8;4]) -> Self {
+        let button = u16::from_le_bytes(data[0..2].try_into().unwrap());
         let stick_x = data[2] as i8;
         let stick_y = data[3] as i8;
         GamePad::new(button, stick_x, stick_y)
