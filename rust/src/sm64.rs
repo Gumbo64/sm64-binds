@@ -30,7 +30,7 @@ impl SM64GameGenerator {
             Err(_) => {return Err(Error::msg("Invalid ROM. Should be a US copy, in z64 format (8.00MB)"));}
         };
         let rom_bytes = std::fs::read(rom_path)?;
-        Self::from_rom_bytes(rom_bytes)
+        Self::new(rom_bytes)
     }
     pub fn create_game(&self) -> Result<SM64Game, Error>  {
         SM64Game::new(self.wasm_bytes.clone())
