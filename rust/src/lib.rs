@@ -5,14 +5,12 @@ pub mod buttons;
 
 #[cfg(test)]
 mod tests {
-    use wasmtime::Error;
+    use anyhow::Error;
     use crate::{SM64GameGenerator, buttons, GamePad};
     #[test]
     fn main() -> Result<(), Error> {
-        // let game_gen = SM64GameGenerator::from_rom_bytes(include_bytes!("../../baserom.us.z64").to_vec())?;
-        let game_gen = SM64GameGenerator::new("../baserom.us.z64")?;
-
-
+        let game_gen = SM64GameGenerator::new(include_bytes!("../../baserom.us.z64").to_vec())?;
+        // let game_gen = SM64GameGenerator::from_file("../baserom.us.z64")?;
         let mut game = game_gen.create_game()?;
 
         let mut i = 0;

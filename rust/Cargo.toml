@@ -1,18 +1,21 @@
 [package]
 name = "sm64-binds"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2024"
 
 description = "Mario 64 using WASM. Requires a US .z64 version ROM to work (8.00MB)"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-serde = "1.0.228"
+anyhow = "1.0.100"
+serde = { version = "1.0.219", features = ["derive"] }
 sha1 = "0.10.6"
-wasmtime = "38.0.3"
+wasmer = { version = "6.1.0" }
 zip = "6.0.0"
 
 [features]
-default = ["fs"]
-
+default = []
 fs = []
+
+[lib]
+crate-type = ["cdylib", "rlib"]
