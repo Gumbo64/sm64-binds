@@ -27,6 +27,11 @@ async function storeROM(romArrayBuffer) {
     await storeFile("ROM", romBuffer);
     await updateWASMs();
 }
+
+async function getROMBytes() {
+    return new Uint8Array(await getFile("ROM"));
+}
+
 async function isRomCached() {
     const request = await getFile("ROM");
     return request !== undefined;
@@ -133,4 +138,4 @@ async function openDatabase() {
 }
 
 
-export {calculateFileHash, storeROM, updateWASMs, getFile, isRomCached};
+export {calculateFileHash, storeROM, updateWASMs, isRomCached, getROMBytes};
