@@ -154,7 +154,7 @@ class Sm64VisualEngine {
             "wasmMemory": memory
         });
 
-        if (rng_config != null) {
+        if (rng_config !== null) {
             game._rng_init(
                 seed, 
                 rng_config["max_random_action"], 

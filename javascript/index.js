@@ -91,7 +91,7 @@ async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, rando
     let success = false;
     let engine = await Sm64VisualEngine.create(canvas, seed, random_config);
 
-    let using_rng = (random_config === null);
+    let using_rng = (random_config !== null);
 
     let speed = max_speed;
     function get_speed() {return speed}
@@ -147,7 +147,7 @@ async function record_single(canvas, starting_bytes = [], seed=NaN, random_confi
     let [engine, success] = await sm64_playback(canvas, starting_bytes, true, seed, random_config);
     if (success) return [success, solution_bytes];
 
-    let using_rng = (random_config === null);
+    let using_rng = (random_config !== null);
 
     let solution_bytes = Array.from(starting_bytes); // shallow copy, use the same pad objects but different array
 
