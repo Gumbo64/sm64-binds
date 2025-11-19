@@ -1,13 +1,16 @@
 import { useEffect } from "react";
 import { useRef, useState } from "react";
-import {sm64_record, sm64_test} from "sm64-binds-frontend";
+import {sm64_record, sm64_test, make_config} from "sm64-binds-frontend";
 import './Game.css';
 
 function Game() {
   const canvasRef = useRef(null);
   function startGame() {
-    // sm64_record(canvasRef.current, 22);
-    sm64_test(canvasRef.current);
+    let seed = 22;
+    let rng_config = make_config(64, 10*(60*30), 100, 5, 0.5, 0.5, 0.2);
+
+    sm64_record(canvasRef.current, seed, rng_config);
+    // sm64_test(canvasRef.current);
   }
 
   useEffect(() => {

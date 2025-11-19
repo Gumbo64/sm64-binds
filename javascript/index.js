@@ -107,7 +107,7 @@ async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, rando
 
         // assert that the playback matches the seed
         let r_pad = engine.rng_pad(pad);
-        if (!using_rng && !pad.equals(r_pad)) {
+        if (using_rng && !pad.equals(r_pad)) {
             throw new Error("Replay inputs do not match seed")
         }
         
@@ -171,7 +171,7 @@ async function record_single(canvas, starting_bytes = [], seed=NaN, random_confi
         // true controller pad, other pad can change via RNG
 
         let pad = c_pad.clone();
-        if (!using_rng) pad = engine.rng_pad(pad);
+        if (using_rng) pad = engine.rng_pad(pad);
         
         engine.step_game(pad);
         solution_bytes.push(pad);
