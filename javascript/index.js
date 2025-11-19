@@ -3,6 +3,10 @@ import { make_config } from "./src/scripts/sm64/randomConfig";
 import { Sm64VisualEngine, GamepadButtons, GamePad } from "./src/scripts/sm64/Sm64Game";
 import { getROM } from "./src/scripts/fileUpload";
 
+// for playback
+const MIN_SPEED = 2;
+const MAX_SPEED = 10000;
+
 async function sm64_test(canvas) {
     let engine = await Sm64VisualEngine.create(canvas, 22);
 
@@ -50,10 +54,12 @@ async function sm64_test(canvas) {
     return [success, solution_bytes];
 
 }
-async function iter_with_anim_frame(func, get_speed) {
+async function iter_with_anim_frame(func, get_speed, kill_signal= async () => {false}) {
     let done = false;
+    let killed = false;
+
     let target_time = 0;
-    const loop = (time) => {
+    const loop = async (time) => {
         time *= 0.03; // milliseconds to frame count (33.333 ms -> 1)
         if (time >= target_time + 100.0) {
             // We are lagging 100 frames behind, probably due to coming back after inactivity,
@@ -62,7 +68,8 @@ async function iter_with_anim_frame(func, get_speed) {
         }
         while (time >= target_time + 1.0/get_speed()) {
             done = func();
-            if (done) return;
+            killed = await kill_signal();
+            if (done || killed) return;
             target_time = target_time + 1.0/get_speed();
         }
         requestAnimationFrame(loop);
@@ -70,9 +77,11 @@ async function iter_with_anim_frame(func, get_speed) {
     requestAnimationFrame(loop);
     
 
-    return new Promise((resolve) => {
-        const checkEndCondition = () => {
-            if (done) {
+    return new Promise((resolve, reject) => {
+        const checkEndCondition = async () => {
+            if (killed) {                
+                reject();
+            } else if (done) {
                 resolve();
             } else {
                 setTimeout(checkEndCondition, 100); // Polling every 100ms to check end conditions
@@ -82,12 +91,12 @@ async function iter_with_anim_frame(func, get_speed) {
     });
 }
 
-async function sm64_evaluate(canvas, solution_bytes = [], seed, random_config=null) {
-    let [_, success] = sm64_playback(canvas, solution_bytes, false, seed, random_config)[1];
+async function sm64_evaluate(canvas, solution_bytes = [], seed, random_config=null, kill_signal = async () => {false}) {
+    let [_, success] = sm64_playback(canvas, solution_bytes, false, seed, random_config, MIN_SPEED, MAX_SPEED, kill_signal)[1];
     return success;
 }
 
-async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, random_config=null, min_speed=2, max_speed=10000) {
+async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, random_config=null, min_speed=MIN_SPEED, max_speed=MAX_SPEED, kill_signal = async () => {false}) {
     let success = false;
     let engine = await Sm64VisualEngine.create(canvas, seed, random_config);
 
@@ -137,14 +146,15 @@ async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, rando
         return false;
     }
     
-    await iter_with_anim_frame(step, get_speed);
+    await iter_with_anim_frame(step, get_speed, kill_signal);
+    
     engine.set_audio_enabled(1);
     return [engine, success];
 }
 
 
-async function record_single(canvas, starting_bytes = [], seed=NaN, random_config=null) {
-    let [engine, success] = await sm64_playback(canvas, starting_bytes, true, seed, random_config);
+async function record_single(canvas, starting_bytes = [], seed=NaN, random_config=null, kill_signal = async () => {false}) {
+    let [engine, success] = await sm64_playback(canvas, starting_bytes, true, seed, random_config, MIN_SPEED, MAX_SPEED, kill_signal);
     if (success) return [success, solution_bytes];
 
     let using_rng = (random_config !== null);
@@ -199,17 +209,18 @@ async function record_single(canvas, starting_bytes = [], seed=NaN, random_confi
         return false;
     }
     
-    await iter_with_anim_frame(step, get_speed);
+    await iter_with_anim_frame(step, get_speed, kill_signal);
 
     return [success, solution_bytes];
 
 }
 
-async function sm64_record(canvas, seed=NaN, random_config=null) {
-    var success = false;
-    var starting_bytes = [];
+async function sm64_record(canvas, seed=NaN, random_config=null, kill_signal = async () => {false}) {
+    let success = false;
+    let starting_bytes = [];
+
     while (!success) {
-        [success, starting_bytes] = await record_single(canvas, starting_bytes, seed, random_config);
+        [success, starting_bytes] = await record_single(canvas, starting_bytes, seed, random_config, kill_signal);
     }
     return starting_bytes;
 }

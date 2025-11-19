@@ -3,13 +3,24 @@ import { useRef, useState } from "react";
 import {sm64_record, sm64_test, make_config} from "sm64-binds-frontend";
 import './Game.css';
 
+var interrupt_game = false;
+function get_interrupt() {
+  return interrupt_game;
+}
+
 function Game() {
   const canvasRef = useRef(null);
-  function startGame() {
+  async function startGame() {
     let seed = 22;
     let rng_config = make_config(64, 10*(60*30), 100, 5, 0.5, 0.5, 0.2);
 
-    sm64_record(canvasRef.current, seed, rng_config);
+    try {
+      let solution = await sm64_record(canvasRef.current, seed, rng_config, get_interrupt);
+      console.log(solution);
+    } catch (_) {
+      console.log("Kill signal activated");
+    }
+
     // sm64_test(canvasRef.current);
   }
 
@@ -90,6 +101,7 @@ function Game() {
             </tr>
           </tbody>
         </table>
+        <button onClick={() => {interrupt_game=true}}>Kill game</button>
       </div>
       <div id="container">
         <canvas ref={canvasRef} className="emscripten" id="canvas"></canvas>
