@@ -27,7 +27,6 @@ async function sm64_test(canvas) {
         if (i % 2 == 0) {
             pad.button = GamepadButtons.A_BUTTON;
         }
-        console.log(i)
         
         engine.step_game(pad);
 
@@ -107,7 +106,6 @@ async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, game_
     // Loop through all frames
     let i = 0;
     function step() {
-        console.log("playback ", i);
         if (i >= inputs.length) return true;
         let pad = inputs[i];
         i+=1;
@@ -165,7 +163,6 @@ async function record_single(canvas, starting_bytes = [], seed=NaN, game_config 
     // Loop through all frames
     let i = starting_bytes.length;
     function step() {
-        console.log("record ", i);
         if (game_config.has_max_solution_time() && i >= game_config.max_solution_time) return true;
         i+=1;
 
