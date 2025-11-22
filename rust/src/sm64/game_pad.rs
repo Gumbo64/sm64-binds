@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct GamePad {
-    pub(crate) button: u16,
-    pub(crate) stick_x: i8,
-    pub(crate) stick_y: i8,
+    pub button: u16,
+    pub stick_x: i8,
+    pub stick_y: i8,
 }
 
 impl GamePad {
