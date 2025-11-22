@@ -1,25 +1,28 @@
 #[derive(Debug, Clone, Copy)]
-pub struct RandomConfig {
-    pub(crate) max_random_action: u32,
-    pub(crate) max_window_length: u32,
+pub struct RngConfig {
+    pub(crate) random_amount: u32,
+    pub(crate) random_burst_length: u32,
+    pub(crate) window_length: u32,
     pub(crate) a_prob: f32,
     pub(crate) b_prob: f32,
     pub(crate) z_prob: f32,
 }
-impl RandomConfig {
+impl RngConfig {
     pub const fn default() -> Self {
-        RandomConfig::new(
+        RngConfig::new(
             5, 
+            2,
             100, 
             0.5, 
             0.5, 
             0.2)
     }
 
-    pub const fn new(max_random_action: u32, max_window_length: u32, a_prob: f32, b_prob: f32, z_prob: f32) -> Self {
-        return RandomConfig { 
-            max_random_action,
-            max_window_length, 
+    pub const fn new(random_amount: u32, random_burst_length: u32, window_length: u32, a_prob: f32, b_prob: f32, z_prob: f32) -> Self {
+        return RngConfig { 
+            random_amount,
+            random_burst_length,
+            window_length, 
             a_prob, 
             b_prob,
             z_prob 

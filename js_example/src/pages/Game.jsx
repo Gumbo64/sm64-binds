@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useRef, useState } from "react";
-import {sm64_record, sm64_test, make_config} from "sm64-binds-frontend";
+import { sm64_record, sm64_test, GameConfig, RngConfig } from "sm64-binds-frontend";
 import './Game.css';
 
 var interrupt_game = false;
@@ -12,13 +12,13 @@ function Game() {
   const canvasRef = useRef(null);
   async function startGame() {
     let seed = 22;
-    let rng_config = make_config(64, 10*(60*30), 100, 5, 0.5, 0.5, 0.2);
+    let game_config = new GameConfig(1000, null);
 
     try {
-      let solution = await sm64_record(canvasRef.current, seed, rng_config, get_interrupt);
+      let solution = await sm64_record(canvasRef.current, seed, game_config, get_interrupt);
       console.log(solution);
-    } catch (_) {
-      console.log("Kill signal activated");
+    } catch (error) {
+      console.log(error);
     }
 
     // sm64_test(canvasRef.current);

@@ -155,14 +155,17 @@ class Sm64VisualEngine {
         });
 
         if (rng_config !== null) {
-            game._rng_init(
-                seed, 
-                rng_config["max_random_action"], 
-                rng_config["max_window_length"], 
-                rng_config["A_prob"], 
-                rng_config["B_prob"], 
-                rng_config["Z_prob"]
-            )
+            game._set_rng_config(
+                rng_config.window_length, 
+                rng_config.random_amount, 
+                rng_config.random_burst_length, 
+                rng_config.A_prob, 
+                rng_config.B_prob, 
+                rng_config.Z_prob
+            );
+        }
+        if (!isNaN(seed)) {
+            game._set_rng_seed(seed);
         }
         game._main_func();
 

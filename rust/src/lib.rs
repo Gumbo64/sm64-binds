@@ -1,12 +1,12 @@
 mod sm64;
-pub use sm64::{SM64GameGenerator, SM64Game, GamePad, GameState, RandomConfig};
+pub use sm64::{SM64GameGenerator, SM64Game, GamePad, GameState, RngConfig};
 pub mod buttons;
 
 
 #[cfg(test)]
 mod tests {
     use anyhow::Error;
-    use crate::{GamePad, RandomConfig, SM64GameGenerator, buttons};
+    use crate::{GamePad, SM64GameGenerator, buttons};
     #[test]
     fn no_rng() -> Result<(), Error> {
         let game_gen = SM64GameGenerator::new(include_bytes!("../../baserom.us.z64").to_vec())?;
@@ -50,9 +50,10 @@ mod tests {
         let mut game = game_gen.create_game()?;
 
         let seed = 22;
-        let cfg = RandomConfig::default();
+        // let cfg = RngConfig::default();
 
-        game.rng_init(seed, cfg)?;
+        // game.set_rng_config(cfg)?;
+        game.set_rng_seed(seed)?;
 
         let mut i = 0;
         while i < 2000 {

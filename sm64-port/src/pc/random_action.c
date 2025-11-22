@@ -1,30 +1,27 @@
 #include "random_action.h"
-
+#include <stdint.h>
 
 typedef struct {
-    // Use a seed for randomness
-    uint32_t seed;
-    uint32_t max_window_length;
-    uint32_t max_random_action;
-    uint32_t window_cur_amount;
-    uint32_t random_cur_amount;
+    uint32_t window_length;
+    uint32_t random_amount;
+    uint32_t random_burst_length;
     float A_prob;
     float B_prob;
     float Z_prob;
-} RandomAction;
+} RngConfig;
 
-static RandomAction rng = {
-    22, 100, 5, 0, 0, 0.5, 0.5, 0.2
+static RngConfig rng = {
+     100, 5, 2, 0.5, 0.5, 0.2
 };
+
+static uint32_t random_seed = 22;
 
 uint32_t rng_next() {
     // this is xorshift32
-    uint32_t x = rng.seed;
-    x ^= (x << 13);
-    x ^= (x >> 17);
-    x ^= (x << 5);
-    rng.seed = x;
-    return x;
+    random_seed ^= (random_seed << 13);
+    random_seed ^= (random_seed >> 17);
+    random_seed ^= (random_seed << 5);
+    return random_seed;
 }
 
 float rng_next_prob() {
@@ -49,6 +46,7 @@ OSContPad *rng_pad(uint16_t button, uint8_t stick_x, uint8_t stick_y) {
         return &pad;
     }
 
+    pad.button = 0;
     pad.button |= A_BUTTON * (rng_next_prob() < rng.A_prob);
     pad.button |= B_BUTTON * (rng_next_prob() < rng.B_prob);
     pad.button |= Z_TRIG * (rng_next_prob() < rng.Z_prob);
@@ -60,37 +58,48 @@ OSContPad *rng_pad(uint16_t button, uint8_t stick_x, uint8_t stick_y) {
 }
 
 void rng_update(uint32_t input) {
-    rng.seed = rng_next() ^ input;
-    rng.seed = rng_next();
+    random_seed = rng_next() ^ input;
+    random_seed = rng_next();
 }
 
+void set_rng_seed(uint32_t seed) {
+    random_seed = seed;
+}
 
-void rng_init(uint32_t seed, uint32_t max_random_action, uint32_t max_window_length, float A_prob, float B_prob, float Z_prob) {
-    rng.seed = seed;
-    rng.max_window_length = max_window_length;
-    rng.max_random_action = max_random_action;
-    rng.window_cur_amount = 0;
-    rng.random_cur_amount = 0;
+void set_rng_config(uint32_t window_length, uint32_t random_amount, uint32_t random_burst_length, float A_prob, float B_prob, float Z_prob) {
+    rng.window_length = window_length;
+    rng.random_amount = random_amount;
+    rng.random_burst_length = random_burst_length;
     rng.A_prob = A_prob;
     rng.B_prob = B_prob;
     rng.Z_prob = Z_prob;
 }
 
 int is_random_action() {
-    if (rng.window_cur_amount == 0) {
-        // Reset the window length and random action amount
-        rng.window_cur_amount = rng.max_window_length;
-        rng.random_cur_amount = rng.max_random_action;
+    static uint32_t cur_window_length = 0;
+    static uint32_t cur_random_amount = 0;
+    static uint32_t cur_burst_count = 0;
+
+    if (cur_burst_count > 0) {
+        cur_burst_count -= 1;
+        return 1;
     }
 
-    double prob_random = (double)rng.random_cur_amount / (double)rng.window_cur_amount;
+    if (cur_window_length == 0) {
+        // Reset the window length and random action amount
+        cur_window_length = rng.window_length;
+        cur_random_amount = rng.random_amount;
+    }
+
+    double prob_random = (double)cur_random_amount / (double)cur_window_length;
     float r = rng_next_prob();
     int is_random = r < prob_random;
     if (is_random) {
-        rng.random_cur_amount -= 1;
+        cur_random_amount -= 1;
+        cur_burst_count = rng.random_burst_length - 1; // one is used in this function call
     }
     
-    rng.window_cur_amount -= 1;
+    cur_window_length -= 1;
 
     return is_random;
 }

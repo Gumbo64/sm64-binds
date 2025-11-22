@@ -10,7 +10,7 @@ mod util;
 
 pub use game_pad::GamePad;
 pub use game_state::GameState;
-pub use rng_config::RandomConfig;
+pub use rng_config::RngConfig;
 use util::unzip_bytes;
 
 #[derive(Debug, Clone)]
@@ -93,16 +93,24 @@ impl SM64Game {
         })
     }
 
-    pub fn rng_init(&mut self, seed: u32, cfg: RandomConfig) -> Result<()> {
+    pub fn set_rng_config(&mut self, cfg: RngConfig) -> Result<()> {
         self.using_rng = true;
-        let rng_init: TypedFunction<(u32, u32, u32, f32, f32, f32), ()> = self.instance.exports.get_typed_function::<(u32, u32, u32, f32, f32, f32), ()>(&mut self.store, "rng_init")?;
-        rng_init.call(&mut self.store,
-            seed, cfg.max_random_action, cfg.max_window_length, 
+        let set_rng_config: TypedFunction<(u32, u32, u32, f32, f32, f32), ()> = self.instance.exports.get_typed_function::<(u32, u32, u32, f32, f32, f32), ()>(&mut self.store, "set_rng_config")?;
+        set_rng_config.call(&mut self.store,
+            cfg.window_length, cfg.random_amount, cfg.random_burst_length,  
             cfg.a_prob, cfg.b_prob, cfg.z_prob
         )?;
         Ok(())
     }
 
+    pub fn set_rng_seed(&mut self, seed: u32) -> Result<()> {
+        self.using_rng = true;
+        let set_rng_config: TypedFunction<u32, ()> = self.instance.exports.get_typed_function::<u32, ()>(&mut self.store, "set_rng_seed")?;
+        set_rng_config.call(&mut self.store,
+            seed
+        )?;
+        Ok(())
+    }
 
     pub fn step_game(&mut self, pad: GamePad) -> Result<()> {
         let step_game: TypedFunction<(u32, i32, i32), ()> = self.instance.exports.get_typed_function::<(u32, i32, i32), ()>(&mut self.store, "step_game")?;

@@ -10873,7 +10873,8 @@ var _get_mario_state = Module['_get_mario_state'] = makeInvalidEarlyAccess('_get
 var _get_game_state = Module['_get_game_state'] = makeInvalidEarlyAccess('_get_game_state');
 var _main = makeInvalidEarlyAccess('_main');
 var _rng_pad = Module['_rng_pad'] = makeInvalidEarlyAccess('_rng_pad');
-var _rng_init = Module['_rng_init'] = makeInvalidEarlyAccess('_rng_init');
+var _set_rng_seed = Module['_set_rng_seed'] = makeInvalidEarlyAccess('_set_rng_seed');
+var _set_rng_config = Module['_set_rng_config'] = makeInvalidEarlyAccess('_set_rng_config');
 var _get_controller_pad = Module['_get_controller_pad'] = makeInvalidEarlyAccess('_get_controller_pad');
 var _strerror = makeInvalidEarlyAccess('_strerror');
 var ___funcs_on_exit = makeInvalidEarlyAccess('___funcs_on_exit');
@@ -10897,7 +10898,8 @@ function assignWasmExports(wasmExports) {
   _get_game_state = Module['_get_game_state'] = createExportWrapper('get_game_state', 0);
   _main = createExportWrapper('main', 2);
   _rng_pad = Module['_rng_pad'] = createExportWrapper('rng_pad', 3);
-  _rng_init = Module['_rng_init'] = createExportWrapper('rng_init', 6);
+  _set_rng_seed = Module['_set_rng_seed'] = createExportWrapper('set_rng_seed', 1);
+  _set_rng_config = Module['_set_rng_config'] = createExportWrapper('set_rng_config', 6);
   _get_controller_pad = Module['_get_controller_pad'] = createExportWrapper('get_controller_pad', 0);
   _strerror = createExportWrapper('strerror', 1);
   ___funcs_on_exit = createExportWrapper('__funcs_on_exit', 0);
