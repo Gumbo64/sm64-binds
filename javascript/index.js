@@ -50,7 +50,7 @@ async function sm64_test(canvas) {
     
     await iter_with_anim_frame(step, get_speed);
 
-    return [success, solution_bytes];
+    return [success, solution];
 
 }
 async function iter_with_anim_frame(func, get_speed, kill_signal= async () => {false}) {
@@ -90,18 +90,20 @@ async function iter_with_anim_frame(func, get_speed, kill_signal= async () => {f
     });
 }
 
-async function sm64_evaluate(canvas, solution_bytes = [], seed, game_config = GameConfig.defaultConfig(), kill_signal = async () => {false}) {
-    let [_, success] = sm64_playback(canvas, solution_bytes, false, seed, game_config, MIN_SPEED, MAX_SPEED, kill_signal)[1];
+async function sm64_evaluate(canvas, solution = [], seed, game_config = GameConfig.defaultConfig(), kill_signal = async () => {false}) {
+    let [_, success] = sm64_playback(canvas, solution, false, seed, game_config, MIN_SPEED, MAX_SPEED, kill_signal);
     return success;
 }
 
 async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, game_config = GameConfig.defaultConfig(), min_speed=MIN_SPEED, max_speed=MAX_SPEED, kill_signal = async () => {false}) {
     let success = false;
+    canvas.id = "canvas";
     let engine = await Sm64VisualEngine.create(canvas, seed, game_config.rng_config);
+    canvas.id = "";
 
     let speed = max_speed;
     function get_speed() {return speed}
-    engine.set_audio_enabled(0);
+    if (speed != 1) engine.set_audio_enabled(0);
 
     // Loop through all frames
     let i = 0;
@@ -112,7 +114,7 @@ async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, game_
 
         // assert that the playback matches the seed
         let r_pad = engine.rng_pad(pad);
-        if (game_config.has_rng() && !pad.equals(r_pad)) {
+        if (game_config.has_rng() && !r_pad.equals(pad)) {
             throw new Error("Replay inputs do not match seed")
         }
         
@@ -149,11 +151,11 @@ async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, game_
 }
 
 
-async function record_single(canvas, starting_bytes = [], seed=NaN, game_config = GameConfig.defaultConfig(), kill_signal = async () => {false}) {
-    let [engine, success] = await sm64_playback(canvas, starting_bytes, true, seed, game_config, MIN_SPEED, MAX_SPEED, kill_signal);
-    if (success) return [success, solution_bytes];
+async function record_single(canvas, starting_solution = [], seed=NaN, game_config = GameConfig.defaultConfig(), kill_signal = async () => {false}) {
+    let [engine, success] = await sm64_playback(canvas, starting_solution, true, seed, game_config, MIN_SPEED, MAX_SPEED, kill_signal);
+    if (success) return [success, solution];
 
-    let solution_bytes = Array.from(starting_bytes); // shallow copy, use the same pad objects but different array
+    let solution = Array.from(starting_solution); // shallow copy, use the same pad objects but different array
 
     let cancel_start_press = true;
 
@@ -161,7 +163,7 @@ async function record_single(canvas, starting_bytes = [], seed=NaN, game_config 
     function get_speed() {return speed}
 
     // Loop through all frames
-    let i = starting_bytes.length;
+    let i = starting_solution.length;
     function step() {
         if (game_config.has_max_solution_time() && i >= game_config.max_solution_time) return true;
         i+=1;
@@ -183,7 +185,7 @@ async function record_single(canvas, starting_bytes = [], seed=NaN, game_config 
         if (game_config.has_rng()) pad = engine.rng_pad(pad);
         
         engine.step_game(pad);
-        solution_bytes.push(pad);
+        solution.push(pad);
 
         let state = engine.get_game_state();
         // console.log(state.toString());
@@ -210,18 +212,18 @@ async function record_single(canvas, starting_bytes = [], seed=NaN, game_config 
     
     await iter_with_anim_frame(step, get_speed, kill_signal);
 
-    return [success, solution_bytes];
+    return [success, solution];
 
 }
 
 async function sm64_record(canvas, seed=NaN, game_config = GameConfig.defaultConfig(), kill_signal = async () => {false}) {
     let success = false;
-    let starting_bytes = [];
+    let starting_solution = [];
 
     while (!success) {
-        [success, starting_bytes] = await record_single(canvas, starting_bytes, seed, game_config, kill_signal);
+        [success, starting_solution] = await record_single(canvas, starting_solution, seed, game_config, kill_signal);
     }
-    return starting_bytes;
+    return starting_solution;
 }
 
 export { sm64_record, sm64_evaluate, sm64_playback, sm64_test, GameConfig, RngConfig, FileUpload, getROM };

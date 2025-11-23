@@ -104,7 +104,7 @@ function Game() {
         <button onClick={() => {interrupt_game=true}}>Kill game</button>
       </div>
       <div id="container">
-        <canvas ref={canvasRef} className="emscripten" id="canvas"></canvas>
+        <canvas ref={canvasRef} className="emscripten"></canvas>
       </div>
     </>
   );
