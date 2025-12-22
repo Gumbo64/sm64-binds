@@ -1,0 +1,1 @@
+https://github.com/Gumbo64/sm64-binds

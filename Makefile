@@ -59,6 +59,8 @@ sm64-build: copy-rom
 # 	cp $(WASM_ZIP_XOR)/sm64_headless.us.wasm.xor $(PYTHON_PKG)/sm64_headless.us.wasm.xor
 
 	cp $(WASM_ZIP_XOR)/sm64_headless.us.wasm.zip.xor $(RUST_PKG)/sm64_headless.us.wasm.zip.xor
+	cp $(WASM_ZIP_XOR)/sm64_headless.us.wasm.zip.xor $(PYTHON_PKG)/sm64_headless.us.wasm.zip.xor
+
 
 	cp $(WASM_JS)/sm64.us.js $(JS_PKG)/sm64.us.js
 

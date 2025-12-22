@@ -8,7 +8,7 @@ const MIN_SPEED = 2;
 const MAX_SPEED = 1000;
 
 async function sm64_test(canvas) {
-    let engine = await Sm64VisualEngine.create(canvas, 22);
+    let [engine, success] = await sm64_playback(canvas, []);
 
     let speed = 1;
     function get_speed() {return speed}
@@ -30,7 +30,8 @@ async function sm64_test(canvas) {
         
         engine.step_game(pad);
 
-
+        let state = engine.get_game_state();
+        console.log(state.pos)
         let c_pad = engine.get_controller_pad();
         if (c_pad.is_pressed(GamepadButtons.U_JPAD)) {
             return true;

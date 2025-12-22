@@ -14,12 +14,13 @@ function Game() {
     let seed = 22;
     let game_config = new GameConfig(1000, null);
 
-    try {
-      let solution = await sm64_record(canvasRef.current, seed, game_config, get_interrupt);
-      console.log(solution);
-    } catch (error) {
-      console.log(error);
-    }
+    await sm64_test(canvasRef.current);
+    // try {
+    //   let solution = await sm64_record(canvasRef.current, seed, game_config, get_interrupt);
+    //   console.log(solution);
+    // } catch (error) {
+    //   console.log(error);
+    // }
 
     // sm64_test(canvasRef.current);
   }
