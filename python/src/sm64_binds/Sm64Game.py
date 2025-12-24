@@ -175,7 +175,7 @@ class SM64GameGenerator:
         # load XOR bytes exactly like Rust include_bytes!
 
         base_dir = os.path.dirname(__file__)
-        xor_path = os.path.join(base_dir, "..", "..", "pkg", "sm64_headless.us.wasm.zip.xor")
+        xor_path = os.path.join(base_dir, "pkg", "sm64_headless.us.wasm.zip.xor")
 
         with open(xor_path, "rb") as f:
             xor_bytes = f.read()

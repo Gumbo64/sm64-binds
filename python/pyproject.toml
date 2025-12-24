@@ -1,6 +1,6 @@
 [project]
 name = "sm64-binds"
-version = "0.0.2"
+version = "0.0.4"
 authors = [
   { name="Gumbo64", email="gumbo64isme@proton.me" },
 ]
@@ -11,13 +11,21 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
+
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
+dependencies = [
+    "wasmtime>=40.0.0",
+]
 
 [build-system]
-requires = ["setuptools>=61", "wheel", "wasmtime"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project.urls]
 homepage = "https://github.com/Gumbo64/sm64-binds"
 repository = "https://github.com/Gumbo64/sm64-binds"
+
+
+[tool.setuptools.package-data]
+"sm64_binds.pkg" = ["*.xor"]

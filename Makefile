@@ -8,7 +8,7 @@ WASM_JS = WASM_JS
 WASM_ZIP_XOR = WASM_ZIP_XOR
 
 JS_PKG = javascript/src/scripts/sm64/pkg
-PYTHON_PKG = python/pkg
+PYTHON_PKG = python/src/sm64_binds/pkg
 RUST_PKG = rust/pkg
 
 RUST = rust
