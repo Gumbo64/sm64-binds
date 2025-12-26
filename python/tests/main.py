@@ -1,19 +1,19 @@
 import random
 
-A_BUTTON = 0x8000
-B_BUTTON = 0x4000
-L_TRIG = 0x0020
-R_TRIG = 0x0010
-Z_TRIG = 0x2000
-START_BUTTON = 0x1000
-U_JPAD = 0x0800
-L_JPAD = 0x0200
-R_JPAD = 0x0100
-D_JPAD = 0x0400
-U_CBUTTONS = 0x0008
-L_CBUTTONS = 0x0002
-R_CBUTTONS = 0x0001
-D_CBUTTONS = 0x0004
+# A_BUTTON = 0x8000
+# B_BUTTON = 0x4000
+# L_TRIG = 0x0020
+# R_TRIG = 0x0010
+# Z_TRIG = 0x2000
+# START_BUTTON = 0x1000
+# U_JPAD = 0x0800
+# L_JPAD = 0x0200
+# R_JPAD = 0x0100
+# D_JPAD = 0x0400
+# U_CBUTTONS = 0x0008
+# L_CBUTTONS = 0x0002
+# R_CBUTTONS = 0x0001
+# D_CBUTTONS = 0x0004
 
 
 import struct
@@ -26,7 +26,7 @@ import os
 
 
 from gameplay import GAMEPLAY
-from sm64_binds import SM64Game, SM64GameGenerator, GamePad
+from sm64_binds import SM64Game, SM64GameGenerator, GamePad, buttons
 
 def create_3d_rotation_gif(positions, points_per_frame=1, filename='3d_rotation.gif'):
     frames = []
@@ -88,13 +88,13 @@ def run():
         pad = GamePad(0, 0, 0)
 
         if 150 < i < 160 or 200 < i < 300:
-            pad.button = START_BUTTON
+            pad.button = buttons.START_BUTTON
 
         if i > 300:
             pad.stick_y = 80
 
         if i % 2 == 0:
-            pad.button = A_BUTTON
+            pad.button = buttons.A_BUTTON
 
 
         # Step

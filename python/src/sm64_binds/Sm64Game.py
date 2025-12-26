@@ -194,27 +194,33 @@ class SM64GameGenerator:
 
     def copy(self, game: SM64Game) -> SM64Game:
         """
-        Creates a clone of the given SM64Game instance.
+        Creates an exact clone of the given SM64Game instance.
         """
-        # 1. Snapshot memory
-        mem = game.memory
-        store = game.store
-        state_bytes = bytes(mem.data_ptr(store)[:mem.data_len(store)])
-
-        # 2. Create fresh game from wasm
-        clone = SM64Game(self.wasm_bytes)
-
-        # 3. Overwrite clone memory with snapshot
-        clone_mem = clone.memory
-        clone_store = clone.store
-        clone_size = clone_mem.data_len(clone_store)
-        copy_size = min(len(state_bytes), clone_size)
-
-        # Use ctypes.memmove to copy bytes into Wasmtime memory
-        dest_ptr = clone_mem.data_ptr(clone_store)
-        ctypes.memmove(dest_ptr, state_bytes, copy_size)
-
-        # 4. Copy RNG flag
-        clone.using_rng_flag = game.using_rng_flag
-
+        clone = self.create_game()
+        self.copy_to(game, clone)
         return clone
+
+    def copy_to(self, game: SM64Game, game_to: SM64Game):
+        """
+        If you already have a SM64Game instance to copy memory to, then this saves a LOT of instantiation time
+        """
+        # Source memory
+        src_mem = game.memory
+        src_store = game.store
+        src_ptr = src_mem.data_ptr(src_store)
+        size = src_mem.data_len(src_store)
+
+        # Destination memory
+        dst_mem = game_to.memory
+        dst_store = game_to.store
+        dst_ptr = dst_mem.data_ptr(dst_store)
+        dst_size = dst_mem.data_len(dst_store)
+
+        # Copy linear memory
+        copy_size = size if size <= dst_size else dst_size
+        ctypes.memmove(dst_ptr, src_ptr, copy_size)
+
+        # Copy RNG flag
+        game_to.using_rng_flag = game.using_rng_flag
+
+        return game_to

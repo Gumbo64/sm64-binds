@@ -26,8 +26,9 @@ import os
 
 
 from gameplay import GAMEPLAY
-from sm64_binds import SM64Game, SM64GameGenerator, GamePad
+from sm64_binds import SM64Game, SM64GameGenerator, GamePad, buttons
 
+import time
 
 # -------------------------------------------------------------
 # Extended GIF creator with two colors
@@ -91,6 +92,7 @@ def run():
 
     generator = SM64GameGenerator.new(rom_bytes)
     game = generator.create_game()
+    game2 = generator.create_game()
 
     # ----------------------------------
     # gameplay loop
@@ -98,8 +100,6 @@ def run():
     positions_list = []
 
     positions_clone_list = []
-
-    game2 = None
 
     for i in range(len(GAMEPLAY.keys()) // 4):
         # Extract controller bytes from GAMEPLAY dict
@@ -118,13 +118,13 @@ def run():
         sticky = 0
 
         if (150 < i < 160) or (200 < i < 300):
-            button = START_BUTTON
+            button = buttons.START_BUTTON
 
         if i > 300:
             sticky = 80
 
         if (i % 2) == 0:
-            button = A_BUTTON
+            button = buttons.A_BUTTON
 
         # ----------------------------------
         # Use the GamePad class
@@ -132,11 +132,18 @@ def run():
         pad = GamePad(button, stickx, sticky)
 
         if i == 1000:
-            game2 = generator.copy(game)
+
+            start_time = time.time()
+            # game2 = generator.copy(game)
+            print(game2)
+            generator.copy_to(game,game2)
+            end_time = time.time()
+            print(f"Time to copy: {end_time - start_time}")
+        
         if i >= 1000:
             button2 = 0
             if (i % 8) == 0:
-                button2 = A_BUTTON
+                button2 = buttons.A_BUTTON
             pad2 = GamePad(button2, 40, 80)
             game2.step_game(pad2)
             state2 = game2.get_game_state()
