@@ -46,6 +46,21 @@ impl SM64GameGenerator {
 
         unzip_bytes(&wasm_zip_bytes)
     }
+
+    pub fn copy(&self, game: &SM64Game) -> Result<SM64Game, Error> {
+        let cloned_game = self.create_game()?;
+        
+        self.copy_to(game, &cloned_game)?;
+
+        Ok(cloned_game)
+    }
+
+    pub fn copy_to(&self, game: &SM64Game, game_to: &SM64Game) -> Result<(), Error> {
+        let view_from = game.instance.exports.get_memory("memory")?.view(&game.store);
+        let view_to = game_to.instance.exports.get_memory("memory")?.view(&game_to.store);
+
+        Ok(view_from.copy_to_memory(view_from.data_size(), &view_to)?)
+    }
 }
 
 
@@ -145,5 +160,18 @@ impl SM64Game {
     pub fn using_rng(&self) -> bool {
         self.using_rng
     }
+
+    pub fn get_memory_bytes(&self) -> Result<Vec<u8>, Error> {
+        let memory = self.instance.exports.get_memory("memory")?;
+        let view = memory.view(&self.store);
+        Ok(view.copy_to_vec()?)
+    }
+
+    pub fn write_memory_bytes(&self, bytes: Vec<u8>) -> Result<(), Error> {
+        let memory = self.instance.exports.get_memory("memory")?;
+        let view = memory.view(&self.store);
+        Ok(view.write(0, &bytes)?)
+    }
+
 }
 

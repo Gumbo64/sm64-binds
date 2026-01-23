@@ -1,6 +1,6 @@
 [package]
 name = "sm64-binds"
-version = "1.0.16"
+version = "1.0.17"
 edition = "2024"
 
 description = "Mario 64 using WASM. Requires a US .z64 version ROM to work (8.00MB)"
@@ -13,6 +13,9 @@ sha1 = "0.10.6"
 wasmer = { version = "6.1.0", default-features = false }
 getrandom = { version = "0.3", features = ["wasm_js"] }
 zip = "6.0.0"
+
+[dev-dependencies]
+plotters = "0.3"  # Example runtime dependency
 
 [features]
 default = ["wasmer/sys", "wasmer/cranelift", "fs"]

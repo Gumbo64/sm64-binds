@@ -118,9 +118,6 @@ class GameState {
 
         this.areaIndex = view.getUint16(i, littleEndian);
     }
-    hasWon() {
-        return this.numStars > 0;
-    }
     toString() {
         return `GameState {
             numStars: ${this.numStars},
