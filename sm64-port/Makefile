@@ -508,11 +508,11 @@ endif
 ifeq ($(TARGET_WEB),1)
 
   PLATFORM_CFLAGS  := -DTARGET_WEB -fPIC
-  PLATFORM_LDFLAGS := -lm -no-pie -sTOTAL_MEMORY=20MB -gsource-map --source-map-base http://localhost:3000/ -sEXPORTED_FUNCTIONS=_main_func,_step_game,_set_rng_config,_set_rng_seed,_rng_pad,_get_controller_pad,_get_game_state,_get_mario_state,_set_audio_enabled
+  PLATFORM_LDFLAGS := -lm -no-pie -sALLOW_MEMORY_GROWTH=1 -sINITIAL_HEAP=3MB -gsource-map --source-map-base http://localhost:3000/ -sEXPORTED_FUNCTIONS=_main_func,_step_game,_set_rng_config,_set_rng_seed,_rng_pad,_get_controller_pad,_get_game_state,_get_mario_state,_set_audio_enabled
   ifeq ($(HEADLESS_VERSION), 1)
     PLATFORM_LDFLAGS += -sPURE_WASI=1
   else
-    PLATFORM_LDFLAGS += -sEXPORT_NAME=SM64_LIB -sALLOW_MEMORY_GROWTH=1 -sIMPORTED_MEMORY=1 -sUSE_SDL=2 -sEXPORT_ES6 -sINVOKE_RUN=0 -sNO_EXIT_RUNTIME=0 -sFULL_ES2 -sFULL_ES3 -sEXPORTED_RUNTIME_METHODS=wasmMemory
+    PLATFORM_LDFLAGS += -sEXPORT_NAME=SM64_LIB -sIMPORTED_MEMORY=1 -sUSE_SDL=2 -sEXPORT_ES6 -sINVOKE_RUN=0 -sNO_EXIT_RUNTIME=0 -sFULL_ES2 -sFULL_ES3 -sEXPORTED_RUNTIME_METHODS=wasmMemory
   endif
 
 #   -sEXPORTED_RUNTIME_METHODS=callMain -sALLOW_MEMORY_GROWTH

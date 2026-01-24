@@ -47,20 +47,20 @@ impl SM64GameGenerator {
         unzip_bytes(&wasm_zip_bytes)
     }
 
-    pub fn copy(&self, game: &SM64Game) -> Result<SM64Game, Error> {
-        let cloned_game = self.create_game()?;
+    pub fn copy(&self, game: &mut SM64Game) -> Result<SM64Game, Error> {
+        let mut cloned_game = self.create_game()?;
         
-        self.copy_to(game, &cloned_game)?;
+        game.copy_to(&mut cloned_game)?;
 
         Ok(cloned_game)
     }
 
-    pub fn copy_to(&self, game: &SM64Game, game_to: &SM64Game) -> Result<(), Error> {
-        let view_from = game.instance.exports.get_memory("memory")?.view(&game.store);
-        let view_to = game_to.instance.exports.get_memory("memory")?.view(&game_to.store);
+    // pub fn copy_to(&self, game: &SM64Game, game_to: &SM64Game) -> Result<(), Error> {
+    //     let view_from = game.instance.exports.get_memory("memory")?.view(&game.store);
+    //     let view_to = game_to.instance.exports.get_memory("memory")?.view(&game_to.store);
 
-        Ok(view_from.copy_to_memory(view_from.data_size(), &view_to)?)
-    }
+    //     Ok(view_from.copy_to_memory(view_from.data_size(), &view_to)?)
+    // }
 }
 
 
@@ -71,7 +71,12 @@ pub struct SM64Game {
 }
 
 impl SM64Game {
+    // from using the twiggy tool (twiggy top sm64.us.wasm). Seems to be constant.
+    // I believe this segment only has constants so no need to save/load it
+    const DATA0_SIZE: usize = 8013002;
     pub fn new(wasm_bytes: Vec<u8>) -> Result<Self> {
+        let using_rng = false;
+
         let mut store: Store = Store::default();
         let module = Module::new(&store, wasm_bytes)?;
         let import_object = imports! {
@@ -96,7 +101,6 @@ impl SM64Game {
 
         let instance = Instance::new(&mut store, &module, &import_object).unwrap();
 
-        let using_rng = false;
 
         let main_func: TypedFunction<(), ()> = instance.exports.get_typed_function::<(), ()>(&mut store, "main_func")?;
         main_func.call(&mut store)?;
@@ -161,16 +165,45 @@ impl SM64Game {
         self.using_rng
     }
 
-    pub fn get_memory_bytes(&self) -> Result<Vec<u8>, Error> {
+    fn expand_memory(&mut self, save_state_length: usize) -> Result<(), Error> {
+        // allocate more memory if necessary for the save state
         let memory = self.instance.exports.get_memory("memory")?;
-        let view = memory.view(&self.store);
-        Ok(view.copy_to_vec()?)
+        
+        let required_total_bytes = (SM64Game::DATA0_SIZE + save_state_length) as u64;
+        let current_total_bytes = memory.view(&self.store).data_size();
+
+        if required_total_bytes > current_total_bytes {
+            let diff = required_total_bytes - current_total_bytes;
+            const PAGE_SIZE: u64 = 65536;
+            let pages_to_grow = (diff + PAGE_SIZE - 1) / PAGE_SIZE;
+            memory.grow(&mut self.store, pages_to_grow as u32)
+                .map_err(|e| Error::msg(format!("WASM Memory OOM: Could not grow by {} pages. {}", pages_to_grow, e)))?;
+        }
+
+        Ok(())
     }
 
-    pub fn write_memory_bytes(&self, bytes: Vec<u8>) -> Result<(), Error> {
+    pub fn get_memory_bytes(&mut self) -> Result<Vec<u8>, Error> {
         let memory = self.instance.exports.get_memory("memory")?;
         let view = memory.view(&self.store);
-        Ok(view.write(0, &bytes)?)
+
+        let total_size = view.data_size();
+        let buffer = view.copy_range_to_vec((SM64Game::DATA0_SIZE as u64)..total_size)?;
+        Ok(buffer)
+    }
+
+    pub fn write_memory_bytes(&mut self, bytes: Vec<u8>) -> Result<(), Error> {
+        self.expand_memory(bytes.len())?;
+
+        let memory = self.instance.exports.get_memory("memory")?;
+        
+        let final_view = memory.view(&self.store);
+        Ok(final_view.write(SM64Game::DATA0_SIZE as u64, &bytes)?)
+    }
+
+    pub fn copy_to(&mut self, game_to: &mut SM64Game) -> Result<(), Error> {
+        game_to.write_memory_bytes(self.get_memory_bytes()?)?;
+        Ok(())
     }
 
 }

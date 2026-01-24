@@ -147,9 +147,8 @@ mod tests {
             }
 
             let pad = GamePad::new(button, 0, sticky);
-
             if i == 1760 {
-                game_gen.copy_to(&game, &mut game2)?; // Copy state
+                game.copy_to(&mut game2)?; // Copy state
             }
 
             if i >= 1760 {
@@ -160,8 +159,10 @@ mod tests {
                 }
                 let pad2 = GamePad::new(button2, 40, 80);
                 game2.step_game(pad2)?;
+
                 let state2 = game2.get_game_state()?;
                 positions_clone_list.push(state2.pos);
+
             }
 
             // Step game logic
