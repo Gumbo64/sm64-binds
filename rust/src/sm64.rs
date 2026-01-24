@@ -54,13 +54,6 @@ impl SM64GameGenerator {
 
         Ok(cloned_game)
     }
-
-    // pub fn copy_to(&self, game: &SM64Game, game_to: &SM64Game) -> Result<(), Error> {
-    //     let view_from = game.instance.exports.get_memory("memory")?.view(&game.store);
-    //     let view_to = game_to.instance.exports.get_memory("memory")?.view(&game_to.store);
-
-    //     Ok(view_from.copy_to_memory(view_from.data_size(), &view_to)?)
-    // }
 }
 
 
@@ -168,18 +161,8 @@ impl SM64Game {
     fn expand_memory(&mut self, save_state_length: usize) -> Result<(), Error> {
         // allocate more memory if necessary for the save state
         let memory = self.instance.exports.get_memory("memory")?;
-        
         let required_total_bytes = (SM64Game::DATA0_SIZE + save_state_length) as u64;
-        let current_total_bytes = memory.view(&self.store).data_size();
-
-        if required_total_bytes > current_total_bytes {
-            let diff = required_total_bytes - current_total_bytes;
-            const PAGE_SIZE: u64 = 65536;
-            let pages_to_grow = (diff + PAGE_SIZE - 1) / PAGE_SIZE;
-            memory.grow(&mut self.store, pages_to_grow as u32)
-                .map_err(|e| Error::msg(format!("WASM Memory OOM: Could not grow by {} pages. {}", pages_to_grow, e)))?;
-        }
-
+        memory.grow_at_least(&mut self.store, required_total_bytes)?;
         Ok(())
     }
 
@@ -204,6 +187,13 @@ impl SM64Game {
     pub fn copy_to(&mut self, game_to: &mut SM64Game) -> Result<(), Error> {
         game_to.write_memory_bytes(self.get_memory_bytes()?)?;
         Ok(())
+    }
+    
+    pub fn full_copy_to(&mut self, game_to: &SM64Game) -> Result<(), Error> {
+        let view_from = self.instance.exports.get_memory("memory")?.view(&mut self.store);
+        let view_to = game_to.instance.exports.get_memory("memory")?.view(&game_to.store);
+
+        Ok(view_from.copy_to_memory(view_from.data_size(), &view_to)?)
     }
 
 }
