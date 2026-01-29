@@ -1,6 +1,6 @@
 import FileUpload from "./src/components/FileUpload";
 import { GameConfig, RngConfig } from "./src/scripts/sm64/configs";
-import { Sm64VisualEngine, GamepadButtons, GamePad } from "./src/scripts/sm64/Sm64Game";
+import { Sm64VisualEngine, GamepadButtons, GamePad, GameState } from "./src/scripts/sm64/Sm64Game";
 import { getROM } from "./src/scripts/fileUpload";
 
 // for playback

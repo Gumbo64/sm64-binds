@@ -209,4 +209,4 @@ class Sm64VisualEngine {
 
 }
 
-export {Sm64VisualEngine, GamePad, GamepadButtons};
+export {Sm64VisualEngine, GamePad, GameState, GamepadButtons};
