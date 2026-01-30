@@ -8,7 +8,7 @@ const MIN_SPEED = 2;
 const MAX_SPEED = 1000;
 
 async function sm64_test(canvas) {
-    let [engine, success] = await sm64_playback(canvas, []);
+    let [engine, success] = await sm64_playback(canvas);
 
     let speed = 1;
     function get_speed() {return speed}
@@ -96,11 +96,15 @@ async function sm64_evaluate(canvas, solution = [], seed, game_config = GameConf
     return success;
 }
 
-async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, game_config = GameConfig.defaultConfig(), min_speed=MIN_SPEED, max_speed=MAX_SPEED, kill_signal = async () => {false}, has_won = (state) => {false}) {
+async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, game_config = GameConfig.defaultConfig(), min_speed=MIN_SPEED, max_speed=MAX_SPEED, kill_signal = async () => {false}, has_won = (state) => {false}, engine=null) {
     let success = false;
-    canvas.id = "canvas";
-    let engine = await Sm64VisualEngine.create(canvas, seed, game_config.rng_config);
-    canvas.id = "";
+    
+    if (engine === null) {
+        canvas.id = "canvas";
+        engine = await Sm64VisualEngine.create(canvas, seed, game_config.rng_config);
+        canvas.id = "";
+    }
+
 
     let speed = max_speed;
     function get_speed() {return speed}
@@ -109,7 +113,10 @@ async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, game_
     // Loop through all frames
     let i = 0;
     function step() {
-        if (i >= inputs.length) return true;
+        if (i >= inputs.length) {
+            success = true; 
+            return [engine, success];
+        }
         let pad = inputs[i];
         i+=1;
 
@@ -126,7 +133,7 @@ async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, game_
         let state = engine.get_game_state();
         if (has_won(state)) {
             success = true;
-            return true;
+            return [engine, success];
         }
 
         if (controllable) {
@@ -134,15 +141,16 @@ async function sm64_playback(canvas, inputs, controllable=false, seed=NaN, game_
             let c_pad = engine.get_controller_pad();
             if (c_pad.is_pressed(GamepadButtons.START_BUTTON)) {
                 inputs.length = i;
-                return true;
+                success = true;
+                return [engine, success];
             }
             let cut_amount = 10 * min_speed * 30 // 10 seconds before
             if (i > inputs.length - cut_amount) {
                 speed = min_speed;
             }
         }
-
-        return false;
+        success = false
+        return [engine, success];
     }
     
     await iter_with_anim_frame(step, get_speed, kill_signal);
