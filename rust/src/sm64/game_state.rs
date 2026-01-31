@@ -9,6 +9,7 @@ pub struct GameState {
     pub course_num: i32,
     pub act_num: i32,
     pub area_index: i32,
+    pub level_num: i32,
 }
 
 impl GameState {
@@ -52,6 +53,9 @@ impl GameState {
         offset += 4;
 
         let area_index = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
+        offset += 4;
+        let level_num = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
+        // offset += 4;
 
         // Construct GameState
         GameState {
@@ -64,6 +68,7 @@ impl GameState {
             course_num,
             act_num,
             area_index,
+            level_num
         }
     }
 
@@ -82,7 +87,8 @@ impl GameState {
                 inCredits: {},\n\
                 courseNum: {},\n\
                 actNum: {},\n\
-                areaIndex: {}\n\
+                areaIndex: {},\n\
+                levelNum: {},\n\
             }}",
             self.num_stars,
             self.pos[0], self.pos[1], self.pos[2],
@@ -93,6 +99,7 @@ impl GameState {
             self.course_num,
             self.act_num,
             self.area_index,
+            self.level_num
         )
     }
 }

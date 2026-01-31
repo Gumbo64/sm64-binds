@@ -195,6 +195,7 @@ async function record_single(canvas, starting_solution = [], seed=NaN, game_conf
         solution.push(pad);
 
         let state = engine.get_game_state();
+        console.log(state);
         // console.log(state.toString());
 
         // check if won

@@ -85,7 +85,7 @@ class GameState {
 //     s32 areaIndex;
 // };
 
-        let size = 4 * (6 + 3*3);
+        let size = 4 * (7 + 3*3);
         const view = new DataView(engine.mem_slice(pointer, size));
 
         let i = 0;
@@ -116,7 +116,9 @@ class GameState {
 
         this.actNum = view.getUint16(i, littleEndian); i += 4;
 
-        this.areaIndex = view.getUint16(i, littleEndian);
+        this.areaIndex = view.getUint16(i, littleEndian); i+= 4;
+
+        this.levelNum = view.getUint16(i, littleEndian); i+= 4;
     }
     toString() {
         return `GameState {
@@ -128,7 +130,8 @@ class GameState {
             inCredits: ${this.inCredits},
             courseNum: ${this.courseNum},
             actNum: ${this.actNum},
-            areaIndex: ${this.areaIndex}
+            areaIndex: ${this.areaIndex},
+            levelNum: ${this.levelNum}
         }`;
     }
 }

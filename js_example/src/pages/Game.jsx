@@ -12,15 +12,15 @@ function Game() {
   const canvasRef = useRef(null);
   async function startGame() {
     let seed = 22;
-    let game_config = new GameConfig(1000, null);
+    let game_config = GameConfig.defaultConfig();
 
-    await sm64_test(canvasRef.current);
-    // try {
-    //   let solution = await sm64_record(canvasRef.current, seed, game_config, get_interrupt);
-    //   console.log(solution);
-    // } catch (error) {
-    //   console.log(error);
-    // }
+    // await sm64_test(canvasRef.current);
+    try {
+      let solution = await sm64_record(canvasRef.current, seed, game_config, get_interrupt);
+      console.log(solution);
+    } catch (error) {
+      console.log(error);
+    }
 
     // sm64_test(canvasRef.current);
   }
