@@ -166,7 +166,7 @@ impl SM64Game {
         Ok(())
     }
 
-    pub fn get_memory_bytes(&mut self) -> Result<Vec<u8>, Error> {
+    pub fn get_memory_bytes(&self) -> Result<Vec<u8>, Error> {
         let memory = self.instance.exports.get_memory("memory")?;
         let view = memory.view(&self.store);
 
@@ -184,15 +184,15 @@ impl SM64Game {
         Ok(final_view.write(SM64Game::DATA0_SIZE as u64, &bytes)?)
     }
 
-    pub fn copy_to(&mut self, game_to: &mut SM64Game) -> Result<(), Error> {
+    pub fn copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
         let b = self.get_memory_bytes()?;
         game_to.write_memory_bytes(b.as_slice())?;
         Ok(())
     }
     
-    pub fn full_copy_to(&mut self, game_to: &SM64Game) -> Result<(), Error> {
-        let view_from = self.instance.exports.get_memory("memory")?.view(&mut self.store);
-        let view_to = game_to.instance.exports.get_memory("memory")?.view(&game_to.store);
+    pub fn full_copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
+        let view_from = self.instance.exports.get_memory("memory")?.view(&self.store);
+        let view_to = game_to.instance.exports.get_memory("memory")?.view(&mut game_to.store);
 
         Ok(view_from.copy_to_memory(view_from.data_size(), &view_to)?)
     }
