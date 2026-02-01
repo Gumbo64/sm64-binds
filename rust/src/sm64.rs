@@ -175,7 +175,7 @@ impl SM64Game {
         Ok(buffer)
     }
 
-    pub fn write_memory_bytes(&mut self, bytes: Vec<u8>) -> Result<(), Error> {
+    pub fn write_memory_bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
         self.expand_memory(bytes.len())?;
 
         let memory = self.instance.exports.get_memory("memory")?;
@@ -185,7 +185,8 @@ impl SM64Game {
     }
 
     pub fn copy_to(&mut self, game_to: &mut SM64Game) -> Result<(), Error> {
-        game_to.write_memory_bytes(self.get_memory_bytes()?)?;
+        let b = self.get_memory_bytes()?;
+        game_to.write_memory_bytes(b.as_slice())?;
         Ok(())
     }
     
