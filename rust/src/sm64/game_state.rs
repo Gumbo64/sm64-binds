@@ -10,6 +10,9 @@ pub struct GameState {
     pub act_num: i32,
     pub area_index: i32,
     pub level_num: i32,
+    pub lives: i32,
+    pub coins: i32,
+    pub health: i32,
 }
 
 impl GameState {
@@ -55,7 +58,15 @@ impl GameState {
         let area_index = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
         offset += 4;
         let level_num = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
+        offset += 4;
+
+        let lives = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
+        offset += 4;
+        let coins = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
+        offset += 4;
+        let health = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
         // offset += 4;
+
 
         // Construct GameState
         GameState {
@@ -68,7 +79,10 @@ impl GameState {
             course_num,
             act_num,
             area_index,
-            level_num
+            level_num,
+            lives,
+            coins,
+            health
         }
     }
 

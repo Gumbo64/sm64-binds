@@ -134,7 +134,7 @@ impl SM64Game {
         let get_game_state: TypedFunction<(), i32> = self.instance.exports.get_typed_function::<(), i32>(&mut self.store, "get_game_state")?;
         let pointer = get_game_state.call(&mut self.store)?;
 
-        let mut buffer: [u8; 64] = [0; 64];
+        let mut buffer: [u8; 76] = [0; 76];
         let memory = self.instance.exports.get_memory("memory")?;
         let view = memory.view(&self.store);
         view.read(pointer.try_into()?, &mut buffer)?;

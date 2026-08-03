@@ -248,6 +248,10 @@ struct GameState {
     s32 actNum;
     s32 areaIndex;
     s32 levelNum;
+
+    s32 lives;
+    s32 coins;
+    s32 health;
 };
 
 struct GameState *get_game_state() {
@@ -259,6 +263,10 @@ struct GameState *get_game_state() {
     info.areaIndex = gCurrAreaIndex;
     info.lakituYaw = gLakituState.yaw;
     info.levelNum = gCurrLevelNum;
+
+    info.lives = gMarioState->numLives;
+    info.coins = gMarioState->numCoins;
+    info.health = gMarioState->health;
 
     for (int i = 0; i < 3; i++) {
         info.pos[i] = gMarioState->pos[i];
