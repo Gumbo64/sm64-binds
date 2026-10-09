@@ -2,8 +2,9 @@ import struct
 import zipfile
 import io
 import os
-from wasmtime import Engine, Store, Module, Linker, WasiConfig
 import ctypes
+import hashlib
+from wasmtime import Engine, Store, Module, Linker, WasiConfig
 # ---------------------------------------------------------
 # GamePad and GameState Python versions
 # ---------------------------------------------------------
@@ -16,32 +17,25 @@ class GamePad:
 
     @staticmethod
     def from_bytes(b):
+        b = bytes(b)
         button = (b[0] << 8) | b[1]
         stick_x = struct.unpack("b", b[2:3])[0]
         stick_y = struct.unpack("b", b[3:4])[0]
         return GamePad(button, stick_x, stick_y)
 
+# The 60 byte layout produced by the WASM get_game_state export
+# (16 bit fields are padded out to 4 bytes by the WASM side)
+_GAME_STATE_STRUCT = struct.Struct("<H2x3f3f3fH2xB3xH2xH2xH2x")
+
 class GameState:
     def __init__(self, data):
-        b_data = bytes(data)
-        i = 0
-        self.numStars = struct.unpack("<H", b_data[0:2])[0]  # first 2 bytes
-        i += 4
-        
-        # Already extracted floats (pos/vel/lakituPos)
-        self.pos = [struct.unpack("<f", b_data[i+j*4:i+(j+1)*4])[0] for j in range(3)]
-        i += 12
-        self.vel = [struct.unpack("<f", b_data[i+j*4:i+(j+1)*4])[0] for j in range(3)]
-        i += 12
-        self.lakituPos = [struct.unpack("<f", b_data[i+j*4:i+(j+1)*4])[0] for j in range(3)]
-        i += 12
-
-        # Extract remaining fields
-        self.lakituYaw = struct.unpack("<H", b_data[i:i+2])[0]; i += 4
-        self.inCredits = b_data[i]; i += 4
-        self.courseNum = struct.unpack("<H", b_data[i:i+2])[0]; i += 4
-        self.actNum = struct.unpack("<H", b_data[i:i+2])[0]; i += 4
-        self.areaIndex = struct.unpack("<H", b_data[i:i+2])[0]; i += 4
+        fields = _GAME_STATE_STRUCT.unpack(bytes(data))
+        self.numStars = fields[0]
+        self.pos = list(fields[1:4])
+        self.vel = list(fields[4:7])
+        self.lakituPos = list(fields[7:10])
+        (self.lakituYaw, self.inCredits, self.courseNum,
+         self.actNum, self.areaIndex) = fields[10:]
 
 # ---------------------------------------------------------
 # Utility: unzip and XOR like Rust
@@ -51,14 +45,17 @@ def unzip_bytes(zipped_bytes):
     with zipfile.ZipFile(io.BytesIO(zipped_bytes), 'r') as z:
         return z.read(z.namelist()[0])
 
-import hashlib
-
 ROM_HASH = "9bef1128717f958171a4afac3ed78ee2bb4e86ce"
 def check_hash(data: bytes) -> bool:
-    sha1 = hashlib.sha1()
-    sha1.update(data)
-    hash_result = sha1.hexdigest()
-    return hash_result == ROM_HASH
+    return hashlib.sha1(data).hexdigest() == ROM_HASH
+
+
+def xor_bytes(data: bytes, key: bytes) -> bytes:
+    """XOR data with the key, repeating the key as needed (runs at C speed)."""
+    key_len = len(key)
+    repeated_key = (key * (len(data) // key_len + 1))[:len(data)]
+    result = int.from_bytes(data, "little") ^ int.from_bytes(repeated_key, "little")
+    return result.to_bytes(len(data), "little")
 
 # ---------------------------------------------------------
 # RngConfig class matching Rust
@@ -81,25 +78,44 @@ class RngConfig:
 
 class SM64Game:
     def __init__(self, wasm_bytes):
-        self.engine = Engine()
-        self.module = Module(self.engine, wasm_bytes)
+        engine = Engine()
+        module = Module(engine, wasm_bytes)
+        self._init(engine, module)
 
-        self.store = Store(self.engine)
-        self.linker = Linker(self.engine)
+    @classmethod
+    def from_module(cls, engine, module):
+        """Instantiate from an already compiled module (much faster)."""
+        game = cls.__new__(cls)
+        game._init(engine, module)
+        return game
+
+    def _init(self, engine, module):
+        self.engine = engine
+        self.module = module
+
+        self.store = Store(engine)
+        self.linker = Linker(engine)
         self.linker.define_wasi()
 
         wasi = WasiConfig()
         wasi.inherit_stdout()
         self.store.set_wasi(wasi)
 
-        self.instance = self.linker.instantiate(self.store, self.module)
+        self.instance = self.linker.instantiate(self.store, module)
 
         self.using_rng_flag = False
 
-        # call main_func like Rust does
-        self.instance.exports(self.store)["main_func"](self.store)
+        # cache the exports so the hot paths don't look them up on every call
+        exports = self.instance.exports(self.store)
+        self.memory = exports["memory"]
+        self._step_game = exports["step_game"]
+        self._get_game_state = exports["get_game_state"]
+        self._rng_pad = exports["rng_pad"]
+        self._set_rng_config = exports["set_rng_config"]
+        self._set_rng_seed = exports["set_rng_seed"]
 
-        self.memory = self.instance.exports(self.store)["memory"]
+        # call main_func like Rust does
+        exports["main_func"](self.store)
 
     # -----------------------------------------------------
     # RNG functions
@@ -107,8 +123,7 @@ class SM64Game:
 
     def set_rng_config(self, cfg: RngConfig):
         self.using_rng_flag = True
-        func = self.instance.exports(self.store)["set_rng_config"]
-        func(self.store,
+        self._set_rng_config(self.store,
             cfg.window_length,
             cfg.random_amount,
             cfg.random_burst_length,
@@ -119,27 +134,23 @@ class SM64Game:
 
     def set_rng_seed(self, seed):
         self.using_rng_flag = True
-        func = self.instance.exports(self.store)["set_rng_seed"]
-        func(self.store, seed)
+        self._set_rng_seed(self.store, seed)
 
     # -----------------------------------------------------
     # Game stepping + state
     # -----------------------------------------------------
 
     def step_game(self, pad: GamePad):
-        func = self.instance.exports(self.store)["step_game"]
-        func(self.store, pad.button, pad.stick_x, pad.stick_y)
+        self._step_game(self.store, pad.button, pad.stick_x, pad.stick_y)
 
     def get_game_state(self):
-        func = self.instance.exports(self.store)["get_game_state"]
-        ptr = func(self.store)
+        ptr = self._get_game_state(self.store)
 
         raw = self.memory.data_ptr(self.store)[ptr:ptr+60]
         return GameState(raw)
 
     def rng_pad(self, pad: GamePad):
-        func = self.instance.exports(self.store)["rng_pad"]
-        ptr = func(self.store, pad.button, pad.stick_x, pad.stick_y)
+        ptr = self._rng_pad(self.store, pad.button, pad.stick_x, pad.stick_y)
 
         raw = self.memory.data_ptr(self.store)[ptr:ptr+4]
         return GamePad.from_bytes(raw)
@@ -154,6 +165,10 @@ class SM64Game:
 class SM64GameGenerator:
     def __init__(self, wasm_bytes):
         self.wasm_bytes = wasm_bytes
+        # The module is compiled once and instantiated for every game,
+        # making create_game cheap
+        self.engine = Engine()
+        self.module = Module(self.engine, wasm_bytes)
 
     @staticmethod
     def new(rom_bytes):
@@ -170,23 +185,17 @@ class SM64GameGenerator:
 
     @staticmethod
     def rom_to_wasm_bytes(rom_bytes):
-        rom_len = len(rom_bytes)
-
         # load XOR bytes exactly like Rust include_bytes!
-
         base_dir = os.path.dirname(__file__)
         xor_path = os.path.join(base_dir, "pkg", "sm64_headless.us.wasm.zip.xor")
 
         with open(xor_path, "rb") as f:
-            xor_bytes = f.read()
+            xor_data = f.read()
 
-        wasm_zip_bytes = bytes([xor_bytes[i] ^ rom_bytes[i % rom_len]
-                                for i in range(len(xor_bytes))])
-
-        return unzip_bytes(wasm_zip_bytes)
+        return unzip_bytes(xor_bytes(xor_data, rom_bytes))
 
     def create_game(self):
-        return SM64Game(self.wasm_bytes)
+        return SM64Game.from_module(self.engine, self.module)
 
     # -----------------------------
     # Copy a game state

@@ -45,7 +45,7 @@ class GamePad {
         // s8      stick_y;		/* -80 <= stick_y <= 80 */
         // u8	errnum;
         // } OSContPad;
-        const view = new DataView(engine.mem_slice(pointer, 4));
+        const view = engine.mem_view(pointer, 4);
         
         return new GamePad(
             view.getUint16(0, littleEndian),
@@ -86,7 +86,7 @@ class GameState {
 // };
 
         let size = 4 * (7 + 3*3);
-        const view = new DataView(engine.mem_slice(pointer, size));
+        const view = engine.mem_view(pointer, size);
 
         let i = 0;
         // it should be 2 bytes but idk this is how it works. prolly some WASM

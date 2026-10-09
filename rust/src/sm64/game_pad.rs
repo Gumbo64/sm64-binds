@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GamePad {
     pub button: u16,
     pub stick_x: i8,
@@ -12,12 +12,8 @@ impl GamePad {
         GamePad { button, stick_x, stick_y }
     }
 
-    pub const fn default() -> Self {
-        GamePad::new(0,0,0)
-    }
-
     pub fn equals(&self, pad: &GamePad) -> bool {
-        self.button == pad.button && self.stick_x == pad.stick_x && self.stick_y == pad.stick_y
+        self == pad
     }
 
     pub fn from_bytes(data: &[u8;4]) -> Self {
@@ -37,5 +33,11 @@ impl GamePad {
 
     pub fn disable_button(&mut self, button_mask: u16) {
         self.button &= !button_mask;
+    }
+}
+
+impl Default for GamePad {
+    fn default() -> Self {
+        GamePad::new(0, 0, 0)
     }
 }

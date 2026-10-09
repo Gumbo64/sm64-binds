@@ -1,0 +1,30 @@
+{
+  "name": "sm64-binds",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "latest",
+      "components": "rust-analyzer,rust-src,rustfmt,clippy",
+      "targets": "wasm32-unknown-unknown"
+    },
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {},
+    "ghcr.io/devcontainers-extra/features/opencode:1": {}
+  },
+  "containerEnv": {
+    "EMSDK": "/usr/local/emsdk",
+    "EM_CONFIG": "/usr/local/emsdk/.emscripten"
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh \"${containerWorkspaceFolder}\"",
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "rust-analyzer.cargo.allTargets": true,
+        "[rust]": {
+          "editor.defaultFormatter": "rust-lang.rust-analyzer"
+        }
+      }
+    }
+  }
+}

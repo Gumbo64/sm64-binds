@@ -1,6 +1,6 @@
 use wasmer::*;
 
-use anyhow::{Result, Error};
+use anyhow::{Error, Result};
 use std::convert::TryInto;
 
 mod game_pad;
@@ -15,7 +15,10 @@ use util::unzip_bytes;
 
 #[derive(Debug, Clone)]
 pub struct SM64GameGenerator {
-    wasm_bytes: Vec<u8>,
+    // The module is compiled once and instantiated for every game,
+    // making create_game cheap
+    engine: Engine,
+    module: Module,
 }
 
 impl SM64GameGenerator {
@@ -25,7 +28,10 @@ impl SM64GameGenerator {
         };
         let wasm_bytes = Self::rom_to_wasm_bytes(rom_bytes);
 
-        Ok(SM64GameGenerator { wasm_bytes })
+        let engine = Engine::default();
+        let module = Module::new(&engine, wasm_bytes)?;
+
+        Ok(SM64GameGenerator { engine, module })
     }
     #[cfg(feature = "fs")]
     pub fn from_file(rom_path: &str) -> Result<Self, Error> {
@@ -33,16 +39,16 @@ impl SM64GameGenerator {
         Self::new(rom_bytes)
     }
     pub fn create_game(&self) -> Result<SM64Game, Error>  {
-        SM64Game::new(self.wasm_bytes.clone())
+        SM64Game::from_module(&self.engine, &self.module)
     }
 
     pub fn rom_to_wasm_bytes(rom_bytes: Vec<u8>) -> Vec<u8> {
-        let rom_len = rom_bytes.len();
         const XOR_BYTES: &[u8] = include_bytes!("../pkg/sm64_headless.us.wasm.zip.xor");
-        let mut wasm_zip_bytes: Vec<u8> = Vec::new();
-        for i in 0..XOR_BYTES.len() {
-            wasm_zip_bytes.push(XOR_BYTES[i] ^ rom_bytes[i % rom_len]);
-        }
+        let wasm_zip_bytes: Vec<u8> = XOR_BYTES
+            .iter()
+            .zip(rom_bytes.iter().cycle())
+            .map(|(&byte, &key)| byte ^ key)
+            .collect();
 
         unzip_bytes(&wasm_zip_bytes)
     }
@@ -59,19 +65,29 @@ impl SM64GameGenerator {
 
 pub struct SM64Game {
     store: Store,
-    instance: Instance,
-    using_rng: bool
+    using_rng: bool,
+    // Cached exports so the hot paths don't look them up on every call
+    memory: Memory,
+    step_game_fn: TypedFunction<(u32, i32, i32), ()>,
+    get_game_state_fn: TypedFunction<(), i32>,
+    rng_pad_fn: TypedFunction<(u32, i32, i32), i32>,
+    set_rng_config_fn: TypedFunction<(u32, u32, u32, f32, f32, f32), ()>,
+    set_rng_seed_fn: TypedFunction<u32, ()>,
 }
 
 impl SM64Game {
     // from using the twiggy tool (twiggy top sm64.us.wasm). Seems to be constant.
     // I believe this segment only has constants so no need to save/load it
     const DATA0_SIZE: usize = 8013002;
-    pub fn new(wasm_bytes: Vec<u8>) -> Result<Self> {
-        let using_rng = false;
 
-        let mut store: Store = Store::default();
-        let module = Module::new(&store, wasm_bytes)?;
+    pub fn new(wasm_bytes: impl AsRef<[u8]>) -> Result<Self> {
+        let engine = Engine::default();
+        let module = Module::new(&engine, wasm_bytes)?;
+        Self::from_module(&engine, &module)
+    }
+
+    fn from_module(engine: &Engine, module: &Module) -> Result<Self> {
+        let mut store = Store::new(engine.clone());
         let import_object = imports! {
             "wasi_snapshot_preview1" => {
                 "proc_exit" => Function::new_typed(&mut store, |_exit_code: i32| {
@@ -92,23 +108,34 @@ impl SM64Game {
             },
         };
 
-        let instance = Instance::new(&mut store, &module, &import_object).unwrap();
+        let instance = Instance::new(&mut store, module, &import_object)?;
+        let exports = &instance.exports;
 
+        let memory = exports.get_memory("memory")?.clone();
+        let step_game_fn = exports.get_typed_function(&store, "step_game")?;
+        let get_game_state_fn = exports.get_typed_function(&store, "get_game_state")?;
+        let rng_pad_fn = exports.get_typed_function(&store, "rng_pad")?;
+        let set_rng_config_fn = exports.get_typed_function(&store, "set_rng_config")?;
+        let set_rng_seed_fn = exports.get_typed_function(&store, "set_rng_seed")?;
 
-        let main_func: TypedFunction<(), ()> = instance.exports.get_typed_function::<(), ()>(&mut store, "main_func")?;
+        let main_func: TypedFunction<(), ()> = exports.get_typed_function(&store, "main_func")?;
         main_func.call(&mut store)?;
 
         Ok(SM64Game {
             store,
-            instance,
-            using_rng,
+            using_rng: false,
+            memory,
+            step_game_fn,
+            get_game_state_fn,
+            rng_pad_fn,
+            set_rng_config_fn,
+            set_rng_seed_fn,
         })
     }
 
     pub fn set_rng_config(&mut self, cfg: RngConfig) -> Result<()> {
         self.using_rng = true;
-        let set_rng_config: TypedFunction<(u32, u32, u32, f32, f32, f32), ()> = self.instance.exports.get_typed_function::<(u32, u32, u32, f32, f32, f32), ()>(&mut self.store, "set_rng_config")?;
-        set_rng_config.call(&mut self.store,
+        self.set_rng_config_fn.call(&mut self.store,
             cfg.window_length, cfg.random_amount, cfg.random_burst_length,  
             cfg.a_prob, cfg.b_prob, cfg.z_prob
         )?;
@@ -117,41 +144,29 @@ impl SM64Game {
 
     pub fn set_rng_seed(&mut self, seed: u32) -> Result<()> {
         self.using_rng = true;
-        let set_rng_config: TypedFunction<u32, ()> = self.instance.exports.get_typed_function::<u32, ()>(&mut self.store, "set_rng_seed")?;
-        set_rng_config.call(&mut self.store,
-            seed
-        )?;
+        self.set_rng_seed_fn.call(&mut self.store, seed)?;
         Ok(())
     }
 
     pub fn step_game(&mut self, pad: GamePad) -> Result<()> {
-        let step_game: TypedFunction<(u32, i32, i32), ()> = self.instance.exports.get_typed_function::<(u32, i32, i32), ()>(&mut self.store, "step_game")?;
-        step_game.call(&mut self.store, pad.button.into(), pad.stick_x.into(), pad.stick_y.into())?;
+        self.step_game_fn.call(&mut self.store, pad.button.into(), pad.stick_x.into(), pad.stick_y.into())?;
         Ok(())
     }
 
     pub fn get_game_state(&mut self) -> Result<GameState, Error> {
-        let get_game_state: TypedFunction<(), i32> = self.instance.exports.get_typed_function::<(), i32>(&mut self.store, "get_game_state")?;
-        let pointer = get_game_state.call(&mut self.store)?;
+        let pointer = self.get_game_state_fn.call(&mut self.store)?;
 
         let mut buffer: [u8; 76] = [0; 76];
-        let memory = self.instance.exports.get_memory("memory")?;
-        let view = memory.view(&self.store);
-        view.read(pointer.try_into()?, &mut buffer)?;
-        let state = GameState::new(&buffer);
-        Ok(state)
+        self.memory.view(&self.store).read(pointer.try_into()?, &mut buffer)?;
+        Ok(GameState::new(&buffer))
     }
 
     pub fn rng_pad(&mut self, pad: GamePad) -> Result<GamePad, Error> {
-        let rng_pad: TypedFunction<(u32, i32, i32), i32> = self.instance.exports.get_typed_function::<(u32, i32, i32), i32>(&mut self.store, "rng_pad")?;
-        let pointer = rng_pad.call(&mut self.store, pad.button.into(), pad.stick_x.into(), pad.stick_y.into())?;
+        let pointer = self.rng_pad_fn.call(&mut self.store, pad.button.into(), pad.stick_x.into(), pad.stick_y.into())?;
 
         let mut buffer: [u8; 4] = [0; 4];
-        let memory = self.instance.exports.get_memory("memory")?;
-        let view = memory.view(&self.store);
-        view.read(pointer.try_into()?, &mut buffer)?;
-        let pad = GamePad::from_bytes(&buffer);
-        Ok(pad)
+        self.memory.view(&self.store).read(pointer.try_into()?, &mut buffer)?;
+        Ok(GamePad::from_bytes(&buffer))
     }
     
     pub fn using_rng(&self) -> bool {
@@ -160,28 +175,21 @@ impl SM64Game {
 
     fn expand_memory(&mut self, save_state_length: usize) -> Result<(), Error> {
         // allocate more memory if necessary for the save state
-        let memory = self.instance.exports.get_memory("memory")?;
         let required_total_bytes = (SM64Game::DATA0_SIZE + save_state_length) as u64;
-        memory.grow_at_least(&mut self.store, required_total_bytes)?;
+        self.memory.grow_at_least(&mut self.store, required_total_bytes)?;
         Ok(())
     }
 
     pub fn get_memory_bytes(&self) -> Result<Vec<u8>, Error> {
-        let memory = self.instance.exports.get_memory("memory")?;
-        let view = memory.view(&self.store);
-
-        let total_size = view.data_size();
-        let buffer = view.copy_range_to_vec((SM64Game::DATA0_SIZE as u64)..total_size)?;
+        let view = self.memory.view(&self.store);
+        let buffer = view.copy_range_to_vec((SM64Game::DATA0_SIZE as u64)..view.data_size())?;
         Ok(buffer)
     }
 
     pub fn write_memory_bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
         self.expand_memory(bytes.len())?;
 
-        let memory = self.instance.exports.get_memory("memory")?;
-        
-        let final_view = memory.view(&self.store);
-        Ok(final_view.write(SM64Game::DATA0_SIZE as u64, &bytes)?)
+        Ok(self.memory.view(&self.store).write(SM64Game::DATA0_SIZE as u64, bytes)?)
     }
 
     pub fn copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
@@ -191,11 +199,10 @@ impl SM64Game {
     }
     
     pub fn full_copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
-        let view_from = self.instance.exports.get_memory("memory")?.view(&self.store);
-        let view_to = game_to.instance.exports.get_memory("memory")?.view(&mut game_to.store);
+        let view_from = self.memory.view(&self.store);
+        let view_to = game_to.memory.view(&game_to.store);
 
         Ok(view_from.copy_to_memory(view_from.data_size(), &view_to)?)
     }
 
 }
-
