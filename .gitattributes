@@ -1,0 +1,18 @@
+# Normalize line endings for the files this repo owns, so a checkout with
+# core.autocrlf=true does not rewrite lockfiles and sources. sm64-port keeps its
+# own .gitattributes, which takes precedence for the vendored tree.
+
+* text=auto eol=lf
+
+# Distributed artifacts: must never be touched by line ending conversion.
+*.xor binary
+*.wasm binary
+*.zip binary
+*.z64 binary
+*.gif binary
+*.png binary
+*.ico binary
+*.jpg binary
+
+# The vendored sm64-port checkout carries its own rules; do not second-guess it.
+sm64-port/** -text

@@ -20,10 +20,13 @@ BLUE   = \033[34m
 # Check if Emsdk is installed
 EMSDK_PATH := $(shell which emcc)
 
-# Build the WASM from the SM64 source if emscripten is available,
-# otherwise recreate it from the distributed XOR files
+# Number of parallel jobs for the sm64-port build
+JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
+
 all: sm64-build
 
+# Build the WASM from the SM64 source if emscripten is available,
+# otherwise recreate it from the distributed XOR files
 sm64-build: copy-rom
 	@echo "$(GREEN)\nBUILDING WEB VERSION$(RESET)"
 	@mkdir -p $(WASM)
@@ -35,9 +38,9 @@ sm64-build: copy-rom
 		python3 maketools/unzip.py $(WASM)/sm64_headless.us.wasm.zip $(WASM)/sm64_headless.us.wasm; \
 	else \
 		echo "$(BLUE)\nNORMAL$(RESET)"; \
-		$(MAKE) -C $(SM64PC) -j TARGET_WEB=1; \
+		$(MAKE) -C $(SM64PC) -j$(JOBS) TARGET_WEB=1; \
 		echo "$(BLUE)\nHEADLESS$(RESET)"; \
-		$(MAKE) -C $(SM64PC) -j TARGET_WEB=1 HEADLESS_VERSION=1; \
+		$(MAKE) -C $(SM64PC) -j$(JOBS) TARGET_WEB=1 HEADLESS_VERSION=1; \
 		cp $(SM64PC)/build/us_web/sm64.us.js $(WASM_JS)/sm64.us.js; \
 		cp $(SM64PC)/build/us_web/sm64.us.wasm $(WASM)/sm64.us.wasm; \
 		cp $(SM64PC)/build/us_web_headless/sm64.us.wasm $(WASM)/sm64_headless.us.wasm; \
@@ -62,10 +65,50 @@ copy-rom:
 		echo "$(RED)A Mario 64 ROM is required with the name $(ROM_FILE)$(RESET)"; \
 		exit 1; \
 	fi
-	cp $(ROM_FILE) $(SM64PC)/$(ROM_FILE)
+	@cp $(ROM_FILE) $(SM64PC)/$(ROM_FILE)
+
+# ------------------------------------------------------------------
+# Tests
+#
+# Each target is independent; `make test` runs whichever are available.
+# Anything needing the ROM or a toolchain skips rather than fails.
+# ------------------------------------------------------------------
+PYTHON ?= python3
+CARGO  ?= cargo
+NPM    ?= npm
+
+test: test-maketools test-python test-rust test-javascript
+
+test-maketools:
+	@echo "$(BLUE)\nMAKETOOLS$(RESET)"
+	@$(PYTHON) -m pytest maketools -q || \
+		(echo "$(YELLOW)pytest unavailable, skipping maketools tests$(RESET)")
+
+test-python:
+	@echo "$(BLUE)\nPYTHON$(RESET)"
+	@cd python && $(PYTHON) -m pytest -q || \
+		(echo "$(YELLOW)pytest/wasmtime unavailable, skipping python tests$(RESET)")
+
+test-rust:
+	@echo "$(BLUE)\nRUST$(RESET)"
+	@cd rust && $(CARGO) test
+
+test-javascript:
+	@echo "$(BLUE)\nJAVASCRIPT$(RESET)"
+	@cd javascript && $(NPM) test
+
+lint:
+	@echo "$(BLUE)\nRUST CLIPPY$(RESET)"
+	@cd rust && $(CARGO) clippy --all-targets -- -D warnings
+	@echo "$(BLUE)\nRUST FMT$(RESET)"
+	@cd rust && $(CARGO) fmt --check
+	@echo "$(BLUE)\nJAVASCRIPT$(RESET)"
+	@cd javascript && $(NPM) run lint
+	@cd js_example && $(NPM) run lint
 
 clean:
 	@echo "Cleaning up..."
 	$(MAKE) -C $(SM64PC) clean
+	rm -rf $(WASM)
 
-.PHONY: all sm64-build copy-rom clean
+.PHONY: all sm64-build copy-rom clean test test-maketools test-python test-rust test-javascript lint

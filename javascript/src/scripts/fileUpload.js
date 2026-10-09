@@ -76,13 +76,11 @@ async function storeFile(filename, file) {
     const request = store.put({ id: filename, data: file });
 
     return new Promise((resolve, reject) => {
-        request.onsuccess = (event) => {
-            console.log(`${filename} has been saved to IndexedDB.`);
+        request.onsuccess = () => {
             resolve();
         };
-        request.onerror = (event) => {
-            console.error('Error saving to IndexedDB:', event);
-            reject();
+        request.onerror = () => {
+            reject(new Error(`Error saving '${filename}' to IndexedDB`));
         };
     });
 }

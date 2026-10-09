@@ -1,3 +1,5 @@
+"""N64 controller button masks, matching the Rust and JavaScript bindings."""
+
 A_BUTTON = 0x8000
 B_BUTTON = 0x4000
 L_TRIG = 0x0020
@@ -12,3 +14,20 @@ U_CBUTTONS = 0x0008
 L_CBUTTONS = 0x0002
 R_CBUTTONS = 0x0001
 D_CBUTTONS = 0x0004
+
+ALL = (
+    A_BUTTON,
+    B_BUTTON,
+    L_TRIG,
+    R_TRIG,
+    Z_TRIG,
+    START_BUTTON,
+    U_JPAD,
+    L_JPAD,
+    R_JPAD,
+    D_JPAD,
+    U_CBUTTONS,
+    L_CBUTTONS,
+    R_CBUTTONS,
+    D_CBUTTONS,
+)

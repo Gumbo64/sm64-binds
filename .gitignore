@@ -1,20 +1,37 @@
+# ROM and build outputs of the WASM builds
 baserom.us.z64
 sm64.us
 sm64_headless.us
 sm64.us.wasm
 sm64_headless.us.wasm
+sm64.us.wasm.zip
+sm64_headless.us.wasm.zip
+WASM/
+# WASM_JS/sm64.us.js is intentionally tracked: `make` copies it into the
+# JavaScript package even when emscripten is unavailable.
 
-WASM
+# Generated artifacts from running the bindings
+*.gif
+temp.png
+rust/output.png
 
-3d_rotation.gif
-
-*.tmp.so
+# Rust
 target/
-__pycache__
-.venv
-.vscode
-build/
-dist/
-tmp_so/
 
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
+
+# Editors
+.vscode/
+.idea/
+
+# Downloaded ROMs
 *.m64

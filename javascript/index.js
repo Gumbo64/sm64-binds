@@ -30,8 +30,6 @@ async function sm64_test(canvas) {
         
         engine.step_game(pad);
 
-        let state = engine.get_game_state();
-        console.log(state.pos)
         let c_pad = engine.get_controller_pad();
         if (c_pad.is_pressed(GamepadButtons.U_JPAD)) {
             return true;
@@ -51,7 +49,7 @@ async function sm64_test(canvas) {
     
     await iter_with_anim_frame(step, get_speed);
 
-    return [success, solution];
+    return [engine, success];
 
 }
 async function iter_with_anim_frame(func, get_speed, kill_signal= async () => {false}) {
@@ -91,12 +89,12 @@ async function iter_with_anim_frame(func, get_speed, kill_signal= async () => {f
     });
 }
 
-async function sm64_evaluate(canvas, solution = [], seed, game_config = GameConfig.defaultConfig(), kill_signal = async () => {false}, has_won = (state) => {false}) {
-    let [_, success] = sm64_playback(canvas, solution, false, seed, game_config, MIN_SPEED, MAX_SPEED, kill_signal, has_won);
+async function sm64_evaluate(canvas, solution = [], seed, game_config = GameConfig.defaultConfig(), kill_signal = async () => {false}, has_won = (_state) => {false}) {
+    let [, success] = await sm64_playback(canvas, solution, false, seed, game_config, MIN_SPEED, MAX_SPEED, kill_signal, has_won);
     return success;
 }
 
-async function sm64_playback(canvas, inputs=[], controllable=false, seed=NaN, game_config = GameConfig.defaultConfig(), min_speed=MIN_SPEED, max_speed=MAX_SPEED, kill_signal = async () => {false}, has_won = (state) => {false}, starting_engine=null) {
+async function sm64_playback(canvas, inputs=[], controllable=false, seed=NaN, game_config = GameConfig.defaultConfig(), min_speed=MIN_SPEED, max_speed=MAX_SPEED, kill_signal = async () => {false}, has_won = (_state) => {false}, starting_engine=null) {
     let success = false;
     let engine;
     if (starting_engine === null) {
@@ -158,11 +156,12 @@ async function sm64_playback(canvas, inputs=[], controllable=false, seed=NaN, ga
 }
 
 
-async function record_single(canvas, starting_solution = [], seed=NaN, game_config = GameConfig.defaultConfig(), kill_signal = async () => {false}, has_won = (state) => {false}) {
+async function record_single(canvas, starting_solution = [], seed=NaN, game_config = GameConfig.defaultConfig(), kill_signal = async () => {false}, has_won = (_state) => {false}) {
     let [engine, success] = await sm64_playback(canvas, starting_solution, true, seed, game_config, MIN_SPEED, MAX_SPEED, kill_signal, has_won);
-    if (success) return [success, solution];
+    if (success) return [success, starting_solution];
 
-    let solution = Array.from(starting_solution); // shallow copy, use the same pad objects but different array
+    // Shallow copy: same pad objects, separate array to append to.
+    let solution = Array.from(starting_solution);
 
     let cancel_start_press = true;
 
@@ -195,8 +194,6 @@ async function record_single(canvas, starting_solution = [], seed=NaN, game_conf
         solution.push(pad);
 
         let state = engine.get_game_state();
-        console.log(state);
-        // console.log(state.toString());
 
         // check if won
         if (has_won(state)) {
@@ -224,7 +221,7 @@ async function record_single(canvas, starting_solution = [], seed=NaN, game_conf
 
 }
 
-async function sm64_record(canvas, seed=NaN, game_config = GameConfig.defaultConfig(), kill_signal = async () => {false}, has_won = (state) => {false}) {
+async function sm64_record(canvas, seed=NaN, game_config = GameConfig.defaultConfig(), kill_signal = async () => {false}, has_won = (_state) => {false}) {
     let success = false;
     let starting_solution = [];
 

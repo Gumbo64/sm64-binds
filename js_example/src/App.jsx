@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router";
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Game from "./pages/Game.jsx";
 import "./App.css";
 

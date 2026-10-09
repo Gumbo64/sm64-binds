@@ -4,7 +4,6 @@ import Loading from './Loading.jsx';
 
 const FileUpload = ({ setHasRom }) => {
     const [loading, setLoading] = useState(true);
-    const [file, setFile] = useState(null);
     const [error, setError] = useState(null);
 
     // Directly set the expected ROM hash
@@ -14,7 +13,6 @@ const FileUpload = ({ setHasRom }) => {
         const romFile = event.target.files[0];
         if (romFile) {
             const romBuffer = await romFile.arrayBuffer();
-            setFile(romFile);
             setError(null);
 
             // Calculate the SHA-1 hash of the file

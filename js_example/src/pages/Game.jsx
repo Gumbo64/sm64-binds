@@ -1,6 +1,5 @@
-import { useEffect } from "react";
-import { useRef, useState } from "react";
-import { sm64_record, sm64_test, GameConfig, RngConfig } from "sm64-binds-frontend";
+import { useEffect, useRef } from "react";
+import { sm64_record, GameConfig } from "sm64-binds-frontend";
 import './Game.css';
 
 var interrupt_game = false;

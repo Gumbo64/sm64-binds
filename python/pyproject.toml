@@ -1,6 +1,6 @@
 [project]
 name = "sm64-binds"
-version = "0.0.6"
+version = "0.0.7"
 authors = [
   { name="Gumbo64", email="gumbo64isme@proton.me" },
 ]
@@ -18,6 +18,11 @@ dependencies = [
     "wasmtime>=40.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
 [build-system]
 requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -26,6 +31,14 @@ build-backend = "setuptools.build_meta"
 homepage = "https://github.com/Gumbo64/sm64-binds"
 repository = "https://github.com/Gumbo64/sm64-binds"
 
+[tool.setuptools]
+package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
 "sm64_binds.pkg" = ["*.xor"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Makes `sm64_binds` and `tests/conftest.py` importable from a source checkout,
+# so `pytest` works without installing the package first.
+pythonpath = ["src", "tests"]

@@ -14,8 +14,6 @@ wasmer = { version = "6.1.0", default-features = false }
 getrandom = { version = "0.3", features = ["wasm_js"] }
 zip = "6.0.0"
 
-[dev-dependencies]
-plotters = "0.3"  # Example runtime dependency
 
 [features]
 default = ["wasmer/sys", "wasmer/cranelift", "fs"]
