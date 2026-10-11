@@ -163,48 +163,41 @@ jobs:
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     environment: pypi
+    permissions:
+      contents: read
+      # Required for PyPI trusted publishing (OIDC).
+      id-token: write
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
 
+      # The shared artifact also carries the crate and npm tarball; the
+      # PyPI action checks everything in packages-dir, so keep only wheels
+      # and sdists here.
       - name: Publish
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "${TWINE_PASSWORD:-}" ]; then
-            echo "::error::set the PYPI_API_TOKEN repository secret."
-            exit 1
-          fi
-          pip install --upgrade twine
-          twine check dist/*.whl dist/*.tar.gz
-          twine upload dist/*.whl dist/*.tar.gz
+        run: rm -f dist/*.crate dist/*.tgz
+      - name: Upload to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
 
   publish-npm:
     name: Publish to npm
     needs: prepare
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
+    environment: npm
     permissions:
       contents: read
-      # Required for npm provenance (OIDC).
+      # Required for npm trusted publishing and provenance (OIDC).
       id-token: write
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
+          # Trusted publishing needs npm >= 11.5.1, which Node 24 bundles.
+          node-version: 24
 
       - uses: actions/download-artifact@v4
         with:
@@ -212,14 +205,8 @@ jobs:
           path: dist
 
       - name: Publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::error::set the NPM_TOKEN repository secret."
-            exit 1
-          fi
           tarball=$(ls dist/*.tgz | head -1)
           npm publish "$tarball" --provenance --access public
 
