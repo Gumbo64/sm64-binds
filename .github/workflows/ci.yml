@@ -16,6 +16,8 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # secrets can't be read from `if:`, so gate the ROM fetch through an env var.
+  HAS_ROM: ${{ secrets.ROM_URL != '' && 'yes' || '' }}
 
 jobs:
   rust:
@@ -45,7 +47,7 @@ jobs:
       # add a repository secret ROM_URL pointing at a US .z64 in a private
       # bucket; the step below fetches it when present.
       - name: Fetch the ROM (optional)
-        if: ${{ secrets.ROM_URL != '' }}
+        if: ${{ env.HAS_ROM != '' }}
         run: curl -fsSL --proto '=https' --tlsv1.2 "$ROM_URL" -o ../baserom.us.z64
 
       - name: Test

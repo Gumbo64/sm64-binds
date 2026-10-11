@@ -21,6 +21,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # secrets can't be read from `if:`, so gate the crates.io auth through an
+  # env var (the prepare step has no conditional on secrets).
+  HAS_CARGO_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' && 'yes' || '' }}
 
 jobs:
   # Everything below publishes from one prepared artifact set, so a failure
@@ -131,7 +134,7 @@ jobs:
       # token secret is set; if neither is configured this step fails loudly.
       - name: Authenticate with crates.io
         id: auth
-        if: ${{ secrets.CARGO_REGISTRY_TOKEN == '' }}
+        if: ${{ env.HAS_CARGO_TOKEN == '' }}
         uses: rust-lang/crates-io-auth-action@v1
 
       - name: Publish
