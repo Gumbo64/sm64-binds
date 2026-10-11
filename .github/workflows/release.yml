@@ -70,6 +70,13 @@ jobs:
           python -m pytest maketools -q
           python -m pytest python -q
 
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
       - name: Build the crate
         run: |
           cd rust
@@ -125,11 +132,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist
-
       # Trusted publishing: crates.io verifies this workflow's OIDC identity
       # against the config in the crate's crates.io settings, whose
       # "Workflow filename" must be release.yml. Only used when no long-lived
@@ -152,8 +154,8 @@ jobs:
             echo "::error::    workflow filename 'release.yml'."
             exit 1
           fi
-          crate=$(ls dist/*.crate | head -1)
-          cargo publish --locked --crate "$crate"
+          cargo publish --locked
+        working-directory: rust
 
   publish-python:
     name: Publish to PyPI
@@ -184,14 +186,18 @@ jobs:
             exit 1
           fi
           pip install --upgrade twine
-          twine check dist/*
-          twine upload dist/*
+          twine check dist/*.whl dist/*.tar.gz
+          twine upload dist/*.whl dist/*.tar.gz
 
   publish-npm:
     name: Publish to npm
     needs: prepare
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for npm provenance (OIDC).
+      id-token: write
     steps:
       - uses: actions/checkout@v5
 
