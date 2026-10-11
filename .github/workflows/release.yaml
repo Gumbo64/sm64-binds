@@ -173,15 +173,13 @@ jobs:
           name: dist
           path: dist
 
-      # The shared artifact also carries the crate and npm tarball; the
-      # PyPI action checks everything in packages-dir, so keep only wheels
-      # and sdists here.
-      - name: Publish
-        run: rm -f dist/*.crate dist/*.tgz
+      # upload-artifact keeps the directory structure, so the Python
+      # distributions land in dist/python/dist; that subdirectory contains
+      # only wheels and sdists (the crate and npm tarball live elsewhere).
       - name: Upload to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: dist
+          packages-dir: dist/python/dist
 
   publish-npm:
     name: Publish to npm
@@ -207,7 +205,7 @@ jobs:
       - name: Publish
         run: |
           set -euo pipefail
-          tarball=$(ls dist/*.tgz | head -1)
+          tarball=$(ls dist/javascript/*.tgz)
           npm publish "$tarball" --provenance --access public
 
   summary:
