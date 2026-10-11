@@ -209,7 +209,6 @@ impl SM64Game {
         self.expand_memory_to((DATA0_SIZE + save_state_length) as u64)
     }
 
-
     fn expand_memory_to(&mut self, total_bytes: u64) -> Result<(), Error> {
         if self.memory.view(&self.store).data_size() >= total_bytes {
             return Ok(());
@@ -339,20 +338,20 @@ impl SM64Game {
         Ok(())
     }
 
-    // Copies all of linear memory into `game_to`, read-only data included.
-    // Simpler but worse performance.
-    // pub fn full_copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
-    //     let src = self.memory.view(&self.store);
-    //     let len = src.data_size() as usize;
+    /// Copies all of linear memory into `game_to`, read-only data included.
+    /// Simpler but worse performance.
+    pub fn full_copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
+        let src = self.memory.view(&self.store);
+        let len = src.data_size() as usize;
 
-    //     game_to.expand_memory_to(len as u64)?;
+        game_to.expand_memory_to(len as u64)?;
 
-    //     let dst = game_to.memory.view(&game_to.store);
-    //     // SAFETY: as in `copy_to`, except that the whole address space is
-    //     // copied rather than just the mutable region.
-    //     unsafe {
-    //         std::ptr::copy_nonoverlapping(src.data_ptr(), dst.data_ptr(), len);
-    //     }
-    //     Ok(())
-    // }
+        let dst = game_to.memory.view(&game_to.store);
+        // SAFETY: as in `copy_to`, except that the whole address space is
+        // copied rather than just the mutable region.
+        unsafe {
+            std::ptr::copy_nonoverlapping(src.data_ptr(), dst.data_ptr(), len);
+        }
+        Ok(())
+    }
 }

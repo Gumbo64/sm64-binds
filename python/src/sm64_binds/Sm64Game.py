@@ -407,19 +407,19 @@ class SM64GameGenerator:
         game_to.using_rng_flag = game.using_rng_flag
         return game_to
 
-    # def full_copy_to(self, game: SM64Game, game_to: SM64Game):
-    #     """Copies all of ``game``'s linear memory into ``game_to``, read-only
-    #     data included.
+    def full_copy_to(self, game: SM64Game, game_to: SM64Game):
+        """Copies all of ``game``'s linear memory into ``game_to``, read-only
+        data included.
 
-    #     Only needed for byte-exactness across instances that somehow differ
-    #     in the read-only segment; :meth:`copy_to` is normally what you want.
-    #     """
-    #     src_ptr = _base_address(game.memory, game.store)
-    #     size = game.memory.data_len(game.store)
+        Only needed for byte-exactness across instances that somehow differ
+        in the read-only segment; :meth:`copy_to` is normally what you want.
+        """
+        src_ptr = _base_address(game.memory, game.store)
+        size = game.memory.data_len(game.store)
 
-    #     dst_ptr = _base_address(game_to.memory, game_to.store)
-    #     dst_size = game_to.memory.data_len(game_to.store)
+        dst_ptr = _base_address(game_to.memory, game_to.store)
+        dst_size = game_to.memory.data_len(game_to.store)
 
-    #     ctypes.memmove(dst_ptr, src_ptr, min(size, dst_size))
-    #     game_to.using_rng_flag = game.using_rng_flag
-    #     return game_to
+        ctypes.memmove(dst_ptr, src_ptr, min(size, dst_size))
+        game_to.using_rng_flag = game.using_rng_flag
+        return game_to
