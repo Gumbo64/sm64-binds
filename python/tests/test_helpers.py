@@ -274,7 +274,7 @@ def test_rng_config_repr_lists_every_field():
 def test_button_masks_are_distinct_single_bits():
     seen = 0
     for mask in buttons.ALL:
-        assert mask.bit_count() == 1, f"0x{mask:04x} is not a single bit"
+        assert bin(mask).count("1") == 1, f"0x{mask:04x} is not a single bit"
         assert seen & mask == 0, f"0x{mask:04x} collides with an earlier mask"
         seen |= mask
 
