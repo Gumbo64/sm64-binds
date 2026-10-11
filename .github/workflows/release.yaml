@@ -134,7 +134,7 @@ jobs:
 
       # Trusted publishing: crates.io verifies this workflow's OIDC identity
       # against the config in the crate's crates.io settings, whose
-      # "Workflow filename" must be release.yml. Only used when no long-lived
+      # "Workflow filename" must be release.yaml. Only used when no long-lived
       # token secret is set; if neither is configured this step fails loudly.
       - name: Authenticate with crates.io
         id: auth
@@ -151,7 +151,7 @@ jobs:
             echo "::error::  - set the CARGO_REGISTRY_TOKEN repository secret, or"
             echo "::error::  - configure trusted publishing for this crate in"
             echo "::error::    crates.io -> Settings -> Trusted Publishing, with"
-            echo "::error::    workflow filename 'release.yml'."
+            echo "::error::    workflow filename 'release.yaml'."
             exit 1
           fi
           cargo publish --locked
