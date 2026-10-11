@@ -8,6 +8,11 @@ lto = true
 opt-level = "z"
 panic = 'abort'
 
+# The benchmarks should measure the code that actually ships, so they use the
+# release profile rather than cargo's default bench settings.
+[profile.bench]
+inherits = "release"
+
 [target.wasm32-unknown-unknown]
 rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
 

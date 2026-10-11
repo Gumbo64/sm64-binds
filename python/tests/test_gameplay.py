@@ -13,6 +13,8 @@ import pytest
 
 from conftest import WARMUP_FRAMES, input_script
 from sm64_binds import (
+    DATA0_SIZE,
+    STACK_END,
     GamePad,
     RngConfig,
     SM64GameGenerator,
@@ -289,3 +291,96 @@ def test_a_clone_keeps_its_own_rng_sequence(generator):
         assert game.rng_pad(pad) == reference.rng_pad(pad), (
             f"advancing a clone desynced the source RNG at frame {frame}"
         )
+
+def test_full_copy_to_captures_the_whole_address_space(generator):
+    """copy_to skips the constant segment; full_copy_to must not."""
+    source = generator.create_game()
+    target = generator.create_game()
+    for _ in range(WARMUP_FRAMES):
+        source.step_game(GamePad(0, 0, 0))
+
+    generator.full_copy_to(source, target)
+    assert repr(source.get_game_state()) == repr(target.get_game_state())
+
+
+def test_copy_to_copies_the_stack_and_the_heap(generator):
+    """copy_to must cover both mutable ranges, not just the heap."""
+    source = generator.create_game()
+    target = generator.create_game()
+    for _ in range(WARMUP_FRAMES):
+        source.step_game(GamePad(0, 0, 0))
+
+    # A fresh game and a played one differ in the stack half of a save state.
+    fresh_stack = _stack_bytes(target)
+    played_stack = _stack_bytes(source)
+    assert fresh_stack != played_stack, (
+        "the stack must differ after playing, or the copy would be untested"
+    )
+
+    generator.copy_to(source, target)
+
+    assert _stack_bytes(target) == played_stack, (
+        "copy_to must reproduce the stack as well as the heap"
+    )
+    assert repr(source.get_game_state()) == repr(target.get_game_state())
+
+
+def _stack_bytes(game):
+    """The first STACK_END bytes of linear memory."""
+    ptr = game.memory.data_ptr(game.store)
+    return bytes(ptr[:STACK_END])
+
+
+def test_copy_to_skips_the_read_only_segment(generator):
+    """Everything between the stack and DATA0_SIZE must be untouched by play."""
+    source = generator.create_game()
+    for _ in range(WARMUP_FRAMES):
+        source.step_game(GamePad(0, 0, 0))
+
+    fresh = generator.create_game()
+    # Compare the gap directly in linear memory.
+    src_ptr = source.memory.data_ptr(source.store)
+    fresh_ptr = fresh.memory.data_ptr(fresh.store)
+    gap_src = bytes(src_ptr[STACK_END:DATA0_SIZE])
+    gap_fresh = bytes(fresh_ptr[STACK_END:DATA0_SIZE])
+    assert gap_src == gap_fresh, (
+        "the segment between the stack and DATA0_SIZE changed during play, "
+        "so excluding it from save states would be wrong"
+    )
+
+
+def test_copy_stays_byte_identical_to_its_source(generator):
+    """The strongest available check: mutable memory stays equal for a long run."""
+    source = generator.create_game()
+    target = generator.create_game()
+    for _ in range(WARMUP_FRAMES):
+        source.step_game(GamePad(0, 0, 0))
+    generator.copy_to(source, target)
+
+    for i in range(3000):
+        pad = GamePad(buttons.A_BUTTON if i % 2 == 0 else 0, 0, 80 if i % 3 == 0 else -80)
+        source.step_game(pad)
+        target.step_game(pad)
+        if i % 500:
+            continue
+        assert _save_bytes(source) == _save_bytes(target), (
+            f"save state diverged at frame {i}"
+        )
+
+
+def _save_bytes(game):
+    """Both mutable ranges, concatenated, as a copy_to would move them."""
+    ptr = game.memory.data_ptr(game.store)
+    size = game.memory.data_len(game.store)
+    return bytes(ptr[:STACK_END]) + bytes(ptr[DATA0_SIZE:size])
+
+
+def test_copy_to_moves_fewer_bytes_than_full_copy_to(generator):
+    """The whole point of skipping the read-only segment."""
+    source = generator.create_game()
+    for _ in range(WARMUP_FRAMES):
+        source.step_game(GamePad(0, 0, 0))
+
+    size = source.memory.data_len(source.store)
+    copied = STACK_END + (size - DATA0_SIZE)
+    assert copied < size, "skipping the read-only segment must save bytes"

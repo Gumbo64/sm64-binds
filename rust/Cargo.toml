@@ -1,10 +1,16 @@
 [package]
 name = "sm64-binds"
-version = "1.0.24"
+version = "1.0.25"
 edition = "2024"
 
 description = "Mario 64 using WASM. Requires a US .z64 version ROM to work (8.00MB)"
 license = "MIT OR Apache-2.0"
+readme = "../README.md"
+keywords = ["mario64", "sm64", "wasm", "game", "nintendo"]
+categories = ["game-development", "wasm", "api-bindings"]
+repository = "https://github.com/Gumbo64/sm64-binds"
+homepage = "https://github.com/Gumbo64/sm64-binds#readme"
+documentation = "https://docs.rs/sm64-binds"
 
 [dependencies]
 anyhow = "1.0.100"
@@ -22,6 +28,23 @@ wasm_js = ["wasmer/js-default"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+# Benchmarks are standalone programs rather than libtest benchmarks, so each
+# can set up its own game instance and print a summary. Run them with
+# `cargo run --release --bench <name> -- <rom path>`; see benchmark/README.md.
+#
+# The explicit paths are what lets the directory be `benchmark/` rather than
+# cargo's default `benches/`; `harness = false` stops cargo treating these as
+# libtest benchmark targets.
+[[bench]]
+name = "hot_paths"
+harness = false
+path = "benchmark/hot_paths.rs"
+
+[[bench]]
+name = "diagnostics"
+harness = false
+path = "benchmark/diagnostics.rs"
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["--enable-nontrapping-float-to-int", "--enable-bulk-memory"]

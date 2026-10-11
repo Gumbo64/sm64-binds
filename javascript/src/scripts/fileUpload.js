@@ -1,6 +1,8 @@
 import sm64_ZIP_XOR from './sm64/pkg/sm64.us.wasm.zip.xor.png';
 import JSZip from 'jszip';
 
+import { xorBytes } from './xor.js';
+
 // Function to unzip and return the file bytes
 async function unzipBytes(zipBytes) {
     const jszip = new JSZip();
@@ -56,13 +58,8 @@ async function xorForWASMSingle(wasmXOR, filename) {
     const keyBuffer = new Uint8Array(key);
     const inputFileBuffer = await inputFileResponse.arrayBuffer();
     const inputFileData = new Uint8Array(inputFileBuffer);
-    const outputFileData = new Uint8Array(inputFileData.length);
 
-    for (let i = 0; i < inputFileData.length; i++) {
-        outputFileData[i] = inputFileData[i] ^ keyBuffer[i % keyBuffer.byteLength];
-    }
-
-    const unzippedBytes = await unzipBytes(outputFileData);
+    const unzippedBytes = await unzipBytes(xorBytes(inputFileData, keyBuffer));
 
     // Initialize IndexedDB
     return storeFile(filename, unzippedBytes);

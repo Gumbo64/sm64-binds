@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch cancels the older run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Build
+        run: cargo build --release
+
+      # The unit tests read the ROM at runtime and skip without it, so this
+      # works on a clean checkout. To exercise the game-booting tests as well,
+      # add a repository secret ROM_URL pointing at a US .z64 in a private
+      # bucket; the step below fetches it when present.
+      - name: Fetch the ROM (optional)
+        if: ${{ secrets.ROM_URL != '' }}
+        run: curl -fsSL --proto '=https' --tlsv1.2 "$ROM_URL" -o ../baserom.us.z64
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Build the wasm target
+        run: cargo build --release --target wasm32-unknown-unknown --no-default-features --features wasm_js
+
+      - name: Check the crate packages cleanly
+        run: cargo package --list --allow-dirty
+
+      # `cargo build` will happily bump every dependency in Cargo.lock when a
+      # manifest changes. That once pulled in a wasmer/wasmer-vm pair that does
+      # not compile for wasm32, so fail loudly instead of discovering it later.
+      - name: Check Cargo.lock is unchanged
+        run: |
+          if ! git diff --quiet -- Cargo.lock; then
+            echo "::error::Cargo.lock changed. Commit the updated lockfile if the"
+            echo "::error::dependency change is intended; do not leave it drifting."
+            git diff --stat -- Cargo.lock
+            git diff -- Cargo.lock | head -40
+            exit 1
+          fi
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -e '.[dev]' numpy
+
+      - name: Test
+        run: uv run --no-project pytest -q
+
+      - name: Build the wheel and sdist
+        run: uv build
+
+  javascript:
+    name: JavaScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install
+        run: npm ci
+        working-directory: javascript
+
+      - name: Lint
+        run: npm run lint
+        working-directory: javascript
+
+      - name: Test
+        run: npm test
+        working-directory: javascript
+
+      # The example consumes the package by path, so this also proves the
+      # package's export map and bundled assets resolve.
+      - name: Install, lint and build the example app
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+        working-directory: js_example
+
+  maketools:
+    name: Packaging tools
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Test
+        run: python -m pytest maketools -q
+
+      - name: Confirm the packaged artifacts match their sources
+        run: python scripts/check_artifacts.py
+
+  versions:
+    name: Version check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Each package is released separately, so a forgotten bump is easy to
+      # miss. This only reports; bump_versions.py handles the actual edits.
+      - name: Report versions
+        run: python scripts/show_versions.py

@@ -1,7 +1,10 @@
 """Mario 64 running in WebAssembly, driven through the WASM exports."""
 
 from .Sm64Game import (
+    DATA0_SIZE,
     GAME_STATE_SIZE,
+    MUTABLE_RANGES,
+    STACK_END,
     GamePad,
     GameState,
     RngConfig,
@@ -15,7 +18,10 @@ from .Sm64Game import (
 from . import buttons
 
 __all__ = [
+    "DATA0_SIZE",
     "GAME_STATE_SIZE",
+    "MUTABLE_RANGES",
+    "STACK_END",
     "GamePad",
     "GameState",
     "RngConfig",

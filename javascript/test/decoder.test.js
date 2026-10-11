@@ -226,3 +226,47 @@ test("toString includes every field", () => {
         assert.ok(text.includes(field), `toString is missing ${field}`);
     }
 });
+// ---------------------------------------------------------------
+// XOR (runs once per ROM upload, on the 6 MB shipped payload)
+// ---------------------------------------------------------------
+
+import { xorBytes } from "../src/scripts/xor.js";
+
+test("xor with a single byte key", () => {
+    assert.deepEqual(xorBytes(Uint8Array.of(0, 1, 2, 255), Uint8Array.of(0xaa)),
+        Uint8Array.of(0xaa, 0xab, 0xa8, 0x55));
+});
+
+test("xor repeats a shorter key", () => {
+    assert.deepEqual(xorBytes(Uint8Array.of(1, 2, 3, 4, 5), Uint8Array.of(0xff, 0)),
+        Uint8Array.of(0xfe, 0x02, 0xfc, 0x04, 0xfa));
+});
+
+test("xor uses only the key prefix when the key is longer", () => {
+    assert.deepEqual(xorBytes(Uint8Array.of(1, 2), Uint8Array.of(9, 8, 7, 6)),
+        Uint8Array.of(1 ^ 9, 2 ^ 8));
+});
+
+test("xor with empty input", () => {
+    assert.deepEqual(xorBytes(new Uint8Array(0), Uint8Array.of(1, 2, 3)), new Uint8Array(0));
+});
+
+test("xor is its own inverse", () => {
+    const data = Uint8Array.from({ length: 300 }, (_, i) => i % 256);
+    const key = Uint8Array.from([0xde, 0xad, 0xbe, 0xef]);
+    assert.deepEqual(xorBytes(xorBytes(data, key), key), data);
+});
+
+test("xor rejects an empty key", () => {
+    assert.throws(() => xorBytes(Uint8Array.of(1), new Uint8Array(0)));
+});
+
+test("xor matches a naive byte-by-byte reference", () => {
+    // Guards the chunked implementation against an off-by-one at a key boundary.
+    const data = Uint8Array.from({ length: 1000 }, (_, i) => (i * 31) % 256);
+    for (const keyLength of [1, 2, 3, 7, 8, 17, 256]) {
+        const key = Uint8Array.from({ length: keyLength }, (_, i) => i * 5);
+        const expected = Uint8Array.from(data, (b, i) => b ^ key[i % keyLength]);
+        assert.deepEqual(xorBytes(data, key), expected, `keyLength=${keyLength}`);
+    }
+});

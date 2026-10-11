@@ -1,0 +1,228 @@
+name: Release
+
+# Publishing is tag driven: push a v* tag and this builds and uploads all three
+# packages. Use workflow_dispatch for a dry run (see `dry_run` below).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and verify, but do not upload to any registry"
+        type: boolean
+        default: true
+      ref:
+        description: "Tag or branch to release (defaults to the current ref)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Everything below publishes from one prepared artifact set, so a failure
+  # part way through cannot leave the packages describing different code.
+  prepare:
+    name: Verify
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Check the packaged artifacts match their sources
+        run: python scripts/check_artifacts.py
+
+      - name: Confirm the version matches the tag
+        id: version
+        run: |
+          version="$(python scripts/show_versions.py --quiet)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "  releasing $version"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            if [ "$tag" != "$version" ]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match any package version ($version)."
+              echo "::error::bump with: python scripts/bump_versions.py $tag"
+              exit 1
+            fi
+          fi
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip pytest
+          cd python && pip install -e '.[dev]' && cd ..
+
+      - name: Test
+        run: |
+          python -m pytest maketools -q
+          python -m pytest python -q
+
+      - name: Build the crate
+        run: |
+          cd rust
+          cargo test --release
+          cargo build --release --target wasm32-unknown-unknown \
+            --no-default-features --features wasm_js
+          cargo package
+
+      - name: Build the Python distributions
+        run: |
+          cd python
+          pip install --upgrade build
+          python -m build
+
+      - name: Build the npm tarball
+        run: |
+          cd javascript
+          npm ci
+          npm test
+          npm pack
+          # The published tarball must not carry the test suite.
+          if tar tzf *.tgz | grep -q "package/test/"; then
+            echo "::error::test/ was published"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            rust/target/package/*.crate
+            python/dist/*.whl
+            python/dist/*.tar.gz
+            javascript/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-rust:
+    name: Publish to crates.io
+    needs: prepare
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for trusted publishing (OIDC).
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      # Trusted publishing: crates.io verifies this workflow's OIDC identity
+      # against the config in the crate's crates.io settings, whose
+      # "Workflow filename" must be release.yml. Only used when no long-lived
+      # token secret is set; if neither is configured this step fails loudly.
+      - name: Authenticate with crates.io
+        id: auth
+        if: ${{ secrets.CARGO_REGISTRY_TOKEN == '' }}
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "::error::No way to authenticate to crates.io. Either"
+            echo "::error::  - set the CARGO_REGISTRY_TOKEN repository secret, or"
+            echo "::error::  - configure trusted publishing for this crate in"
+            echo "::error::    crates.io -> Settings -> Trusted Publishing, with"
+            echo "::error::    workflow filename 'release.yml'."
+            exit 1
+          fi
+          crate=$(ls dist/*.crate | head -1)
+          cargo publish --locked --crate "$crate"
+
+  publish-python:
+    name: Publish to PyPI
+    needs: prepare
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TWINE_PASSWORD:-}" ]; then
+            echo "::error::set the PYPI_API_TOKEN repository secret."
+            exit 1
+          fi
+          pip install --upgrade twine
+          twine check dist/*
+          twine upload dist/*
+
+  publish-npm:
+    name: Publish to npm
+    needs: prepare
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::set the NPM_TOKEN repository secret."
+            exit 1
+          fi
+          tarball=$(ls dist/*.tgz | head -1)
+          npm publish "$tarball" --provenance --access public
+
+  summary:
+    name: Summary
+    needs: [prepare, publish-rust, publish-python, publish-npm]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "### Release ${{ needs.prepare.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Package | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| crates.io | ${{ needs.publish-rust.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| PyPI | ${{ needs.publish-python.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| npm | ${{ needs.publish-npm.result }} |" >> "$GITHUB_STEP_SUMMARY"

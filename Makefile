@@ -106,9 +106,45 @@ lint:
 	@cd javascript && $(NPM) run lint
 	@cd js_example && $(NPM) run lint
 
+# ------------------------------------------------------------------
+# Benchmarks
+#
+# See rust/benchmark/README.md (the shared harness is rust/benchmark/harness.rs,
+# mirrored by python/benchs/harness.py). Both need a ROM at the repo root.
+# The figures are from an x86-64 container; treat them as relative.
+# ------------------------------------------------------------------
+bench:
+	@echo "$(BLUE)\nHOT PATHS$(RESET)"
+	@cd rust && $(CARGO) bench --bench hot_paths -- ../$(ROM_FILE)
+	@echo "$(BLUE)\nDIAGNOSTICS$(RESET)"
+	@cd rust && $(CARGO) bench --bench diagnostics -- ../$(ROM_FILE)
+
+bench-python:
+	@echo "$(BLUE)\nPYTHON$(RESET)"
+	@cd python && PYTHONPATH=src $(PYTHON) bench.py ../$(ROM_FILE)
+
+# ------------------------------------------------------------------
+# Release helpers
+#
+# The three registries are bumped together with scripts/bump_versions.py;
+# pushing the v* tag then runs .github/workflows/release.yml.
+# ------------------------------------------------------------------
+VERSION ?=
+
+versions:
+	@$(PYTHON) scripts/show_versions.py
+
+check-artifacts:
+	@$(PYTHON) scripts/check_artifacts.py
+
+# Bump every package: make bump VERSION=1.0.25
+bump:
+	@test -n "$(VERSION)" || { echo "usage: make bump VERSION=1.0.25"; exit 1; }
+	@$(PYTHON) scripts/bump_versions.py $(VERSION)
+
 clean:
 	@echo "Cleaning up..."
 	$(MAKE) -C $(SM64PC) clean
 	rm -rf $(WASM)
 
-.PHONY: all sm64-build copy-rom clean test test-maketools test-python test-rust test-javascript lint
+.PHONY: all sm64-build copy-rom clean test test-maketools test-python test-rust test-javascript lint bench bench-python versions check-artifacts bump

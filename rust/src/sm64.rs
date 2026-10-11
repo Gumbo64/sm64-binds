@@ -76,11 +76,30 @@ pub struct SM64Game {
     set_rng_seed_fn: TypedFunction<u32, ()>,
 }
 
-impl SM64Game {
-    // From using the twiggy tool (twiggy top sm64.us.wasm). Seems to be constant.
-    // I believe this segment only has constants so no need to save/load it.
-    const DATA0_SIZE: usize = 8013002;
+/// Linear memory is not one mutable region but two, with a constant gap
+/// between them:
+///
+/// ```text
+///   0x000000 ┌────────────────────────┐
+///            │ stack      (mutable)   │  <- emscripten stack, rewritten every frame
+///   0x010000 ├────────────────────────┤
+///            │ read-only data          │  <- constant, excluded from save states
+///   0x7a44ca ├────────────────────────┤
+///            │ game heap and BSS       │  <- mutable, most of the save state
+///            └────────────────────────┘
+/// ```
+///
+pub const STACK_END: usize = 0x10000;
 
+/// Start of the game's heap and BSS; everything above this is mutable.
+pub const DATA0_SIZE: usize = 8013002;
+
+/// The mutable regions of linear memory, as half-open `[start, end)` offsets.
+///
+/// `end` is clamped to the current size of linear memory when copying.
+pub(crate) const MUTABLE_RANGES: [(usize, usize); 2] = [(0, STACK_END), (DATA0_SIZE, usize::MAX)];
+
+impl SM64Game {
     /// Instantiates from a raw WASM module, bypassing ROM validation.
     pub fn new(wasm_bytes: impl AsRef<[u8]>) -> Result<Self> {
         let engine = Engine::default();
@@ -187,40 +206,153 @@ impl SM64Game {
     }
 
     fn expand_memory(&mut self, save_state_length: usize) -> Result<(), Error> {
-        // allocate more memory if necessary for the save state
-        let required_total_bytes = (SM64Game::DATA0_SIZE + save_state_length) as u64;
-        self.memory
-            .grow_at_least(&mut self.store, required_total_bytes)?;
+        self.expand_memory_to((DATA0_SIZE + save_state_length) as u64)
+    }
+
+
+    fn expand_memory_to(&mut self, total_bytes: u64) -> Result<(), Error> {
+        if self.memory.view(&self.store).data_size() >= total_bytes {
+            return Ok(());
+        }
+        self.memory.grow_at_least(&mut self.store, total_bytes)?;
+
+        // grow_at_least rounds up to a page, but a runtime may refuse growth
+        // entirely; re-check so no caller writes out of bounds.
+        let actual = self.memory.view(&self.store).data_size();
+        if actual < total_bytes {
+            return Err(Error::msg(format!(
+                "could not grow linear memory to {total_bytes} bytes (got {actual})"
+            )));
+        }
         Ok(())
     }
 
+    /// The mutable ranges of a memory of `memory_size` bytes, with `usize::MAX`
+    /// ends clamped to that size.
+    fn mutable_ranges(&self, memory_size: usize) -> impl Iterator<Item = (usize, usize)> + '_ {
+        MUTABLE_RANGES
+            .iter()
+            .copied()
+            .map(move |(start, end)| (start, end.min(memory_size)))
+            .filter(move |&(start, end)| end > start)
+    }
+
+    /// A snapshot of all of linear memory, read-only segment included.
+    pub fn linear_memory(&self) -> Vec<u8> {
+        let view = self.memory.view(&self.store);
+        let len = view.data_size() as usize;
+        // SAFETY: `data_ptr` is valid for `data_size` bytes while `view` is
+        // alive, and `len` is `data_size`, so the slice is in bounds.
+        unsafe { std::slice::from_raw_parts(view.data_ptr(), len) }.to_vec()
+    }
+
+    /// The number of bytes [`SM64Game::get_memory_bytes`] would return: the
+    /// `STACK_END` bytes of stack plus everything from `DATA0_SIZE` to the end
+    /// of linear memory.
+    pub fn save_state_size(&self) -> usize {
+        let size = self.memory.view(&self.store).data_size() as usize;
+        self.mutable_ranges(size).map(|(a, b)| b - a).sum()
+    }
+
+    /// Serialises the mutable regions of this game into a save state.
+    ///
+    /// The layout is the mutable ranges concatenated: the `STACK_END` bytes of
+    /// stack first, then everything from `DATA0_SIZE` onwards.
     pub fn get_memory_bytes(&self) -> Result<Vec<u8>, Error> {
         let view = self.memory.view(&self.store);
-        let buffer = view.copy_range_to_vec((SM64Game::DATA0_SIZE as u64)..view.data_size())?;
-        Ok(buffer)
+        let size = view.data_size() as usize;
+        let total: usize = self.mutable_ranges(size).map(|(a, b)| b - a).sum();
+
+        let mut out = Vec::with_capacity(total);
+        for (start, end) in self.mutable_ranges(size) {
+            // SAFETY: `data_ptr` is valid for `size` bytes while `view` is
+            // alive, and each range is clamped to `size`, so the slice is in
+            // bounds. It is copied out before the view is dropped.
+            out.extend_from_slice(unsafe {
+                std::slice::from_raw_parts(view.data_ptr().add(start), end - start)
+            });
+        }
+        Ok(out)
     }
 
+    /// Restores a save state produced by [`SM64Game::get_memory_bytes`].
+    ///
+    /// The save state must have come from a game with at least as much linear
+    /// memory as this one; see [`SM64Game::save_state_size`].
     pub fn write_memory_bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
-        self.expand_memory(bytes.len())?;
+        // Size the destination for the largest state it might hold, then place
+        // the ranges. A short slice leaves the trailing range untouched.
+        let stack = bytes.len().min(STACK_END);
+        let heap = bytes.len().saturating_sub(STACK_END);
+        self.expand_memory(heap)?;
 
-        Ok(self
-            .memory
-            .view(&self.store)
-            .write(SM64Game::DATA0_SIZE as u64, bytes)?)
-    }
+        let view = self.memory.view(&self.store);
 
-    /// Copies the mutable region (everything after `DATA0_SIZE`) into `game_to`.
-    pub fn copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
-        let b = self.get_memory_bytes()?;
-        game_to.write_memory_bytes(b.as_slice())?;
+        // SAFETY: `expand_memory` verified linear memory reaches
+        // `DATA0_SIZE + heap`, and `stack <= STACK_END` is always in bounds.
+        // `bytes` is a separate allocation, so neither copy can overlap.
+        unsafe {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), view.data_ptr(), stack);
+            if heap > 0 {
+                std::ptr::copy_nonoverlapping(
+                    bytes.as_ptr().add(STACK_END),
+                    view.data_ptr().add(DATA0_SIZE),
+                    heap,
+                );
+            }
+        }
         Ok(())
     }
 
-    /// Copies all of linear memory into `game_to`.
-    pub fn full_copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
-        let view_from = self.memory.view(&self.store);
-        let view_to = game_to.memory.view(&game_to.store);
+    /// Copies the mutable regions of this game into `game_to`, without
+    /// materialising a save state in between.
+    pub fn copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
+        let src = self.memory.view(&self.store);
+        let src_size = src.data_size() as usize;
 
-        Ok(view_from.copy_to_memory(view_from.data_size(), &view_to)?)
+        // The destination has to be at least as large as the source's mutable
+        // ranges. The stack needs no growth, only the heap does. Growing can
+        // move the destination's base pointer, so its view is taken after.
+        let needed = src_size.saturating_sub(DATA0_SIZE);
+        game_to.expand_memory(needed)?;
+
+        let dst = game_to.memory.view(&game_to.store);
+        let dst_size = dst.data_size() as usize;
+        let src_ptr = src.data_ptr();
+        let dst_ptr = dst.data_ptr();
+
+        for &(start, end) in &MUTABLE_RANGES {
+            let src_end = end.min(src_size);
+            let dst_end = end.min(dst_size);
+            let len = src_end.min(dst_end).saturating_sub(start);
+            if len == 0 {
+                continue;
+            }
+            // SAFETY: `len` bytes are readable from `start` in the source and
+            // `expand_memory` guaranteed the same range is writable in the
+            // destination. The two memories are distinct allocations, so the
+            // ranges cannot overlap.
+            unsafe {
+                std::ptr::copy_nonoverlapping(src_ptr.add(start), dst_ptr.add(start), len);
+            }
+        }
+        Ok(())
     }
+
+    // Copies all of linear memory into `game_to`, read-only data included.
+    // Simpler but worse performance.
+    // pub fn full_copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
+    //     let src = self.memory.view(&self.store);
+    //     let len = src.data_size() as usize;
+
+    //     game_to.expand_memory_to(len as u64)?;
+
+    //     let dst = game_to.memory.view(&game_to.store);
+    //     // SAFETY: as in `copy_to`, except that the whole address space is
+    //     // copied rather than just the mutable region.
+    //     unsafe {
+    //         std::ptr::copy_nonoverlapping(src.data_ptr(), dst.data_ptr(), len);
+    //     }
+    //     Ok(())
+    // }
 }

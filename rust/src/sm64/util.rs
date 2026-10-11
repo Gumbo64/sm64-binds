@@ -51,6 +51,21 @@ mod tests {
     use std::io::Write;
     use zip::write::SimpleFileOptions;
 
+    /// Path to a US `.z64` ROM, if the checkout has one.
+    fn rom_path() -> Option<std::path::PathBuf> {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../baserom.us.z64");
+        path.exists().then_some(path)
+    }
+
+    /// The US `.z64` ROM bytes, or `None` when the checkout has no ROM.
+    ///
+    /// Read at runtime rather than with `include_bytes!` so `cargo test` still
+    /// compiles without the copyrighted file; the ROM-dependent tests skip
+    /// instead of failing to build.
+    fn rom() -> Option<Vec<u8>> {
+        std::fs::read(rom_path()?).ok()
+    }
+
     fn zip_single(name: &str, contents: &[u8]) -> Vec<u8> {
         let mut buffer = Cursor::new(Vec::new());
         let mut writer = zip::ZipWriter::new(&mut buffer);
@@ -64,20 +79,27 @@ mod tests {
 
     #[test]
     fn check_hash_accepts_the_real_rom() {
-        let rom = include_bytes!("../../../baserom.us.z64");
-        assert!(check_hash(rom));
+        let Some(rom) = rom() else {
+            eprintln!("skipping: no baserom.us.z64");
+            return;
+        };
+        assert!(check_hash(&rom));
     }
 
     #[test]
     fn check_hash_rejects_wrong_region_and_truncated_roms() {
         assert!(!check_hash(b""));
         assert!(!check_hash(b"not a rom"));
+
+        let Some(rom) = rom() else {
+            eprintln!("skipping: no baserom.us.z64");
+            return;
+        };
         // A single flipped byte in a real ROM must fail validation.
-        let mut rom = include_bytes!("../../../baserom.us.z64").to_vec();
-        rom[0] ^= 0xFF;
-        assert!(!check_hash(&rom));
-        // Truncating the real ROM must also fail.
-        let rom = include_bytes!("../../../baserom.us.z64");
+        let mut corrupt = rom.clone();
+        corrupt[0] ^= 0xFF;
+        assert!(!check_hash(&corrupt));
+        // So must a truncated one.
         assert!(!check_hash(&rom[..rom.len() - 1]));
     }
 
@@ -127,9 +149,12 @@ mod tests {
 
     #[test]
     fn xor_is_its_own_inverse() {
-        let rom = include_bytes!("../../../baserom.us.z64");
-        let once = xor_bytes(rom, rom);
-        assert_eq!(xor_bytes(&once, rom), rom.to_vec());
+        let Some(rom) = rom() else {
+            eprintln!("skipping: no baserom.us.z64");
+            return;
+        };
+        let once = xor_bytes(&rom, &rom);
+        assert_eq!(xor_bytes(&once, &rom), rom);
     }
 
     #[test]
@@ -142,8 +167,11 @@ mod tests {
     /// every downstream test failure is a red herring.
     #[test]
     fn bundled_payload_decodes_to_a_wasm_module() {
-        let rom = include_bytes!("../../../baserom.us.z64");
-        let wasm = crate::sm64::SM64GameGenerator::rom_to_wasm_bytes(rom.to_vec());
+        let Some(rom) = rom() else {
+            eprintln!("skipping: no baserom.us.z64");
+            return;
+        };
+        let wasm = crate::sm64::SM64GameGenerator::rom_to_wasm_bytes(rom);
         assert!(
             wasm.starts_with(b"\0asm"),
             "decoded payload is not a WASM module (magic: {:?})",
@@ -158,9 +186,12 @@ mod tests {
 
     #[test]
     fn decoding_the_payload_is_deterministic() {
-        let rom = include_bytes!("../../../baserom.us.z64");
-        let first = crate::sm64::SM64GameGenerator::rom_to_wasm_bytes(rom.to_vec());
-        let second = crate::sm64::SM64GameGenerator::rom_to_wasm_bytes(rom.to_vec());
+        let Some(rom) = rom() else {
+            eprintln!("skipping: no baserom.us.z64");
+            return;
+        };
+        let first = crate::sm64::SM64GameGenerator::rom_to_wasm_bytes(rom.clone());
+        let second = crate::sm64::SM64GameGenerator::rom_to_wasm_bytes(rom);
         assert_eq!(first, second);
     }
 }

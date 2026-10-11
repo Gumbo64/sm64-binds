@@ -23,6 +23,8 @@ runtime. The ROM is required: a US `z64` copy, exactly 8.00 MB.
 | `javascript/` | The npm package, `sm64-binds-frontend`. |
 | `js_example/` | A Vite + React app consuming the npm package. |
 | `maketools/` | Scripts that build and package the distributable WASM. |
+| `scripts/` | Release helpers: version reporting and artifact checks. |
+| `rust/benchmark/` | Timing programs; see `rust/benchmark/README.md`. |
 | `WASM_ZIP_XOR/` | The distributable XOR'd payloads. |
 | `sm64-port/` | Vendored sm64-port checkout, only needed to rebuild the WASM. |
 
@@ -101,3 +103,36 @@ make lint               # clippy, rustfmt and eslint
 Tests that boot the game need a ROM. Point `SM64_BINDS_ROM` at it if it is not
 at the repo root; otherwise those tests skip instead of failing, so the suite
 passes on a checkout without the copyrighted file.
+
+## Releasing
+
+Rust, Python and JavaScript all ship from this repo, one tag at a time:
+
+```
+make versions                 # see where each package stands
+python scripts/bump_versions.py 1.0.25
+```
+
+Then commit, tag `v1.0.25`, and push the tag; GitHub Actions builds and
+publishes all three. See `RELEASING.md` for the one-time token setup and the
+release checklist.
+
+## Benchmarks
+
+```
+make bench           # Rust: stepping, save states, instantiation
+make bench-python    # Python: the same paths
+
+# Or individually, from rust/:
+cargo bench --bench hot_paths -- ../baserom.us.z64
+cargo bench --bench diagnostics -- ../baserom.us.z64
+```
+
+Both language harnesses share one measurement contract (`rust/benchmark/harness.rs`,
+mirrored by `python/benchs/harness.py`): load and instantiation costs, stepping
+through a scripted input, per-call overhead, and the save-state copy paths,
+each with per-unit times, throughput and derived rows for per-frame figures.
+Save-state copying is a single `memcpy` instead of the runtime's chunked
+accessors, and `step_game` is unchanged because it is bounded by the emulated
+game logic rather than by the binding — an empty WASM call through the same API
+costs ~30 ns against a ~200 µs frame.

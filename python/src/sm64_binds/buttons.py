@@ -1,4 +1,4 @@
-"""N64 controller button masks, matching the Rust and JavaScript bindings."""
+"""N64 controller button masks, as reported by the WASM ``rng_pad`` export."""
 
 A_BUTTON = 0x8000
 B_BUTTON = 0x4000
