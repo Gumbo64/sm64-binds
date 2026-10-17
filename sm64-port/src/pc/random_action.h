@@ -1,5 +1,7 @@
 #include <stdint.h>
+#ifndef HEADLESS_VERSION
 #include <SDL2/SDL_stdinc.h>
+#endif
 #include <stdint.h>
 #include <ultra64.h>
 
