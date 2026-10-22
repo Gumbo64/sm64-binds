@@ -1,7 +1,7 @@
 import FileUpload from "./src/components/FileUpload";
 import { GameConfig, RngConfig } from "./src/scripts/sm64/configs";
 import { Sm64VisualEngine, GamepadButtons, GamePad, GameState } from "./src/scripts/sm64/Sm64Game";
-import { getROM } from "./src/scripts/fileUpload";
+import { getROM, calculateFileHash, isRomCached, storeROM, updateWASMs } from "./src/scripts/fileUpload";
 
 // for playback
 const MIN_SPEED = 2;
@@ -232,3 +232,8 @@ async function sm64_record(canvas, seed=NaN, game_config = GameConfig.defaultCon
 }
 
 export { sm64_record, sm64_evaluate, sm64_playback, sm64_test, GameConfig, RngConfig, GamePad, GamepadButtons, GameState, FileUpload, getROM };
+
+// For apps that drive the engine and ROM cache themselves (such as
+// sm64-viewer). The package's export map only exposes this file, so anything
+// an app needs from src/ has to be re-exported here.
+export { Sm64VisualEngine, calculateFileHash, isRomCached, storeROM, updateWASMs };
