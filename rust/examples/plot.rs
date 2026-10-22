@@ -111,7 +111,7 @@ fn main() {
         original.push(game.get_game_state().expect("state failed").pos);
     }
 
-    game.copy_to(&mut clone).expect("copy_to failed");
+    clone.copy_from(&game).expect("copy_from failed");
     for _ in 0..800 {
         clone
             .step_game(GamePad::new(0, -80, 80))

@@ -11,13 +11,15 @@
 #   binaryen         -> wasm-opt, the optimizer wasm-pack calls in release mode
 #
 # Versions can be overridden from the environment, e.g.
-#   EMSDK_VERSION=4.0.17 devcontainer up --workspace-folder .
+#   EMSDK_VERSION=6.0.13 devcontainer up --workspace-folder .
+# EMSDK_VERSION defaults to "latest": the newest emscripten release, looked up
+# on every run (so a rebuild can pick up a new compiler; pin it to reproduce).
 #
 set -euo pipefail
 
 EMSDK_DIR="${EMSDK_DIR:-/usr/local/emsdk}"
 BIN_DIR="${BIN_DIR:-/usr/local/bin}"
-EMSDK_VERSION="${EMSDK_VERSION:-4.0.16}"
+EMSDK_VERSION="${EMSDK_VERSION:-latest}"
 WASM_PACK_VERSION="${WASM_PACK_VERSION:-0.15.0}"
 # Keep in sync with the wasm-bindgen entry in rust/Cargo.lock
 WASM_BINDGEN_VERSION="${WASM_BINDGEN_VERSION:-0.2.108}"
@@ -83,17 +85,34 @@ installed_emscripten_version() {
     fi
 }
 
-if [ "$(installed_emscripten_version)" = "$EMSDK_VERSION" ]; then
-    log "emsdk ${EMSDK_VERSION} already installed"
+# emsdk itself: cloned once, then updated, so that its list of releases (and
+# what "latest" means) is current.
+if [ -d "${EMSDK_DIR}/.git" ]; then
+    log "updating emsdk in ${EMSDK_DIR}"
+    git -C "$EMSDK_DIR" pull --ff-only --quiet || log "  could not update emsdk; using its current release list"
 else
-    log "installing emsdk ${EMSDK_VERSION} (${ARCH}) into ${EMSDK_DIR}"
+    log "cloning emsdk into ${EMSDK_DIR}"
     ${SUDO} rm -rf "$EMSDK_DIR"
     ${SUDO} git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$EMSDK_DIR"
     # The emscripten cache (sysroot, ports, wasm-ld) lives inside the emsdk
     # directory, so the whole tree has to stay writable for whoever builds.
     ${SUDO} chown -R "$(id -u):$(id -g)" "$EMSDK_DIR"
-    "$EMSDK_DIR/emsdk" install "$EMSDK_VERSION"
-    "$EMSDK_DIR/emsdk" activate "$EMSDK_VERSION"
+fi
+
+# "latest" (and the other aliases) to a version number, from emsdk's own table.
+wanted="$(python3 -c 'import json, sys
+tags = json.load(open(sys.argv[1]))
+v = sys.argv[2]
+while v in tags["aliases"]:
+    v = tags["aliases"][v]
+print(v)' "${EMSDK_DIR}/emscripten-releases-tags.json" "$EMSDK_VERSION")"
+
+if [ "$(installed_emscripten_version)" = "$wanted" ]; then
+    log "emscripten ${wanted} already installed"
+else
+    log "installing emscripten ${wanted} (${ARCH}; was: $(installed_emscripten_version || true))"
+    "$EMSDK_DIR/emsdk" install "$wanted"
+    "$EMSDK_DIR/emsdk" activate "$wanted"
 fi
 
 # Emscripten's entry point scripts exec "$0.py", so they cannot be symlinked
@@ -148,6 +167,19 @@ if ! command -v wasm-opt >/dev/null 2>&1; then
     rm -rf "$(dirname "$tmp")"
 else
     log "wasm-opt already installed"
+fi
+
+# LLVM 18, which wasmer's LLVM backend links against: `make sm64-build` uses it
+# to precompile the game for the Rust crate (maketools/precompile.py). Only
+# needed to make rust/pkg/*.wasmu, not to use the crate.
+if [ ! -x /usr/lib/llvm-18/bin/llvm-config ]; then
+    log "installing LLVM 18 (for maketools/precompile)"
+    ${SUDO} apt-get update -y
+    ${SUDO} apt-get install -y --no-install-recommends \
+        llvm-18-dev libpolly-18-dev zlib1g-dev libzstd-dev libxml2-dev
+    ${SUDO} rm -rf /var/lib/apt/lists/*
+else
+    log "LLVM 18 already installed"
 fi
 
 # ---------------------------------------------------------------------------

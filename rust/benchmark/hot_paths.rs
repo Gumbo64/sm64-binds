@@ -121,32 +121,56 @@ fn main() {
         game.step_game(*pad).unwrap();
     }
 
-    let save = game.get_memory_bytes().unwrap();
+    let save = game.save_state();
     b.note(&format!(
         "save state size: {:.2} MB (linear memory {:.2} MB)",
-        save.len() as f64 / 1048576.0,
-        // `save` holds the mutable ranges only; the read-only segment between
-        // them (see `sm64.rs`) completes the address space.
-        (save.len() + sm64_binds::DATA0_SIZE) as f64 / 1048576.0
+        save.as_bytes().len() as f64 / 1048576.0,
+        game.with_memory(|memory| memory.len()) as f64 / 1048576.0
     ));
 
     // Every save-state path, from the slowest (fresh instance + copy) to the
-    // primitives they are built from. `copy` is `create_game` + `copy_to`,
+    // primitives they are built from. `copy_from` is `create_game` + `copy_from`,
     // which is why it dominates all the warm-target copies.
     let mut clone = generator.create_game().unwrap();
-    b.measure("SM64GameGenerator::copy (clone)", 1.0, "call", || {
-        black_box(generator.copy(&mut game).unwrap());
+    b.measure(
+        "SM64GameGenerator::copy_from (new game)",
+        1.0,
+        "call",
+        || {
+            black_box(generator.copy_from(&game).unwrap());
+        },
+    );
+    b.measure("copy_from (warm target)", 1.0, "call", || {
+        clone.copy_from(&game).unwrap();
     });
-    b.measure("copy_to (warm target)", 1.0, "call", || {
-        game.copy_to(&mut clone).unwrap();
+    b.measure("save_state (alloc + copy)", 1.0, "call", || {
+        black_box(game.save_state());
     });
-    b.measure("full_copy_to (whole address space)", 1.0, "call", || {
-        game.full_copy_to(&mut clone).unwrap();
+    b.measure("load_state (warm target)", 1.0, "call", || {
+        clone.load_state(&save).unwrap();
     });
-    b.measure("get_memory_bytes (alloc + copy)", 1.0, "call", || {
-        black_box(game.get_memory_bytes().unwrap());
-    });
-    b.measure("write_memory_bytes (warm target)", 1.0, "call", || {
-        clone.write_memory_bytes(&save).unwrap();
-    });
+
+    // ---------------------------------------------------------------
+    // Rust only: the Python binding has no `sync_from`.
+    b.section("branching: copy or sync, then play N frames");
+    clone.sync_from(&game).unwrap();
+    b.note(&format!(
+        "dirty-page tracking active: {}",
+        clone.dirty_tracking_active()
+    ));
+    for n in [1usize, 10, 600] {
+        let units = (n + 1) as f64;
+        b.measure(&format!("copy_from + {n} frames"), units, "frame", || {
+            clone.copy_from(&game).unwrap();
+            for _ in 0..n {
+                clone.step_game(GamePad::default()).unwrap();
+            }
+        });
+        b.measure(&format!("sync_from + {n} frames"), units, "frame", || {
+            clone.sync_from(&game).unwrap();
+            for _ in 0..n {
+                clone.step_game(GamePad::default()).unwrap();
+            }
+        });
+    }
 }

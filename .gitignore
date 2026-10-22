@@ -36,5 +36,4 @@ node_modules/
 # Downloaded ROMs
 *.m64
 # Core dumps
-core
 core.*

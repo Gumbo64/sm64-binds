@@ -10,6 +10,7 @@ WASM_ZIP_XOR = WASM_ZIP_XOR
 JS_PKG = javascript/src/scripts/sm64/pkg
 PYTHON_PKG = python/src/sm64_binds/pkg
 RUST_PKG = rust/pkg
+RUST_PRECOMPILED = $(RUST_PKG)/sm64_headless.x86_64-linux.wasmu
 
 RESET  = \033[0m
 RED    = \033[31m
@@ -48,6 +49,11 @@ sm64-build: copy-rom
 		python3 maketools/zip.py $(WASM)/sm64_headless.us.wasm $(WASM)/sm64_headless.us.wasm.zip; \
 		python3 maketools/xor.py $(WASM)/sm64.us.wasm.zip $(WASM_ZIP_XOR)/sm64.us.wasm.zip.xor $(ROM_FILE); \
 		python3 maketools/xor.py $(WASM)/sm64_headless.us.wasm.zip $(WASM_ZIP_XOR)/sm64_headless.us.wasm.zip.xor $(ROM_FILE); \
+		if [ -x "$${LLVM_SYS_180_PREFIX:-/usr/lib/llvm-18}/bin/llvm-config" ]; then \
+			python3 maketools/precompile.py $(WASM)/sm64_headless.us.wasm $(SM64PC)/build/us_web_headless/sm64.map $(RUST_PRECOMPILED); \
+		else \
+			echo "$(YELLOW)LLVM 18 not found: $(RUST_PRECOMPILED) is left from an older build (the crate falls back to Cranelift if it no longer matches)$(RESET)"; \
+		fi; \
 	fi
 
 # Distribute the artifacts to the language packages

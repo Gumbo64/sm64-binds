@@ -2,7 +2,7 @@
 //!
 //! Breaks down where `create_game` goes, what the fixed cost of a WASM call
 //! is through this binding, and compares implementations of the save-state
-//! copy: the crate's `copy_to` against a raw memcpy over the runtime's
+//! copy: the crate's `copy_from` against a raw memcpy over the runtime's
 //! linear memory. Wasmer is used directly rather than through the crate,
 //! because the comparison needs access the public API does not expose.
 //!
@@ -11,7 +11,7 @@
 use std::hint::black_box;
 use std::io::Read;
 
-use sm64_binds::{DATA0_SIZE, GamePad, SM64GameGenerator};
+use sm64_binds::{GamePad, SM64GameGenerator};
 use wasmer::*;
 
 mod harness;
@@ -71,7 +71,14 @@ fn main() {
     b.measure_once("rom_wasm (xor + unzip)", || {
         wasm_holder = Some(rom_wasm(&rom_path));
     });
-    let module = Module::new(&engine, wasm_holder.unwrap()).unwrap();
+    let wasm = wasm_holder.unwrap();
+    let module = Module::new(&engine, &wasm).unwrap();
+    // Where the mutable memory after the read-only data starts.
+    let read_only_end = SM64GameGenerator::from_wasm(&wasm)
+        .and_then(|g| g.create_game())
+        .unwrap()
+        .read_only_memory()
+        .end;
 
     // --- Where create_game's time goes --------------------------------
     // The engine (and thus compilation) is shared: both rows instantiate a
@@ -129,7 +136,7 @@ fn main() {
 
     // --- Save-state copy implementations ------------------------------
     // Three ways to move the mutable bytes around, from fastest (a real
-    // memcpy) through the crate's `copy_to` down to what `copy_to` used to
+    // memcpy) through the crate's `copy_from` down to what `copy_from` used to
     // do before it got the bulk-memcpy treatment. `raw` minus `old` is the
     // runtime-accessor overhead the crate no longer pays.
     b.section("save-state copy implementations");
@@ -148,14 +155,14 @@ fn main() {
 
     let view: MemoryView = memory.view(&store);
     let size = view.data_size() as usize;
-    let copy_len = size - DATA0_SIZE;
+    let copy_len = size - read_only_end;
     b.note(&format!(
         "the mutable part is {:.2} MB of {:.2} MB linear memory",
         copy_len as f64 / 1048576.0,
         size as f64 / 1048576.0
     ));
 
-    let offset = DATA0_SIZE;
+    let offset = read_only_end;
     let ptr = view.data_ptr();
 
     // What the crate does now: one memcpy of everything mutable.
@@ -191,7 +198,7 @@ fn main() {
     );
 
     // The same data flow through the public API, tying this binary's numbers
-    // back to `hot_paths`: with both sides warmed, `copy_to` should sit near
+    // back to `hot_paths`: with both sides warmed, `copy_from` should sit near
     // the raw memcpy.
     let rom = std::fs::read(&rom_path).expect("no ROM");
     let crate_generator = SM64GameGenerator::new(rom).expect("generator");
@@ -201,8 +208,8 @@ fn main() {
     for _ in 0..1200 {
         source_game.step_game(warm_pad).unwrap();
     }
-    b.measure("SM64Game::copy_to (public API)", 1.0, "call", || {
-        source_game.copy_to(&mut target_game).unwrap();
+    b.measure("SM64Game::copy_from (public API)", 1.0, "call", || {
+        target_game.copy_from(&source_game).unwrap();
         black_box(());
     });
 }

@@ -10,7 +10,10 @@
 //! responds to input depends on which screen the demo happens to be on, so
 //! frame-exact positions are not stable enough to test against.
 
-use sm64_binds::{GamePad, RngConfig, SM64Game, SM64GameGenerator, STACK_END, buttons};
+mod common;
+use common::RawState;
+
+use sm64_binds::{GamePad, RngConfig, SM64Game, SM64GameGenerator, buttons};
 
 const ROM_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../baserom.us.z64");
 
@@ -200,20 +203,20 @@ fn two_generators_agree_frame_for_frame() {
 }
 
 #[test]
-fn copy_to_reproduces_every_state_field() {
+fn copy_from_reproduces_every_state_field() {
     let generator = generator_or_skip!();
     let mut game = generator.create_game().unwrap();
     let mut clone = generator.create_game().unwrap();
 
     play_warmup(&mut game);
-    game.copy_to(&mut clone).unwrap();
+    clone.copy_from(&game).unwrap();
 
     let source = game.get_game_state().unwrap();
     let copied = clone.get_game_state().unwrap();
     assert_eq!(
         format!("{source}"),
         format!("{copied}"),
-        "copy_to must reproduce every field, not just the position"
+        "copy_from must reproduce every field, not just the position"
     );
 }
 
@@ -231,7 +234,7 @@ fn copy_is_valid_partway_through_a_run() {
     for pad in before {
         game.step_game(*pad).unwrap();
     }
-    game.copy_to(&mut clone).unwrap();
+    clone.copy_from(&game).unwrap();
 
     for (frame, pad) in after.iter().enumerate() {
         game.step_game(*pad).unwrap();
@@ -251,7 +254,7 @@ fn a_copy_does_not_disturb_the_original() {
     let mut clone = generator.create_game().unwrap();
 
     play_warmup(&mut game);
-    game.copy_to(&mut clone).unwrap();
+    clone.copy_from(&game).unwrap();
     let expected = game.get_game_state().unwrap();
 
     // Run the clone hard for a while; the original must not notice.
@@ -274,7 +277,7 @@ fn copies_stay_in_lockstep_when_given_the_same_inputs() {
     let mut clone = generator.create_game().unwrap();
 
     play_warmup(&mut game);
-    game.copy_to(&mut clone).unwrap();
+    clone.copy_from(&game).unwrap();
 
     for (frame, pad) in input_script(1500).into_iter().enumerate() {
         game.step_game(pad).unwrap();
@@ -293,7 +296,7 @@ fn copy_uses_the_generator_helper() {
     let mut game = generator.create_game().unwrap();
     play_warmup(&mut game);
 
-    let mut clone = generator.copy(&mut game).unwrap();
+    let mut clone = generator.copy_from(&game).unwrap();
     assert_eq!(
         format!("{}", game.get_game_state().unwrap()),
         format!("{}", clone.get_game_state().unwrap())
@@ -302,35 +305,16 @@ fn copy_uses_the_generator_helper() {
 }
 
 #[test]
-fn full_copy_to_captures_the_whole_address_space() {
-    let generator = generator_or_skip!();
-    let mut source = generator.create_game().unwrap();
-    let mut target = generator.create_game().unwrap();
-
-    play_warmup(&mut source);
-    // Snapshot a game that has already been stepped, then keep stepping the
-    // copy: full_copy_to covers the constant region that copy_to skips.
-    source.full_copy_to(&mut target).unwrap();
-    let expected = source.get_game_state().unwrap();
-    let copied = target.get_game_state().unwrap();
-
-    assert_eq!(expected.level_num, copied.level_num);
-    assert_eq!(expected.lives, copied.lives);
-    assert_eq!(expected.health, copied.health);
-    assert_eq!(expected.pos, copied.pos);
-}
-
-#[test]
 fn memory_round_trips_through_bytes() {
     let generator = generator_or_skip!();
     let mut game = generator.create_game().unwrap();
     play_warmup(&mut game);
 
-    let saved = game.get_memory_bytes().unwrap();
+    let saved = game.state_payload();
     assert!(!saved.is_empty(), "the mutable region must not be empty");
 
     let mut restored = generator.create_game().unwrap();
-    restored.write_memory_bytes(&saved).unwrap();
+    restored.load_payload(&saved).unwrap();
 
     let expected = game.get_game_state().unwrap();
     let actual = restored.get_game_state().unwrap();
@@ -431,7 +415,7 @@ fn a_copy_shares_the_rng_sequence_of_its_source() {
     let generator = generator_or_skip!();
     let mut game = generator.create_game().unwrap();
     game.set_rng_config(RngConfig::default()).unwrap();
-    let mut clone = generator.copy(&mut game).unwrap();
+    let mut clone = generator.copy_from(&game).unwrap();
 
     let pad = GamePad::default();
     for frame in 0..500 {
@@ -482,13 +466,13 @@ fn a_clone_of_an_rng_game_keeps_its_own_sequence() {
 
     // Step the clone far ahead; the source's RNG position must be unaffected,
     // so a fresh reference built from the same seed still matches it.
-    let mut clone = generator.copy(&mut game).unwrap();
+    let mut clone = generator.copy_from(&game).unwrap();
     for _ in 0..1000 {
         clone.rng_pad(GamePad::default()).unwrap();
     }
 
     let mut reference = generator.create_game().unwrap();
-    game.copy_to(&mut reference).unwrap();
+    reference.copy_from(&game).unwrap();
 
     let pad = GamePad::default();
     for frame in 0..200 {
@@ -503,7 +487,7 @@ fn a_clone_of_an_rng_game_keeps_its_own_sequence() {
 // ------------------------------------------------------------------
 // Memory transfer internals
 //
-// copy_to / full_copy_to move bytes with a raw memcpy rather than the
+// copy_from moves bytes with a raw memcpy rather than the
 // runtime's chunked accessors, which is ~3x faster but relies on the
 // destination being grown before its view is taken. These tests cover
 // that ordering and the boundaries of the copied range.
@@ -514,7 +498,7 @@ fn a_clone_of_an_rng_game_keeps_its_own_sequence() {
 const OVERSIZE_SAVE: usize = 24 * 1024 * 1024;
 
 #[test]
-fn copy_to_grows_a_smaller_destination_first() {
+fn copy_from_grows_a_smaller_destination_first() {
     let generator = generator_or_skip!();
     let mut source = generator.create_game().unwrap();
     let mut small = generator.create_game().unwrap();
@@ -522,24 +506,24 @@ fn copy_to_grows_a_smaller_destination_first() {
     play_warmup(&mut source);
 
     // Inflate the source's linear memory so the destination has to grow.
-    // `expand_memory_to` is private, so go through the public write path.
-    let mut oversized = source.get_memory_bytes().unwrap();
+    // `expand_memory_to` is private, so go through a save state.
+    let mut oversized = source.state_payload();
     oversized.resize(OVERSIZE_SAVE, 0);
-    source.write_memory_bytes(&oversized).unwrap();
+    source.load_payload(&oversized).unwrap();
 
     // The destination is untouched, so it is still at its initial size.
-    small.copy_to(&mut generator.create_game().unwrap()).ok();
+    generator.create_game().unwrap().copy_from(&small).ok();
 
     // Growing must happen before the destination view is taken, otherwise this
     // writes through a dangling pointer.
-    source.copy_to(&mut small).unwrap();
+    small.copy_from(&source).unwrap();
 
     let expected = source.get_game_state().unwrap();
     let copied = small.get_game_state().unwrap();
     assert_eq!(
         format!("{expected}"),
         format!("{copied}"),
-        "copy_to into a smaller game must still reproduce the state"
+        "copy_from into a smaller game must still reproduce the state"
     );
 
     // And the grown destination has to remain usable.
@@ -550,28 +534,7 @@ fn copy_to_grows_a_smaller_destination_first() {
 }
 
 #[test]
-fn full_copy_to_grows_a_smaller_destination_first() {
-    let generator = generator_or_skip!();
-    let mut source = generator.create_game().unwrap();
-    let mut small = generator.create_game().unwrap();
-
-    play_warmup(&mut source);
-
-    // Same growth trick, this time via a whole-address-space copy.
-    let mut oversized = source.get_memory_bytes().unwrap();
-    oversized.resize(OVERSIZE_SAVE, 0);
-    source.write_memory_bytes(&oversized).unwrap();
-
-    source.full_copy_to(&mut small).unwrap();
-    assert_eq!(
-        format!("{}", source.get_game_state().unwrap()),
-        format!("{}", small.get_game_state().unwrap()),
-        "full_copy_to into a smaller game must still reproduce the state"
-    );
-}
-
-#[test]
-fn copy_to_overwrites_whatever_was_in_the_destination() {
+fn copy_from_overwrites_whatever_was_in_the_destination() {
     let generator = generator_or_skip!();
     let mut source = generator.create_game().unwrap();
     let mut target = generator.create_game().unwrap();
@@ -586,11 +549,11 @@ fn copy_to_overwrites_whatever_was_in_the_destination() {
         format!("{}", target.get_game_state().unwrap())
     );
 
-    source.copy_to(&mut target).unwrap();
+    target.copy_from(&source).unwrap();
     assert_eq!(
         format!("{}", source.get_game_state().unwrap()),
         format!("{}", target.get_game_state().unwrap()),
-        "copy_to must overwrite the destination, not merge into it"
+        "copy_from must overwrite the destination, not merge into it"
     );
 }
 
@@ -601,14 +564,12 @@ fn save_state_bytes_round_trip_exactly() {
     let mut restored = generator.create_game().unwrap();
 
     play_warmup(&mut source);
-    let saved = source.get_memory_bytes().unwrap();
+    let saved = source.state_payload();
     assert!(!saved.is_empty(), "the mutable region must not be empty");
 
     // Copy one byte short, then the whole thing, to check the boundaries.
-    restored
-        .write_memory_bytes(&saved[..saved.len() - 1])
-        .unwrap();
-    restored.write_memory_bytes(&saved).unwrap();
+    restored.load_payload(&saved[..saved.len() - 1]).unwrap();
+    restored.load_payload(&saved).unwrap();
 
     assert_eq!(
         format!("{}", source.get_game_state().unwrap()),
@@ -617,16 +578,16 @@ fn save_state_bytes_round_trip_exactly() {
 }
 
 #[test]
-fn get_memory_bytes_is_a_snapshot_not_a_live_view() {
+fn a_save_state_is_a_snapshot_not_a_live_view() {
     let generator = generator_or_skip!();
     let mut game = generator.create_game().unwrap();
     play_warmup(&mut game);
 
-    let before = game.get_memory_bytes().unwrap();
+    let before = game.state_payload();
     for pad in input_script(500) {
         game.step_game(pad).unwrap();
     }
-    let after = game.get_memory_bytes().unwrap();
+    let after = game.state_payload();
 
     assert_eq!(before.len(), after.len(), "linear memory did not grow");
     assert_ne!(
@@ -637,7 +598,7 @@ fn get_memory_bytes_is_a_snapshot_not_a_live_view() {
 
 #[test]
 fn copying_a_game_into_itself_is_rejected_at_compile_time() {
-    // `copy_to` takes `&self` and `&mut SM64Game`, so `game.copy_to(&mut game)`
+    // `copy_from` takes `&mut self` and `&SM64Game`, so `game.copy_from(&game)`
     // cannot compile. This test documents that the ranges therefore never
     // overlap at runtime; the clone paths are covered above.
     let generator = generator_or_skip!();
@@ -645,7 +606,7 @@ fn copying_a_game_into_itself_is_rejected_at_compile_time() {
     play_warmup(&mut game);
 
     let state = format!("{}", game.get_game_state().unwrap());
-    game.copy_to(&mut generator.create_game().unwrap()).unwrap();
+    generator.create_game().unwrap().copy_from(&game).unwrap();
     assert_eq!(state, format!("{}", game.get_game_state().unwrap()));
 }
 
@@ -661,7 +622,7 @@ fn many_copies_in_a_row_stay_correct() {
     // Repeatedly overwrite the same destination: a stale pointer left over from
     // a previous grow would corrupt this quickly.
     for _ in 0..50 {
-        game.copy_to(&mut clone).unwrap();
+        clone.copy_from(&game).unwrap();
         assert_eq!(expected, format!("{}", clone.get_game_state().unwrap()));
     }
 }
@@ -687,11 +648,11 @@ fn save_states_of_awkward_sizes_round_trip() {
         OVERSIZE_SAVE - 1,
         OVERSIZE_SAVE,
     ] {
-        let mut payload = game.get_memory_bytes().unwrap();
+        let mut payload = game.state_payload();
         payload.resize(len.max(payload.len()), 0);
 
-        game.write_memory_bytes(&payload).unwrap();
-        let read_back = game.get_memory_bytes().unwrap();
+        game.load_payload(&payload).unwrap();
+        let read_back = game.state_payload();
 
         assert!(
             read_back.len() >= len,
@@ -707,7 +668,7 @@ fn save_states_of_awkward_sizes_round_trip() {
 }
 
 #[test]
-fn copy_to_grows_the_destination_and_copies_every_byte() {
+fn copy_from_grows_the_destination_and_copies_every_byte() {
     let generator = generator_or_skip!();
     let mut source = generator.create_game().unwrap();
     play_warmup(&mut source);
@@ -716,17 +677,17 @@ fn copy_to_grows_the_destination_and_copies_every_byte() {
     for len in [1, page - 1, page, page + 1, OVERSIZE_SAVE] {
         // Extend the source's linear memory; the new tail is zeroed, which is
         // exactly what a real grow produces, so the game stays valid.
-        let mut payload = source.get_memory_bytes().unwrap();
+        let mut payload = source.state_payload();
         payload.resize(len.max(payload.len()), 0);
-        source.write_memory_bytes(&payload).unwrap();
+        source.load_payload(&payload).unwrap();
 
         // A fresh game is at the module's initial size, so every iteration
         // forces the destination to grow.
         let mut target = generator.create_game().unwrap();
-        source.copy_to(&mut target).unwrap();
+        target.copy_from(&source).unwrap();
 
-        let expected = source.get_memory_bytes().unwrap();
-        let actual = target.get_memory_bytes().unwrap();
+        let expected = source.state_payload();
+        let actual = target.state_payload();
         assert!(
             actual.len() >= expected.len(),
             "size {len}: destination did not grow ({} < {})",
@@ -736,7 +697,7 @@ fn copy_to_grows_the_destination_and_copies_every_byte() {
         assert_eq!(
             &actual[..expected.len()],
             &expected[..],
-            "size {len}: copy_to did not reproduce every byte"
+            "size {len}: copy_from did not reproduce every byte"
         );
     }
 }
@@ -748,11 +709,11 @@ fn a_copy_stays_byte_identical_to_its_source() {
     let mut target = generator.create_game().unwrap();
 
     play_warmup(&mut source);
-    source.copy_to(&mut target).unwrap();
+    target.copy_from(&source).unwrap();
 
     // Step both for far longer than any single test elsewhere. A save state
-    // covers the stack and everything above DATA0_SIZE but not the read-only
-    // segment in between, so this is what proves that gap is genuinely
+    // covers the stack and everything after the read-only data but not the
+    // read-only data itself, so this is what proves that gap is genuinely
     // constant: if anything in it mattered, the two would drift apart.
     for (frame, pad) in input_script(3000).into_iter().enumerate() {
         source.step_game(pad).unwrap();
@@ -761,8 +722,8 @@ fn a_copy_stays_byte_identical_to_its_source() {
             continue;
         }
         assert_eq!(
-            source.get_memory_bytes().unwrap(),
-            target.get_memory_bytes().unwrap(),
+            source.state_payload(),
+            target.state_payload(),
             "save state diverged at frame {frame}"
         );
     }
@@ -776,22 +737,23 @@ fn a_save_state_carries_the_stack_as_well_as_the_heap() {
 
     play_warmup(&mut source);
 
-    // A save state is the two mutable ranges concatenated: STACK_END bytes of
-    // stack first, then everything from DATA0_SIZE onwards.
-    let fresh = target.get_memory_bytes().unwrap();
-    let played = source.get_memory_bytes().unwrap();
+    // A save state is the two mutable ranges concatenated: the stack first,
+    // then everything after the read-only data.
+    let fresh = target.state_payload();
+    let played = source.state_payload();
     assert_eq!(fresh.len(), played.len(), "both games start the same size");
+    let stack = source.read_only_memory().start;
 
     assert!(
-        fresh[..STACK_END] != played[..STACK_END],
+        fresh[..stack] != played[..stack],
         "the stack must differ after playing, or the copy would be untested"
     );
 
-    // copy_to must make both halves match.
-    source.copy_to(&mut target).unwrap();
+    // copy_from must make both halves match.
+    target.copy_from(&source).unwrap();
     assert_eq!(
-        source.get_memory_bytes().unwrap(),
-        target.get_memory_bytes().unwrap(),
+        source.state_payload(),
+        target.state_payload(),
         "a copy must reproduce the stack as well as the heap"
     );
 }
@@ -803,7 +765,7 @@ fn the_read_only_segment_is_identical_between_fresh_games() {
     let mut b = generator.create_game().unwrap();
     play_warmup(&mut a);
 
-    // Everything between the stack and DATA0_SIZE must be untouched by play,
+    // The read-only data between the stack and the rest must be untouched by play,
     // otherwise excluding it from save states would be wrong. Both games get
     // the same read-only segment from the same module, so comparing a played
     // game against a fresh one at the same save-state offsets isolates the
@@ -812,26 +774,4 @@ fn the_read_only_segment_is_identical_between_fresh_games() {
     let state_a = format!("{}", a.get_game_state().unwrap());
     let state_b = format!("{}", b.get_game_state().unwrap());
     assert_ne!(state_a, state_b, "sanity: a fresh game is not mid-play");
-}
-
-#[test]
-fn a_full_copy_matches_its_source_as_closely_as_a_region_copy() {
-    let generator = generator_or_skip!();
-    let mut source = generator.create_game().unwrap();
-    let mut region = generator.create_game().unwrap();
-    let mut full = generator.create_game().unwrap();
-
-    play_warmup(&mut source);
-    source.copy_to(&mut region).unwrap();
-    source.full_copy_to(&mut full).unwrap();
-
-    for pad in input_script(2000) {
-        source.step_game(pad).unwrap();
-        region.step_game(pad).unwrap();
-        full.step_game(pad).unwrap();
-    }
-
-    let expected = format!("{}", source.get_game_state().unwrap());
-    assert_eq!(expected, format!("{}", region.get_game_state().unwrap()));
-    assert_eq!(expected, format!("{}", full.get_game_state().unwrap()));
 }

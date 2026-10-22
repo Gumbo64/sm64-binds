@@ -12,6 +12,7 @@ reconstructs the module, which keeps the copyrighted bytes out of the repo.
 | `zip.py` | Compresses a built WASM module into the single-entry ZIP the bindings expect. |
 | `unzip.py` | Extracts that ZIP back to a `.wasm` file. |
 | `xor.py` | XORs a file with a key file, producing (or reversing) the `.xor` payload. |
+| `precompile.py` | Compiles the headless module's code (its data stripped, functions named from the link map, optimised by `wasm-opt`) ahead of time with wasmer's LLVM backend (`precompile/`, needs LLVM 18), for the Rust crate's `precompiled` feature (`rust/pkg/*.wasmu`). |
 | `tools.py` | The shared implementations plus their unit tests. |
 
 ## Tests

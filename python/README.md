@@ -44,8 +44,8 @@ generator.copy_to(game, clone)   # reuse an existing instance instead
 ```
 
 A copy captures the two mutable regions of linear memory — the emscripten stack
-and everything from `DATA0_SIZE` onwards — so a copied game continues exactly
-where its source was.
+and everything after the game's constant data (`generator.read_only`, read from
+the WASM) — so a copied game continues exactly where its source was.
 
 ### Randomised input
 

@@ -13,8 +13,6 @@ import pytest
 
 from conftest import WARMUP_FRAMES, input_script
 from sm64_binds import (
-    DATA0_SIZE,
-    STACK_END,
     GamePad,
     RngConfig,
     SM64GameGenerator,
@@ -108,6 +106,22 @@ def test_many_games_share_one_compiled_module(generator):
 # ---------------------------------------------------------------
 # Determinism
 # ---------------------------------------------------------------
+
+
+def test_rendering_and_audio_do_not_change_the_game(generator):
+    # The headless defaults skip both; the Rust lockstep tests check all of
+    # memory, this checks the state the Python binding reports.
+    quiet = generator.create_game()
+    loud = generator.create_game()
+    loud.set_render_enabled(True)
+    loud.set_audio_enabled(True)
+    for frame, (button, stick_x, stick_y) in enumerate(input_script(2500)):
+        pad = pad_from(button, stick_x, stick_y)
+        quiet.step_game(pad)
+        loud.step_game(pad)
+        assert repr(quiet.get_game_state()) == repr(loud.get_game_state()), (
+            f"games diverged at frame {frame}"
+        )
 
 
 def test_identical_inputs_produce_identical_states(generator):
@@ -326,13 +340,13 @@ def test_copy_to_copies_the_stack_and_the_heap(generator):
 
 
 def _stack_bytes(game):
-    """The first STACK_END bytes of linear memory."""
+    """The stack: linear memory before the read-only data."""
     ptr = game.memory.data_ptr(game.store)
-    return bytes(ptr[:STACK_END])
+    return bytes(ptr[: game.read_only.start])
 
 
 def test_copy_to_skips_the_read_only_segment(generator):
-    """Everything between the stack and DATA0_SIZE must be untouched by play."""
+    """The read-only data must be untouched by play."""
     source = generator.create_game()
     for _ in range(WARMUP_FRAMES):
         source.step_game(GamePad(0, 0, 0))
@@ -341,10 +355,11 @@ def test_copy_to_skips_the_read_only_segment(generator):
     # Compare the gap directly in linear memory.
     src_ptr = source.memory.data_ptr(source.store)
     fresh_ptr = fresh.memory.data_ptr(fresh.store)
-    gap_src = bytes(src_ptr[STACK_END:DATA0_SIZE])
-    gap_fresh = bytes(fresh_ptr[STACK_END:DATA0_SIZE])
+    read_only = source.read_only
+    gap_src = bytes(src_ptr[read_only.start : read_only.stop])
+    gap_fresh = bytes(fresh_ptr[read_only.start : read_only.stop])
     assert gap_src == gap_fresh, (
-        "the segment between the stack and DATA0_SIZE changed during play, "
+        "the read-only data changed during play, "
         "so excluding it from save states would be wrong"
     )
 
@@ -372,7 +387,8 @@ def _save_bytes(game):
     """Both mutable ranges, concatenated, as a copy_to would move them."""
     ptr = game.memory.data_ptr(game.store)
     size = game.memory.data_len(game.store)
-    return bytes(ptr[:STACK_END]) + bytes(ptr[DATA0_SIZE:size])
+    read_only = game.read_only
+    return bytes(ptr[: read_only.start]) + bytes(ptr[read_only.stop : size])
 
 
 def test_copy_to_moves_fewer_bytes_than_full_copy_to(generator):
@@ -382,5 +398,13 @@ def test_copy_to_moves_fewer_bytes_than_full_copy_to(generator):
         source.step_game(GamePad(0, 0, 0))
 
     size = source.memory.data_len(source.store)
-    copied = STACK_END + (size - DATA0_SIZE)
+    copied = source.read_only.start + (size - source.read_only.stop)
     assert copied < size, "skipping the read-only segment must save bytes"
+
+
+def test_read_only_memory_is_the_first_data_segment(generator):
+    """Read from the WASM: .rodata starts right after the 64 KiB stack."""
+    read_only = generator.read_only
+    assert read_only.start == 0x10000
+    assert read_only.stop > read_only.start
+    assert generator.create_game().read_only == read_only

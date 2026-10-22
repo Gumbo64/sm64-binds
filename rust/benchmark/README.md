@@ -10,7 +10,7 @@ warm-up, statistics and derived (subtractive) rows.
 | Benchmark | What it measures |
 | --- | --- |
 | `hot_paths` | Stepping, `get_game_state`, `rng_pad`, and every save-state path. The one to run when changing anything on a hot path. |
-| `diagnostics` | Why those numbers look the way they do: game instantiation phases, the fixed cost of a WASM call, and `copy_to` compared against raw runtime memory access. Uses wasmer directly, because the comparison needs access the public API does not expose. |
+| `diagnostics` | Why those numbers look the way they do: game instantiation phases, the fixed cost of a WASM call, and `copy_from` compared against raw runtime memory access. Uses wasmer directly, because the comparison needs access the public API does not expose. |
 
 ## Running
 

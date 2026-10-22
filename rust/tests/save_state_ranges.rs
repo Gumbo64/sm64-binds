@@ -1,18 +1,20 @@
-//! Checks the mutable-range constants that define what a save state captures.
+//! Checks the read-only memory that save states and copies leave out.
 //!
-//! A save state copies the stack and everything from `DATA0_SIZE` onwards, and
-//! skips the segment between them. That skip is only safe while the skipped
-//! segment really is constant, so this test boots the real WASM, plays several
-//! input styles, and fails if a single byte below `DATA0_SIZE` moves.
+//! A save state copies the stack and everything after the read-only memory
+//! ([`SM64Game::read_only_memory`], the WASM's first data segment), and skips
+//! the read-only memory itself. That skip is only safe while it really is
+//! constant, so this test boots the real WASM, plays several input styles, and
+//! fails if a single byte in it moves.
 //!
-//! Both constants were derived by measurement rather than assumption; this is
-//! the test that keeps them honest if the WASM is ever rebuilt.
+//! [`SM64Game::read_only_memory`]: sm64_binds::SM64Game::read_only_memory
 //!
 //! The read-only segment is compared on *every* frame, so a byte written and
 //! restored within a single frame is still caught.
 
+mod common;
+use common::RawState;
+
 use sm64_binds::buttons;
-use sm64_binds::{DATA0_SIZE, STACK_END};
 use sm64_binds::{GamePad, SM64GameGenerator};
 
 const ROM_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../baserom.us.z64");
@@ -92,17 +94,18 @@ fn generator() -> Option<SM64GameGenerator> {
 /// by snapshotting linear memory, which is why `frames` stays modest.
 fn first_escaped_byte(generator: &SM64GameGenerator, style: &str, frames: usize) -> Option<usize> {
     let mut game = generator.create_game().unwrap();
-    let baseline = game.linear_memory();
+    let read_only = game.read_only_memory();
+    let baseline = game.memory_copy();
 
     for frame in 0..frames {
         game.step_game(input(style, frame)).unwrap();
-        let current = game.linear_memory();
-        if let Some(offset) = current[STACK_END..DATA0_SIZE]
+        let current = game.memory_copy();
+        if let Some(offset) = current[read_only.clone()]
             .iter()
-            .zip(&baseline[STACK_END..DATA0_SIZE])
+            .zip(&baseline[read_only.clone()])
             .position(|(a, b)| a != b)
         {
-            return Some(STACK_END + offset);
+            return Some(read_only.start + offset);
         }
     }
     None
@@ -111,14 +114,14 @@ fn first_escaped_byte(generator: &SM64GameGenerator, style: &str, frames: usize)
 #[test]
 fn the_read_only_segment_never_changes() {
     let Some(generator) = generator() else { return };
+    let read_only = generator.create_game().unwrap().read_only_memory();
 
     for style in STYLES {
         if let Some(address) = first_escaped_byte(&generator, style, FRAMES_PER_STYLE) {
             panic!(
-                "linear memory at 0x{address:x} is inside the read-only segment \
-                 [0x{STACK_END:x}, 0x{DATA0_SIZE:x}) but changed while playing '{style}'. \
-                 A save state skips that range, so the constants in sm64.rs are stale \
-                 and need re-measuring."
+                "linear memory at 0x{address:x} is inside the read-only memory \
+                 {read_only:#x?} but changed while playing '{style}'. A save state \
+                 skips that range, so the first data segment is not only constants."
             );
         }
     }
@@ -126,7 +129,7 @@ fn the_read_only_segment_never_changes() {
 
 /// Guards the test above against passing for the wrong reason.
 ///
-/// If `STACK_END` were moved to 0, or the game stopped using the stack, the
+/// If the read-only memory started at 0, or the game stopped using the stack, the
 /// check would pass while covering nothing. So assert the ranges around the
 /// skipped segment really do change during play.
 #[test]
@@ -134,15 +137,16 @@ fn the_skipped_segment_is_surrounded_by_memory_that_does_change() {
     let Some(generator) = generator() else { return };
 
     let mut game = generator.create_game().unwrap();
-    let boot = game.linear_memory();
+    let read_only = game.read_only_memory();
+    let boot = game.memory_copy();
     for frame in 0..200 {
         game.step_game(input("button sweep", frame)).unwrap();
     }
-    let played = game.linear_memory();
+    let played = game.memory_copy();
 
-    let stack_changed = boot[..STACK_END] != played[..STACK_END];
-    let heap_changed = boot[DATA0_SIZE..] != played[DATA0_SIZE..];
-    let gap_unchanged = boot[STACK_END..DATA0_SIZE] == played[STACK_END..DATA0_SIZE];
+    let stack_changed = boot[..read_only.start] != played[..read_only.start];
+    let heap_changed = boot[read_only.end..] != played[read_only.end..];
+    let gap_unchanged = boot[read_only.clone()] == played[read_only.clone()];
 
     assert!(
         stack_changed,
@@ -150,7 +154,7 @@ fn the_skipped_segment_is_surrounded_by_memory_that_does_change() {
     );
     assert!(
         heap_changed,
-        "the region above DATA0_SIZE never changed, so the game is not running"
+        "the memory after the read-only memory never changed, so the game is not running"
     );
     assert!(
         gap_unchanged,

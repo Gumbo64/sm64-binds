@@ -1,114 +1,80 @@
 use anyhow::{Error, Result};
 use wasmer::*;
 
+mod dirty;
 mod game_pad;
 mod game_state;
+mod generator;
+mod memory;
+#[cfg(all(
+    feature = "precompiled",
+    target_arch = "x86_64",
+    target_os = "linux",
+    target_env = "gnu"
+))]
+mod precompiled;
 mod rng_config;
+mod save_state;
+mod sync;
 mod util;
+mod wasm_module;
 
 pub use game_pad::{GAME_PAD_SIZE, GamePad};
 pub use game_state::{GAME_STATE_SIZE, GameState};
+pub use generator::{Backend, SM64GameGenerator};
 pub use rng_config::RngConfig;
-use util::{check_hash, unzip_bytes, xor_bytes};
+pub use save_state::SaveState;
 
-/// The distributable WASM payload, XOR'd against a US `.z64` ROM.
-const XOR_BYTES: &[u8] = include_bytes!("../pkg/sm64_headless.us.wasm.zip.xor");
+use generator::GameSource;
+use memory::MemoryLayout;
+use sync::SyncState;
+use wasm_module::BuildId;
 
-/// Compiles the WASM module once so that every [`SM64Game`] it creates is a
-/// cheap instantiation of shared, immutable code.
-#[derive(Debug, Clone)]
-pub struct SM64GameGenerator {
-    engine: Engine,
-    module: Module,
+/// How [`SM64Game::set_object_freeze`] freezes objects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FreezeMode {
+    /// Exact play (the default).
+    Off,
+    /// Every object except Mario and doors, using the game's own time stop.
+    All,
 }
 
-impl SM64GameGenerator {
-    /// Builds a generator from a US `.z64` ROM (8.00 MB, big endian).
-    pub fn new(rom_bytes: Vec<u8>) -> Result<Self, Error> {
-        if !check_hash(&rom_bytes) {
-            return Err(Error::msg(
-                "Invalid ROM. Should be a US copy, in z64 format (8.00MB)",
-            ));
-        };
-        let wasm_bytes = Self::rom_to_wasm_bytes(rom_bytes);
-
-        let engine = Engine::default();
-        let module = Module::new(&engine, wasm_bytes)?;
-
-        Ok(SM64GameGenerator { engine, module })
-    }
-
-    #[cfg(feature = "fs")]
-    pub fn from_file(rom_path: &str) -> Result<Self, Error> {
-        let rom_bytes = std::fs::read(rom_path)?;
-        Self::new(rom_bytes)
-    }
-
-    pub fn create_game(&self) -> Result<SM64Game, Error> {
-        SM64Game::from_module(&self.engine, &self.module)
-    }
-
-    /// Recombines the distributed XOR payload with the ROM and unzips it.
-    pub fn rom_to_wasm_bytes(rom_bytes: Vec<u8>) -> Vec<u8> {
-        unzip_bytes(&xor_bytes(XOR_BYTES, &rom_bytes))
-    }
-
-    /// Clones `game`, returning the new instance. `game` is left untouched.
-    pub fn copy(&self, game: &mut SM64Game) -> Result<SM64Game, Error> {
-        let mut cloned_game = self.create_game()?;
-
-        game.copy_to(&mut cloned_game)?;
-
-        Ok(cloned_game)
-    }
-}
-
-/// A single playable instance of the game.
+/// A single playable instance of the game, made by
+/// [`SM64GameGenerator::create_game`] (`sm64/generator.rs`).
+///
+/// Its memory is handled in `sm64/memory.rs` (reads, copies),
+/// `sm64/save_state.rs` ([`SaveState`]) and `sm64/sync.rs`
+/// ([`SM64Game::sync_from`]).
 pub struct SM64Game {
     store: Store,
+    exports: Exports,
+    precompiled: bool,
+    /// Which build of the game this is, for [`SaveState`]s.
+    build_id: BuildId,
+    /// Which parts of memory are constant.
+    layout: MemoryLayout,
     using_rng: bool,
-    // Cached exports so the hot paths don't look them up on every call
-    memory: Memory,
-    step_game_fn: TypedFunction<(u32, i32, i32), ()>,
-    get_game_state_fn: TypedFunction<(), i32>,
-    rng_pad_fn: TypedFunction<(u32, i32, i32), i32>,
-    set_rng_config_fn: TypedFunction<(u32, u32, u32, f32, f32, f32), ()>,
-    set_rng_seed_fn: TypedFunction<u32, ()>,
+    sync: SyncState,
 }
 
-/// Linear memory is not one mutable region but two, with a constant gap
-/// between them:
-///
-/// ```text
-///   0x000000 ┌────────────────────────┐
-///            │ stack      (mutable)   │  <- emscripten stack, rewritten every frame
-///   0x010000 ├────────────────────────┤
-///            │ read-only data          │  <- constant, excluded from save states
-///   0x7a44ca ├────────────────────────┤
-///            │ game heap and BSS       │  <- mutable, most of the save state
-///            └────────────────────────┘
-/// ```
-///
-pub const STACK_END: usize = 0x10000;
-
-/// Start of the game's heap and BSS; everything above this is mutable.
-pub const DATA0_SIZE: usize = 8013002;
-
-/// The mutable regions of linear memory, as half-open `[start, end)` offsets.
-///
-/// `end` is clamped to the current size of linear memory when copying.
-pub(crate) const MUTABLE_RANGES: [(usize, usize); 2] = [(0, STACK_END), (DATA0_SIZE, usize::MAX)];
+/// The instance and its exports, cached so the hot paths don't look them up on
+/// every call.
+struct Exports {
+    /// Kept so optional exports can be looked up by name without being
+    /// required at load time.
+    instance: Instance,
+    memory: Memory,
+    step_game: TypedFunction<(u32, i32, i32), ()>,
+    get_game_state: TypedFunction<(), i32>,
+    rng_pad: TypedFunction<(u32, i32, i32), i32>,
+    set_rng_config: TypedFunction<(u32, u32, u32, f32, f32, f32), ()>,
+    set_rng_seed: TypedFunction<u32, ()>,
+}
 
 impl SM64Game {
-    /// Instantiates from a raw WASM module, bypassing ROM validation.
-    pub fn new(wasm_bytes: impl AsRef<[u8]>) -> Result<Self> {
-        let engine = Engine::default();
-        let module = Module::new(&engine, wasm_bytes)?;
-        Self::from_module(&engine, &module)
-    }
-
-    fn from_module(engine: &Engine, module: &Module) -> Result<Self> {
-        let mut store = Store::new(engine.clone());
+    /// A new game from `source`: [`SM64GameGenerator::create_game`].
+    fn from_source(source: &GameSource) -> Result<Self> {
+        let mut store = Store::new(source.engine.clone());
         let import_object = imports! {
             "wasi_snapshot_preview1" => {
                 "proc_exit" => Function::new_typed(&mut store, |_exit_code: i32| {}),
@@ -120,35 +86,103 @@ impl SM64Game {
             },
         };
 
-        let instance = Instance::new(&mut store, module, &import_object)?;
+        let instance = Instance::new(&mut store, &source.module, &import_object)?;
         let exports = &instance.exports;
 
         let memory = exports.get_memory("memory")?.clone();
-        let step_game_fn = exports.get_typed_function(&store, "step_game")?;
-        let get_game_state_fn = exports.get_typed_function(&store, "get_game_state")?;
-        let rng_pad_fn = exports.get_typed_function(&store, "rng_pad")?;
-        let set_rng_config_fn = exports.get_typed_function(&store, "set_rng_config")?;
-        let set_rng_seed_fn = exports.get_typed_function(&store, "set_rng_seed")?;
+        if let Some(segments) = &source.segments {
+            // What instantiating the full WASM would have placed.
+            let view = memory.view(&store);
+            for (offset, bytes) in segments.iter() {
+                view.write(*offset as u64, bytes)?;
+            }
+        }
+        let step_game = exports.get_typed_function(&store, "step_game")?;
+        let get_game_state = exports.get_typed_function(&store, "get_game_state")?;
+        let rng_pad = exports.get_typed_function(&store, "rng_pad")?;
+        let set_rng_config = exports.get_typed_function(&store, "set_rng_config")?;
+        let set_rng_seed = exports.get_typed_function(&store, "set_rng_seed")?;
 
         let main_func: TypedFunction<(), ()> = exports.get_typed_function(&store, "main_func")?;
         main_func.call(&mut store)?;
 
         Ok(SM64Game {
             store,
+            exports: Exports {
+                instance,
+                memory,
+                step_game,
+                get_game_state,
+                rng_pad,
+                set_rng_config,
+                set_rng_seed,
+            },
+            precompiled: source.segments.is_some(),
+            build_id: source.build_id,
+            layout: source.layout,
             using_rng: false,
-            memory,
-            step_game_fn,
-            get_game_state_fn,
-            rng_pad_fn,
-            set_rng_config_fn,
-            set_rng_seed_fn,
+            sync: SyncState::new(),
         })
+    }
+
+    /// Which way this game's code was compiled: `"precompiled"` (ahead of
+    /// time, shipped in the crate) or `"cranelift"` (when it was loaded).
+    pub fn backend(&self) -> &'static str {
+        if self.precompiled {
+            "precompiled"
+        } else {
+            "cranelift"
+        }
+    }
+
+    /// The store and exports, for running the game's code or growing its
+    /// memory. Counts as a change to the game's memory, for
+    /// [`SM64Game::sync_from`]: every call into the game goes through here.
+    fn parts_mut(&mut self) -> (&mut Store, &Exports) {
+        self.sync.touch();
+        (&mut self.store, &self.exports)
+    }
+
+    pub fn step_game(&mut self, pad: GamePad) -> Result<()> {
+        let (store, exports) = self.parts_mut();
+        exports.step_game.call(
+            store,
+            pad.button.into(),
+            pad.stick_x.into(),
+            pad.stick_y.into(),
+        )?;
+        Ok(())
+    }
+
+    pub fn get_game_state(&mut self) -> Result<GameState, Error> {
+        let (store, exports) = self.parts_mut();
+        let pointer = exports.get_game_state.call(store)? as u32;
+
+        let mut buffer: [u8; GAME_STATE_SIZE] = [0; GAME_STATE_SIZE];
+        self.read_memory(pointer, &mut buffer)?;
+        Ok(GameState::new(&buffer))
+    }
+
+    /// Reads the controller's current input, applying RNG if it is enabled.
+    pub fn rng_pad(&mut self, pad: GamePad) -> Result<GamePad, Error> {
+        let (store, exports) = self.parts_mut();
+        let pointer = exports.rng_pad.call(
+            store,
+            pad.button.into(),
+            pad.stick_x.into(),
+            pad.stick_y.into(),
+        )? as u32;
+
+        let mut buffer: [u8; GAME_PAD_SIZE] = [0; GAME_PAD_SIZE];
+        self.read_memory(pointer, &mut buffer)?;
+        Ok(GamePad::from_bytes(&buffer))
     }
 
     pub fn set_rng_config(&mut self, cfg: RngConfig) -> Result<()> {
         self.using_rng = true;
-        self.set_rng_config_fn.call(
-            &mut self.store,
+        let (store, exports) = self.parts_mut();
+        exports.set_rng_config.call(
+            store,
             cfg.window_length,
             cfg.random_amount,
             cfg.random_burst_length,
@@ -161,197 +195,88 @@ impl SM64Game {
 
     pub fn set_rng_seed(&mut self, seed: u32) -> Result<()> {
         self.using_rng = true;
-        self.set_rng_seed_fn.call(&mut self.store, seed)?;
+        let (store, exports) = self.parts_mut();
+        exports.set_rng_seed.call(store, seed)?;
         Ok(())
-    }
-
-    pub fn step_game(&mut self, pad: GamePad) -> Result<()> {
-        self.step_game_fn.call(
-            &mut self.store,
-            pad.button.into(),
-            pad.stick_x.into(),
-            pad.stick_y.into(),
-        )?;
-        Ok(())
-    }
-
-    pub fn get_game_state(&mut self) -> Result<GameState, Error> {
-        let pointer = self.get_game_state_fn.call(&mut self.store)?;
-
-        let mut buffer: [u8; GAME_STATE_SIZE] = [0; GAME_STATE_SIZE];
-        self.memory
-            .view(&self.store)
-            .read(pointer.try_into()?, &mut buffer)?;
-        Ok(GameState::new(&buffer))
-    }
-
-    /// Reads the controller's current input, applying RNG if it is enabled.
-    pub fn rng_pad(&mut self, pad: GamePad) -> Result<GamePad, Error> {
-        let pointer = self.rng_pad_fn.call(
-            &mut self.store,
-            pad.button.into(),
-            pad.stick_x.into(),
-            pad.stick_y.into(),
-        )?;
-
-        let mut buffer: [u8; GAME_PAD_SIZE] = [0; GAME_PAD_SIZE];
-        self.memory
-            .view(&self.store)
-            .read(pointer.try_into()?, &mut buffer)?;
-        Ok(GamePad::from_bytes(&buffer))
     }
 
     pub fn using_rng(&self) -> bool {
         self.using_rng
     }
 
-    fn expand_memory(&mut self, save_state_length: usize) -> Result<(), Error> {
-        self.expand_memory_to((DATA0_SIZE + save_state_length) as u64)
-    }
-
-    fn expand_memory_to(&mut self, total_bytes: u64) -> Result<(), Error> {
-        if self.memory.view(&self.store).data_size() >= total_bytes {
-            return Ok(());
-        }
-        self.memory.grow_at_least(&mut self.store, total_bytes)?;
-
-        // grow_at_least rounds up to a page, but a runtime may refuse growth
-        // entirely; re-check so no caller writes out of bounds.
-        let actual = self.memory.view(&self.store).data_size();
-        if actual < total_bytes {
-            return Err(Error::msg(format!(
-                "could not grow linear memory to {total_bytes} bytes (got {actual})"
-            )));
-        }
-        Ok(())
-    }
-
-    /// The mutable ranges of a memory of `memory_size` bytes, with `usize::MAX`
-    /// ends clamped to that size.
-    fn mutable_ranges(&self, memory_size: usize) -> impl Iterator<Item = (usize, usize)> + '_ {
-        MUTABLE_RANGES
-            .iter()
-            .copied()
-            .map(move |(start, end)| (start, end.min(memory_size)))
-            .filter(move |&(start, end)| end > start)
-    }
-
-    /// A snapshot of all of linear memory, read-only segment included.
-    pub fn linear_memory(&self) -> Vec<u8> {
-        let view = self.memory.view(&self.store);
-        let len = view.data_size() as usize;
-        // SAFETY: `data_ptr` is valid for `data_size` bytes while `view` is
-        // alive, and `len` is `data_size`, so the slice is in bounds.
-        unsafe { std::slice::from_raw_parts(view.data_ptr(), len) }.to_vec()
-    }
-
-    /// The number of bytes [`SM64Game::get_memory_bytes`] would return: the
-    /// `STACK_END` bytes of stack plus everything from `DATA0_SIZE` to the end
-    /// of linear memory.
-    pub fn save_state_size(&self) -> usize {
-        let size = self.memory.view(&self.store).data_size() as usize;
-        self.mutable_ranges(size).map(|(a, b)| b - a).sum()
-    }
-
-    /// Serialises the mutable regions of this game into a save state.
+    /// Turns the display-list interpreter on or off.
     ///
-    /// The layout is the mutable ranges concatenated: the `STACK_END` bytes of
-    /// stack first, then everything from `DATA0_SIZE` onwards.
-    pub fn get_memory_bytes(&self) -> Result<Vec<u8>, Error> {
-        let view = self.memory.view(&self.store);
-        let size = view.data_size() as usize;
-        let total: usize = self.mutable_ranges(size).map(|(a, b)| b - a).sum();
-
-        let mut out = Vec::with_capacity(total);
-        for (start, end) in self.mutable_ranges(size) {
-            // SAFETY: `data_ptr` is valid for `size` bytes while `view` is
-            // alive, and each range is clamped to `size`, so the slice is in
-            // bounds. It is copied out before the view is dropped.
-            out.extend_from_slice(unsafe {
-                std::slice::from_raw_parts(view.data_ptr().add(start), end - start)
-            });
-        }
-        Ok(out)
+    /// Headless builds start with it off: the game never reads its output, so
+    /// it only costs time. Turning it on is for checking exactly that. The
+    /// setting lives in linear memory, so copies and save states carry it.
+    /// Fails on WASM built before the export existed.
+    pub fn set_render_enabled(&mut self, enabled: bool) -> Result<()> {
+        self.call_i32("set_render_enabled", enabled.into())
     }
 
-    /// Restores a save state produced by [`SM64Game::get_memory_bytes`].
+    /// Turns audio synthesis on or off. Headless builds start with it off.
     ///
-    /// The save state must have come from a game with at least as much linear
-    /// memory as this one; see [`SM64Game::save_state_size`].
-    pub fn write_memory_bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
-        // Size the destination for the largest state it might hold, then place
-        // the ranges. A short slice leaves the trailing range untouched.
-        let stack = bytes.len().min(STACK_END);
-        let heap = bytes.len().saturating_sub(STACK_END);
-        self.expand_memory(heap)?;
+    /// Like [`SM64Game::set_render_enabled`], the setting is part of the
+    /// game's memory and so travels with copies and save states.
+    pub fn set_audio_enabled(&mut self, enabled: bool) -> Result<()> {
+        self.call_i32("set_audio_enabled", enabled.into())
+    }
 
-        let view = self.memory.view(&self.store);
+    /// Freezes objects so frames are cheaper, at the cost of exactness.
+    ///
+    /// A frozen game no longer plays like the real one: frozen enemies can't
+    /// be defeated, `!` boxes and red coins don't spawn stars, and so on. Use
+    /// it to screen candidates, then replay the ones that matter on an exact
+    /// game. Switching back to [`FreezeMode::Off`] does not make a game exact
+    /// again. The mode is stored in linear memory, so copies inherit it.
+    /// Needs a headless build with the `set_object_freeze` export.
+    pub fn set_object_freeze(&mut self, mode: FreezeMode) -> Result<()> {
+        let code = match mode {
+            FreezeMode::Off => 0,
+            FreezeMode::All => 1,
+        };
+        self.call_i32("set_object_freeze", code)
+    }
 
-        // SAFETY: `expand_memory` verified linear memory reaches
-        // `DATA0_SIZE + heap`, and `stack <= STACK_END` is always in bounds.
-        // `bytes` is a separate allocation, so neither copy can overlap.
-        unsafe {
-            std::ptr::copy_nonoverlapping(bytes.as_ptr(), view.data_ptr(), stack);
-            if heap > 0 {
-                std::ptr::copy_nonoverlapping(
-                    bytes.as_ptr().add(STACK_END),
-                    view.data_ptr().add(DATA0_SIZE),
-                    heap,
-                );
-            }
+    /// False once objects have been frozen in this game, or in the game (or
+    /// save state) it was copied from. The marker lives in linear memory, so
+    /// it travels with the state. Builds without freezing are always exact.
+    pub fn is_exact(&mut self) -> Result<bool> {
+        if !self.has_export("objects_ever_frozen") {
+            return Ok(true);
         }
+        Ok(self.call_export_u32("objects_ever_frozen")? == 0)
+    }
+
+    /// Calls an export that takes an i32 and returns nothing.
+    fn call_i32(&mut self, name: &str, value: i32) -> Result<()> {
+        let (store, exports) = self.parts_mut();
+        let f: TypedFunction<i32, ()> = exports.instance.exports.get_typed_function(store, name)?;
+        f.call(store, value)?;
         Ok(())
     }
 
-    /// Copies the mutable regions of this game into `game_to`, without
-    /// materialising a save state in between.
-    pub fn copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
-        let src = self.memory.view(&self.store);
-        let src_size = src.data_size() as usize;
-
-        // The destination has to be at least as large as the source's mutable
-        // ranges. The stack needs no growth, only the heap does. Growing can
-        // move the destination's base pointer, so its view is taken after.
-        let needed = src_size.saturating_sub(DATA0_SIZE);
-        game_to.expand_memory(needed)?;
-
-        let dst = game_to.memory.view(&game_to.store);
-        let dst_size = dst.data_size() as usize;
-        let src_ptr = src.data_ptr();
-        let dst_ptr = dst.data_ptr();
-
-        for &(start, end) in &MUTABLE_RANGES {
-            let src_end = end.min(src_size);
-            let dst_end = end.min(dst_size);
-            let len = src_end.min(dst_end).saturating_sub(start);
-            if len == 0 {
-                continue;
-            }
-            // SAFETY: `len` bytes are readable from `start` in the source and
-            // `expand_memory` guaranteed the same range is writable in the
-            // destination. The two memories are distinct allocations, so the
-            // ranges cannot overlap.
-            unsafe {
-                std::ptr::copy_nonoverlapping(src_ptr.add(start), dst_ptr.add(start), len);
-            }
-        }
-        Ok(())
+    /// Calls a zero-argument export that returns an `i32` (typically a
+    /// pointer into linear memory) and returns it as a `u32`.
+    ///
+    /// Looked up by name on every call, so this is for occasional use (such as
+    /// `get_mario_state`), not hot paths. Fails if the WASM lacks the export.
+    pub fn call_export_u32(&mut self, name: &str) -> Result<u32> {
+        let (store, exports) = self.parts_mut();
+        let f: TypedFunction<(), i32> = exports.instance.exports.get_typed_function(store, name)?;
+        Ok(f.call(store)? as u32)
     }
 
-    /// Copies all of linear memory into `game_to`, read-only data included.
-    /// Simpler but worse performance.
-    pub fn full_copy_to(&self, game_to: &mut SM64Game) -> Result<(), Error> {
-        let src = self.memory.view(&self.store);
-        let len = src.data_size() as usize;
+    /// Whether the loaded WASM has an export called `name`.
+    pub fn has_export(&self, name: &str) -> bool {
+        self.exports.instance.exports.get_extern(name).is_some()
+    }
 
-        game_to.expand_memory_to(len as u64)?;
-
-        let dst = game_to.memory.view(&game_to.store);
-        // SAFETY: as in `copy_to`, except that the whole address space is
-        // copied rather than just the mutable region.
-        unsafe {
-            std::ptr::copy_nonoverlapping(src.data_ptr(), dst.data_ptr(), len);
-        }
-        Ok(())
+    /// Low-level escape hatch: the wasmer store and instance, for calling
+    /// exports with signatures the typed methods above don't cover. Re-exported as
+    /// `sm64_binds::wasmer` so callers use the same wasmer version.
+    pub fn wasm_parts(&mut self) -> (&mut Store, &Instance, &Memory) {
+        let (store, exports) = self.parts_mut();
+        (store, &exports.instance, &exports.memory)
     }
 }

@@ -1,0 +1,15 @@
+[package]
+name = "sm64-precompile"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Compiles the headless game's code with wasmer's LLVM backend (maketools/precompile.py)"
+
+[dependencies]
+anyhow = "1.0.100"
+# The same wasmer as rust/Cargo.toml: an artifact only loads in the version that
+# wrote it. The LLVM backend needs LLVM 18 (LLVM_SYS_180_PREFIX).
+wasmer = { version = "=6.1.0", default-features = false, features = ["sys", "llvm"] }
+
+[profile.release]
+debug = false

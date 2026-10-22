@@ -1,6 +1,6 @@
 [package]
 name = "sm64-binds"
-version = "1.0.25"
+version = "2.0.0"
 edition = "2024"
 
 description = "Mario 64 using WASM. Requires a US .z64 version ROM to work (8.00MB)"
@@ -11,20 +11,36 @@ categories = ["game-development", "wasm", "api-bindings"]
 repository = "https://github.com/Gumbo64/sm64-binds"
 homepage = "https://github.com/Gumbo64/sm64-binds#readme"
 documentation = "https://docs.rs/sm64-binds"
+# Only what building the library needs.
+include = [
+    "src/**/*.rs",
+    "pkg/sm64_headless.us.wasm.zip.xor",
+    "pkg/sm64_headless.x86_64-linux.wasmu",
+    "pkg/sm64_headless.x86_64-linux.wasmu.sha1",
+]
 
 [dependencies]
 anyhow = "1.0.100"
 serde = { version = "1.0.219", features = ["derive"] }
 sha1 = "0.10.6"
-wasmer = { version = "6.1.0", default-features = false }
+# Exact: pkg/'s precompiled module only loads in the wasmer that wrote it
+# (maketools/precompile pins the same version).
+wasmer = { version = "=6.1.0", default-features = false }
 getrandom = { version = "0.3", features = ["wasm_js"] }
 zip = "6.0.0"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
 
 [features]
-default = ["wasmer/sys", "wasmer/cranelift", "fs"]
+default = ["wasmer/sys", "wasmer/cranelift", "fs", "precompiled"]
 fs = []
 wasm_js = ["wasmer/js-default"]
+# On x86-64 Linux, run the game from the module in pkg/ that was compiled ahead
+# of time (LLVM, after wasm-opt; see src/sm64/precompiled.rs) rather than
+# compiling it with Cranelift: about 1.45x faster per frame, with the same
+# results, and no compile at load time. Elsewhere it does nothing.
+precompiled = ["wasmer/sys"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

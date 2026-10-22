@@ -10,16 +10,14 @@ import zipfile
 from wasmtime import Engine, Linker, Module, Store, WasiConfig
 
 __all__ = [
-    "DATA0_SIZE",
     "GAME_STATE_SIZE",
-    "MUTABLE_RANGES",
-    "STACK_END",
     "GamePad",
     "GameState",
     "RngConfig",
     "SM64Game",
     "SM64GameGenerator",
     "check_hash",
+    "read_only_memory",
     "rom_to_wasm_bytes",
     "unzip_bytes",
     "xor_bytes",
@@ -28,34 +26,15 @@ __all__ = [
 #: SHA-1 of a US ``.z64`` ROM, which is the only region this package supports.
 ROM_HASH = "9bef1128717f958171a4afac3ed78ee2bb4e86ce"
 
-#: Linear memory is not one mutable region but two, with a constant gap
-#: between them::
+#: Linear memory is not one mutable region but two, with the game's constant
+#: data between them. For the build this package ships::
 #:
 #:     0x000000  stack       (mutable)   <- emscripten stack, rewritten every frame
-#:     0x010000  read-only data          <- constant, excluded from save states
-#:     0x7a44ca  game heap and BSS       <- mutable, most of the save state
+#:     0x010000  .rodata     (constant)  <- excluded from copies
+#:     0x7b4620  .data, .bss and heap    <- mutable, most of what a copy moves
 #:
-#: ``STACK_END`` and ``DATA0_SIZE`` were measured rather than assumed: across
-#: 15 playthroughs (5 input styles x 3 seeds x 3000 frames, exercising both
-#: ``step_game`` and ``rng_pad``) every byte in ``[STACK_END, DATA0_SIZE)`` was
-#: unchanged from its post-boot value, while the stack and the region above
-#: ``DATA0_SIZE`` are written constantly.
-#:
-#: An earlier version treated ``DATA0_SIZE`` as the start of the mutable
-#: region, which silently dropped the stack. It went unnoticed because the
-#: stack is scratch: its contents are rewritten before any read, so a copied
-#: game still plays correctly. It is included now because a save state should
-#: mean what it says. Matches the Rust binding.
-STACK_END = 0x10000
-
-#: Start of the game's heap and BSS; everything above this is mutable.
-DATA0_SIZE = 8013002
-
-#: The mutable ranges of linear memory, as half-open ``(start, end)`` offsets.
-#: An ``end`` of ``None`` means "to the end of linear memory"; when copying,
-#: ends are clamped to the current size of each side's linear memory, as in
-#: the Rust ``copy_to``.
-MUTABLE_RANGES = ((0, STACK_END), (DATA0_SIZE, None))
+#: Where the constant data is depends on the build, so it is read from the
+#: WASM: see :func:`read_only_memory` and ``SM64GameGenerator.read_only``.
 
 #: Byte layout of the ``rng_pad`` WASM export, mirroring ``OSContPad`` in
 #: ``sm64-port/src/pc/pc_main.c``.
@@ -251,6 +230,58 @@ def rom_to_wasm_bytes(rom_bytes: bytes) -> bytes:
     return unzip_bytes(xor_bytes(xor_data, rom_bytes))
 
 
+def _read_leb128(data: bytes, at: int, signed: bool = False):
+    """Decodes a LEB128 integer at ``at``; returns it and the offset after it."""
+    value = shift = 0
+    while True:
+        if at >= len(data) or shift >= 64:
+            raise ValueError("malformed WASM")
+        byte = data[at]
+        at += 1
+        value |= (byte & 0x7F) << shift
+        shift += 7
+        if byte < 0x80:
+            if signed and byte & 0x40:
+                value -= 1 << shift
+            return value, at
+
+
+def read_only_memory(wasm_bytes: bytes) -> range:
+    """The part of linear memory holding the game's constant data (``.rodata``).
+
+    wasm-ld writes ``.rodata`` as the first data segment and ``.data`` as the
+    next, so this is the first segment's address range. With fewer than two
+    segments the two cannot be told apart, and the range is empty (all of
+    memory is treated as mutable). Matches the Rust ``read_only_memory``.
+    """
+    data = bytes(wasm_bytes)
+    if data[:4] != b"\0asm":
+        raise ValueError("not a WASM module")
+    at = 8
+    while at < len(data):
+        section = data[at]
+        size, body = _read_leb128(data, at + 1)
+        if section == 11:
+            count, p = _read_leb128(data, body)
+            segments = []
+            for _ in range(min(count, 2)):
+                flags, p = _read_leb128(data, p)
+                if flags != 0 or data[p] != 0x41:
+                    raise ValueError("unsupported data segment")
+                address, p = _read_leb128(data, p + 1, signed=True)
+                if data[p] != 0x0B:
+                    raise ValueError("unsupported data segment address")
+                length, p = _read_leb128(data, p + 1)
+                segments.append((address & 0xFFFFFFFF, length))
+                p += length
+            if len(segments) < 2:
+                break
+            address, length = segments[0]
+            return range(address, address + length)
+        at = body + size
+    return range(0, 0)
+
+
 def _base_address(memory, store) -> int:
     """The address of a WASM memory's first byte, as a plain integer.
 
@@ -266,18 +297,23 @@ class SM64Game:
     def __init__(self, wasm_bytes):
         engine = Engine()
         module = Module(engine, wasm_bytes)
-        self._init(engine, module)
+        self._init(engine, module, read_only_memory(wasm_bytes))
 
     @classmethod
-    def from_module(cls, engine, module):
-        """Instantiates from an already compiled module (much faster)."""
+    def from_module(cls, engine, module, read_only):
+        """Instantiates from an already compiled module (much faster).
+
+        ``read_only`` is the module's :func:`read_only_memory`.
+        """
         game = cls.__new__(cls)
-        game._init(engine, module)
+        game._init(engine, module, read_only)
         return game
 
-    def _init(self, engine, module):
+    def _init(self, engine, module, read_only):
         self.engine = engine
         self.module = module
+        #: The constant part of linear memory: see :func:`read_only_memory`.
+        self.read_only = read_only
 
         self.store = Store(engine)
         # The module imports WASI (libc's stdio among them), so those imports
@@ -346,6 +382,44 @@ class SM64Game:
     def using_rng(self):
         return self.using_rng_flag
 
+    # -----------------------------
+    # Headless toggles
+    # -----------------------------
+
+    def set_render_enabled(self, enabled: bool):
+        """Turns the display-list interpreter on or off.
+
+        Headless builds start with it off: the game never reads its output.
+        The setting lives in linear memory, so copies carry it.
+        """
+        self._call_toggle("set_render_enabled", enabled)
+
+    def set_audio_enabled(self, enabled: bool):
+        """Turns audio synthesis on or off. Headless builds start with it off."""
+        self._call_toggle("set_audio_enabled", enabled)
+
+    def set_object_freeze(self, mode: str = "off"):
+        """Freezes objects so frames are cheaper, at the cost of exactness.
+
+        ``mode`` is ``"off"`` (exact, the default) or ``"all"`` (every object
+        except Mario and doors). A frozen game no longer plays like the real
+        one, and stays inexact even if freezing is switched off again.
+        """
+        code = {"off": 0, "all": 1}[mode]
+        self.instance.exports(self.store)["set_object_freeze"](self.store, code)
+
+    def is_exact(self) -> bool:
+        """False once objects have been frozen in this game or its source state."""
+        exports = self.instance.exports(self.store)
+        try:
+            ever_frozen = exports["objects_ever_frozen"]
+        except KeyError:
+            return True
+        return ever_frozen(self.store) == 0
+
+    def _call_toggle(self, name, enabled):
+        self.instance.exports(self.store)[name](self.store, int(bool(enabled)))
+
 
 class SM64GameGenerator:
     """Compiles the WASM module once so that every :class:`SM64Game` it
@@ -355,6 +429,15 @@ class SM64GameGenerator:
         self.wasm_bytes = wasm_bytes
         self.engine = Engine()
         self.module = Module(self.engine, wasm_bytes)
+        #: The constant part of its games' memory: see :func:`read_only_memory`.
+        self.read_only = read_only_memory(wasm_bytes)
+
+    @property
+    def mutable_ranges(self):
+        """The parts of memory a copy moves, as half-open ``(start, end)``
+        offsets: the stack, and everything after the read-only data. An
+        ``end`` of ``None`` means "to the end of linear memory"."""
+        return ((0, self.read_only.start), (self.read_only.stop, None))
 
     @staticmethod
     def new(rom_bytes):
@@ -369,7 +452,7 @@ class SM64GameGenerator:
             return SM64GameGenerator.new(f.read())
 
     def create_game(self) -> SM64Game:
-        return SM64Game.from_module(self.engine, self.module)
+        return SM64Game.from_module(self.engine, self.module, self.read_only)
 
     # -----------------------------
     # Copying a game state
@@ -385,9 +468,9 @@ class SM64GameGenerator:
         """Copies ``game``'s mutable regions into ``game_to``, without
         materialising a save state in between.
 
-        The ranges are ``MUTABLE_RANGES``: the emscripten stack and everything
-        from ``DATA0_SIZE`` onwards. The read-only segment between them is
-        skipped. Reusing an instance saves a full instantiation.
+        The ranges are :attr:`mutable_ranges`: the emscripten stack and
+        everything after the read-only data, which is skipped. Reusing an
+        instance saves a full instantiation.
         """
         src_ptr = _base_address(game.memory, game.store)
         size = game.memory.data_len(game.store)
@@ -398,7 +481,7 @@ class SM64GameGenerator:
         # Unlike the Rust binding there is no explicit growth step; both ends
         # are clamped to their own linear memory sizes, so a short destination
         # silently copies only what fits.
-        for start, end in MUTABLE_RANGES:
+        for start, end in self.mutable_ranges:
             stop = size if end is None else min(end, size)
             stop_dst = dst_size if end is None else min(end, dst_size)
             copy_size = min(stop, stop_dst) - start

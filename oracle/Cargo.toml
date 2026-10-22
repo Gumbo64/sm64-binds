@@ -1,0 +1,13 @@
+[package]
+name = "sm64-oracle"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Dev tool: steps the headless WASM in lockstep with a local sm64_physics build and reports the first difference."
+
+[dependencies]
+sm64-binds = { path = "../rust" }
+
+[[bin]]
+name = "oracle"
+path = "src/main.rs"
