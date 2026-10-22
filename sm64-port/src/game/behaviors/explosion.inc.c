@@ -1,6 +1,7 @@
 // explosion.c.inc
 
 void bhv_explosion_init(void) {
+    N64_FRAME(24);
     create_sound_spawner(SOUND_GENERAL2_BOBOMB_EXPLOSION);
     set_environmental_camera_shake(SHAKE_ENV_EXPLOSION);
 
@@ -8,6 +9,7 @@ void bhv_explosion_init(void) {
 }
 
 void bhv_explosion_loop(void) {
+    N64_FRAME(40);
     s32 i;
 
     if (o->oTimer == 9) {

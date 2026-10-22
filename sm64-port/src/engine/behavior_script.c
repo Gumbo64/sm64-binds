@@ -158,6 +158,7 @@ static s32 bhv_cmd_set_model(void) {
 // Command 0x1C: Spawns a child object with the specified model and behavior.
 // Usage: SPAWN_CHILD(modelID, behavior)
 static s32 bhv_cmd_spawn_child(void) {
+    N64_FRAME(40);
     u32 model = BHV_CMD_GET_U32(1);
     const BehaviorScript *behavior = BHV_CMD_GET_VPTR(2);
 
@@ -171,6 +172,7 @@ static s32 bhv_cmd_spawn_child(void) {
 // Command 0x2C: Spawns a new object with the specified model and behavior.
 // Usage: SPAWN_OBJ(modelID, behavior)
 static s32 bhv_cmd_spawn_obj(void) {
+    N64_FRAME(40);
     u32 model = BHV_CMD_GET_U32(1);
     const BehaviorScript *behavior = BHV_CMD_GET_VPTR(2);
 
@@ -186,6 +188,7 @@ static s32 bhv_cmd_spawn_obj(void) {
 // Command 0x29: Spawns a child object with the specified model and behavior, plus a behavior param.
 // Usage: SPAWN_CHILD_WITH_PARAM(bhvParam, modelID, behavior)
 static s32 bhv_cmd_spawn_child_with_param(void) {
+    N64_FRAME(40);
     u32 bhvParam = BHV_CMD_GET_2ND_S16(0);
     u32 modelID = BHV_CMD_GET_U32(1);
     const BehaviorScript *behavior = BHV_CMD_GET_VPTR(2);
@@ -363,6 +366,7 @@ static s32 bhv_cmd_end_loop(void) {
 // Usage: CALL_NATIVE(func)
 typedef void (*NativeBhvFunc)(void);
 static s32 bhv_cmd_call_native(void) {
+    N64_FRAME(32);
     NativeBhvFunc behaviorFunc = BHV_CMD_GET_VPTR(1);
 
     behaviorFunc();
@@ -549,6 +553,7 @@ static s32 bhv_cmd_animate(void) {
 // Command 0x1E: Finds the floor triangle directly under the object and moves the object down to it.
 // Usage: DROP_TO_FLOOR()
 static s32 bhv_cmd_drop_to_floor(void) {
+    N64_FRAME(40);
     f32 x = gCurrentObject->oPosX;
     f32 y = gCurrentObject->oPosY;
     f32 z = gCurrentObject->oPosZ;
@@ -669,6 +674,7 @@ static s32 bhv_cmd_nop_4(void) {
 // Has some special behavior for certain objects.
 // Usage: BEGIN(objList)
 static s32 bhv_cmd_begin(void) {
+    N64_FRAME(24);
     // These objects were likely very early objects, which is why this code is here
     // instead of in the respective behavior scripts.
 
@@ -820,6 +826,7 @@ static s32 bhv_cmd_parent_bit_clear(void) {
 // Command 0x37: Spawns a water droplet with the given parameters.
 // Usage: SPAWN_WATER_DROPLET(dropletParams)
 static s32 bhv_cmd_spawn_water_droplet(void) {
+    N64_FRAME(32);
     struct WaterDropletParams *dropletParams = BHV_CMD_GET_VPTR(1);
 
     spawn_water_droplet(gCurrentObject, dropletParams);
@@ -908,6 +915,7 @@ static BhvCommandProc BehaviorCmdTable[] = {
 
 // Execute the behavior script of the current object, process the object flags, and other miscellaneous code for updating objects.
 void cur_obj_update(void) {
+    N64_FRAME(48);
     UNUSED u32 unused;
 
     s16 objFlags = gCurrentObject->oFlags;

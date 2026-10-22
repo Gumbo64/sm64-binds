@@ -168,8 +168,10 @@ Gfx *geo_switch_anim_state(s32 callContext, struct GraphNode *node) {
 //! @bug Same issue as geo_switch_anim_state.
 #ifdef AVOID_UB
 Gfx *geo_switch_area(s32 callContext, struct GraphNode *node, UNUSED void *context) {
+    N64_FRAME(40);
 #else
 Gfx *geo_switch_area(s32 callContext, struct GraphNode *node) {
+    N64_FRAME(40);
 #endif
     s16 sp26;
     struct Surface *sp20;
@@ -453,6 +455,7 @@ void obj_set_angle(struct Object *obj, s16 pitch, s16 yaw, s16 roll) {
 struct Object *spawn_object_abs_with_rot(struct Object *parent, s16 uselessArg, u32 model,
                                          const BehaviorScript *behavior,
                                          s16 x, s16 y, s16 z, s16 rx, s16 ry, s16 rz) {
+    N64_FRAME(32);
     // 'uselessArg' is unused in the function spawn_object_at_origin()
     struct Object *newObj = spawn_object_at_origin(parent, uselessArg, model, behavior);
     obj_set_pos(newObj, x, y, z);
@@ -468,6 +471,7 @@ struct Object *spawn_object_abs_with_rot(struct Object *parent, s16 uselessArg, 
  */
 struct Object *spawn_object_rel_with_rot(struct Object *parent, u32 model, const BehaviorScript *behavior,
                                          s16 xOff, s16 yOff, s16 zOff, s16 rx, s16 ry, UNUSED s16 rz) {
+    N64_FRAME(32);
     struct Object *newObj = spawn_object_at_origin(parent, 0, model, behavior);
     newObj->oFlags |= OBJ_FLAG_TRANSFORM_RELATIVE_TO_PARENT;
     obj_set_parent_relative_pos(newObj, xOff, yOff, zOff);
@@ -477,12 +481,14 @@ struct Object *spawn_object_rel_with_rot(struct Object *parent, u32 model, const
 }
 
 struct Object *spawn_obj_with_transform_flags(struct Object *sp20, s32 model, const BehaviorScript *sp28) {
+    N64_FRAME(32);
     struct Object *sp1C = spawn_object(sp20, model, sp28);
     sp1C->oFlags |= OBJ_FLAG_0020 | OBJ_FLAG_SET_THROW_MATRIX_FROM_TRANSFORM;
     return sp1C;
 }
 
 struct Object *spawn_water_droplet(struct Object *parent, struct WaterDropletParams *params) {
+    N64_FRAME(32);
     f32 randomScale;
     struct Object *newObj = spawn_object(parent, params->model, params->behavior);
 
@@ -492,12 +498,12 @@ struct Object *spawn_water_droplet(struct Object *parent, struct WaterDropletPar
 
     if (params->flags & WATER_DROPLET_FLAG_RAND_ANGLE_INCR_PLUS_8000) {
         newObj->oMoveAngleYaw = (s16)(newObj->oMoveAngleYaw + 0x8000)
-                                + (s16) random_f32_around_zero(params->moveAngleRange);
+                                + (s16) IDO_S16(random_f32_around_zero(params->moveAngleRange));
     }
 
     if (params->flags & WATER_DROPLET_FLAG_RAND_ANGLE_INCR) {
         newObj->oMoveAngleYaw =
-            (s16) newObj->oMoveAngleYaw + (s16) random_f32_around_zero(params->moveAngleRange);
+            (s16) newObj->oMoveAngleYaw + (s16) IDO_S16(random_f32_around_zero(params->moveAngleRange));
     }
 
     if (params->flags & WATER_DROPLET_FLAG_SET_Y_TO_WATER_LEVEL) {
@@ -523,6 +529,7 @@ struct Object *spawn_water_droplet(struct Object *parent, struct WaterDropletPar
 
 struct Object *spawn_object_at_origin(struct Object *parent, UNUSED s32 unusedArg, u32 model,
                                       const BehaviorScript *behavior) {
+    N64_FRAME(32);
     struct Object *obj;
     const BehaviorScript *behaviorAddr;
 
@@ -540,6 +547,7 @@ struct Object *spawn_object_at_origin(struct Object *parent, UNUSED s32 unusedAr
 }
 
 struct Object *spawn_object(struct Object *parent, s32 model, const BehaviorScript *behavior) {
+    N64_FRAME(32);
     struct Object *obj = spawn_object_at_origin(parent, 0, model, behavior);
 
     obj_copy_pos_and_angle(obj, parent);
@@ -549,10 +557,11 @@ struct Object *spawn_object(struct Object *parent, s32 model, const BehaviorScri
 
 struct Object *try_to_spawn_object(s16 offsetY, f32 scale, struct Object *parent, s32 model,
                                    const BehaviorScript *behavior) {
+    N64_FRAME(32);
     struct Object *obj;
 
     if (
-#ifdef USE_SYSTEM_MALLOC
+#ifdef MALLOC_OBJECTS
         TRUE
 #else
         gFreeObjectList.next != NULL
@@ -568,6 +577,7 @@ struct Object *try_to_spawn_object(s16 offsetY, f32 scale, struct Object *parent
 }
 
 struct Object *spawn_object_with_scale(struct Object *parent, s32 model, const BehaviorScript *behavior, f32 scale) {
+    N64_FRAME(32);
     struct Object *obj = spawn_object_at_origin(parent, 0, model, behavior);
 
     obj_copy_pos_and_angle(obj, parent);
@@ -583,6 +593,7 @@ static void obj_build_relative_transform(struct Object *obj) {
 
 struct Object *spawn_object_relative(s16 behaviorParam, s16 relativePosX, s16 relativePosY, s16 relativePosZ,
                                      struct Object *parent, s32 model, const BehaviorScript *behavior) {
+    N64_FRAME(32);
     struct Object *obj = spawn_object_at_origin(parent, 0, model, behavior);
 
     obj_copy_pos_and_angle(obj, parent);
@@ -598,6 +609,7 @@ struct Object *spawn_object_relative(s16 behaviorParam, s16 relativePosX, s16 re
 struct Object *spawn_object_relative_with_scale(s16 behaviorParam, s16 relativePosX, s16 relativePosY,
                                                 s16 relativePosZ, f32 scale, struct Object *parent,
                                                 s32 model, const BehaviorScript *behavior) {
+    N64_FRAME(48);
     struct Object *obj = spawn_object_relative(behaviorParam, relativePosX, relativePosY, relativePosZ,
                                                parent, model, behavior);
     obj_scale(obj, scale);
@@ -793,6 +805,7 @@ void cur_obj_enable_rendering_2(void) {
 }
 
 void cur_obj_unused_init_on_floor(void) {
+    N64_FRAME(24);
     cur_obj_enable_rendering();
 
     o->oPosY = find_floor_height(o->oPosX, o->oPosY, o->oPosZ);
@@ -1072,6 +1085,7 @@ void cur_obj_unrender_set_action_and_anim(s32 animIndex, s32 action) {
 }
 
 static void cur_obj_move_after_thrown_or_dropped(f32 forwardVel, f32 velY) {
+    N64_FRAME(24);
     o->oMoveFlags = 0;
     o->oFloorHeight = find_floor_height(o->oPosX, o->oPosY + 160.0f, o->oPosZ);
 
@@ -1092,6 +1106,7 @@ static void cur_obj_move_after_thrown_or_dropped(f32 forwardVel, f32 velY) {
 }
 
 void cur_obj_get_thrown_or_placed(f32 forwardVel, f32 velY, s32 thrownAction) {
+    N64_FRAME(24);
     if (o->behavior == segmented_to_virtual(bhvBowser)) {
         // Interestingly, when bowser is thrown, he is offset slightly to
         // Mario's right
@@ -1113,6 +1128,7 @@ void cur_obj_get_thrown_or_placed(f32 forwardVel, f32 velY, s32 thrownAction) {
 }
 
 void cur_obj_get_dropped(void) {
+    N64_FRAME(24);
     cur_obj_become_tangible();
     cur_obj_enable_rendering();
 
@@ -1168,11 +1184,13 @@ void obj_become_tangible(struct Object *obj) {
 }
 
 void cur_obj_update_floor_height(void) {
+    N64_FRAME(32);
     struct Surface *floor;
     o->oFloorHeight = find_floor(o->oPosX, o->oPosY, o->oPosZ, &floor);
 }
 
 struct Surface *cur_obj_update_floor_height_and_get_floor(void) {
+    N64_FRAME(32);
     struct Surface *floor;
     o->oFloorHeight = find_floor(o->oPosX, o->oPosY, o->oPosZ, &floor);
     return floor;
@@ -1205,6 +1223,7 @@ void cur_obj_apply_drag_xz(f32 dragStrength) {
 }
 
 static s32 cur_obj_move_xz(f32 steepSlopeNormalY, s32 careAboutEdgesAndSteepSlopes) {
+    N64_FRAME(56);
     struct Surface *intendedFloor;
 
     f32 intendedX = o->oPosX + o->oVelX;
@@ -1597,6 +1616,7 @@ void cur_obj_set_hurtbox_radius_and_height(f32 radius, f32 height) {
 static void obj_spawn_loot_coins(struct Object *obj, s32 numCoins, f32 sp30,
                                     const BehaviorScript *coinBehavior,
                                     s16 posJitter, s16 model) {
+    N64_FRAME(40);
     s32 i;
     f32 spawnHeight;
     struct Surface *floor;
@@ -1622,14 +1642,17 @@ static void obj_spawn_loot_coins(struct Object *obj, s32 numCoins, f32 sp30,
 }
 
 void obj_spawn_loot_blue_coins(struct Object *obj, s32 numCoins, f32 sp28, s16 posJitter) {
+    N64_FRAME(32);
     obj_spawn_loot_coins(obj, numCoins, sp28, bhvBlueCoinJumping, posJitter, MODEL_BLUE_COIN);
 }
 
 void obj_spawn_loot_yellow_coins(struct Object *obj, s32 numCoins, f32 sp28) {
+    N64_FRAME(32);
     obj_spawn_loot_coins(obj, numCoins, sp28, bhvSingleCoinGetsSpawned, 0, MODEL_YELLOW_COIN);
 }
 
 void cur_obj_spawn_loot_coin_at_mario_pos(void) {
+    N64_FRAME(32);
     struct Object *coin;
     if (o->oNumLootCoins <= 0) {
         return;
@@ -1672,6 +1695,7 @@ s32 cur_obj_advance_looping_anim(void) {
 }
 
 static s32 cur_obj_detect_steep_floor(s16 steepAngleDegrees) {
+    N64_FRAME(48);
     struct Surface *intendedFloor;
     f32 intendedX, intendedFloorHeight, intendedZ;
     f32 deltaFloorHeight;
@@ -1709,9 +1733,9 @@ s32 cur_obj_resolve_wall_collisions(void) {
     if (radius > 0.1L) {
         collisionData.offsetY = offsetY;
         collisionData.radius = radius;
-        collisionData.x = (s16) o->oPosX;
-        collisionData.y = (s16) o->oPosY;
-        collisionData.z = (s16) o->oPosZ;
+        collisionData.x = (s16) IDO_S16(o->oPosX);
+        collisionData.y = (s16) IDO_S16(o->oPosY);
+        collisionData.z = (s16) IDO_S16(o->oPosZ);
 
         numCollisions = find_wall_collisions(&collisionData);
         if (numCollisions != 0) {
@@ -1733,6 +1757,7 @@ s32 cur_obj_resolve_wall_collisions(void) {
 }
 
 static void cur_obj_update_floor(void) {
+    N64_FRAME(32);
     struct Surface *floor = cur_obj_update_floor_height_and_get_floor();
     o->oFloor = floor;
 
@@ -1756,6 +1781,7 @@ static void cur_obj_update_floor(void) {
 }
 
 static void cur_obj_update_floor_and_resolve_wall_collisions(s16 steepSlopeDegrees) {
+    N64_FRAME(24);
 #ifdef VERSION_JP
     o->oMoveFlags &= ~OBJ_MOVE_ABOVE_LAVA;
 #else
@@ -1788,10 +1814,12 @@ static void cur_obj_update_floor_and_resolve_wall_collisions(s16 steepSlopeDegre
 }
 
 void cur_obj_update_floor_and_walls(void) {
+    N64_FRAME(24);
     cur_obj_update_floor_and_resolve_wall_collisions(60);
 }
 
 void cur_obj_move_standard(s16 steepSlopeAngleDegrees) {
+    N64_FRAME(56);
     f32 gravity = o->oGravity;
     f32 bounciness = o->oBounciness;
     f32 buoyancy = o->oBuoyancy;
@@ -2090,6 +2118,7 @@ s16 cur_obj_reflect_move_angle_off_wall(void) {
 }
 
 void cur_obj_spawn_particles(struct SpawnParticlesInfo *info) {
+    N64_FRAME(40);
     struct Object *particle;
     s32 i;
     f32 scale;
@@ -2196,10 +2225,12 @@ s32 cur_obj_is_mario_ground_pounding_platform(void) {
 }
 
 void spawn_mist_particles(void) {
+    N64_FRAME(24);
     spawn_mist_particles_variable(0, 0, 46.0f);
 }
 
 void spawn_mist_particles_with_sound(u32 sp18) {
+    N64_FRAME(24);
     spawn_mist_particles_variable(0, 0, 46.0f);
     create_sound_spawner(sp18);
 }
@@ -2329,11 +2360,13 @@ s32 jiggle_bbh_stair(s32 a0) {
 }
 
 void cur_obj_call_action_function(void (*actionFunctions[])(void)) {
+    N64_FRAME(32);
     void (*actionFunction)(void) = actionFunctions[o->oAction];
     actionFunction();
 }
 
 static struct Object *spawn_star_with_no_lvl_exit(s32 sp20, s32 sp24) {
+    N64_FRAME(32);
     struct Object *sp1C = spawn_object(o, MODEL_STAR, bhvSpawnedStarNoLevelExit);
     sp1C->oSparkleSpawnUnk1B0 = sp24;
     sp1C->oBehParams = o->oBehParams;
@@ -2345,6 +2378,7 @@ static struct Object *spawn_star_with_no_lvl_exit(s32 sp20, s32 sp24) {
 // old unused initializer for 2d star spawn behavior.
 // uses behavior parameters not used in the current sparkle code.
 void spawn_base_star_with_no_lvl_exit(void) {
+    N64_FRAME(24);
     spawn_star_with_no_lvl_exit(0, 0);
 }
 
@@ -2393,6 +2427,7 @@ UNUSED static void stub_obj_helpers_5(void) {
 }
 
 void bhv_init_room(void) {
+    N64_FRAME(32);
     struct Surface *floor;
     f32 floorHeight;
 
@@ -2444,6 +2479,7 @@ void cur_obj_enable_rendering_if_mario_in_room(void) {
 }
 
 s32 cur_obj_set_hitbox_and_die_if_attacked(struct ObjectHitbox *hitbox, s32 deathSound, s32 noLootCoins) {
+    N64_FRAME(32);
     s32 interacted = FALSE;
 
     obj_set_hitbox(o, hitbox);
@@ -2469,6 +2505,7 @@ s32 cur_obj_set_hitbox_and_die_if_attacked(struct ObjectHitbox *hitbox, s32 deat
 
 
 void obj_explode_and_spawn_coins(f32 sp18, s32 sp1C) {
+    N64_FRAME(24);
     spawn_mist_particles_variable(0, 0, sp18);
     spawn_triangle_break_particles(30, MODEL_DIRT_ANIMATION, 3.0f, 4);
     obj_mark_for_deletion(o);
@@ -2759,6 +2796,7 @@ s32 cur_obj_has_model(u16 modelID) {
 }
 
 void cur_obj_align_gfx_with_floor(void) {
+    N64_FRAME(56);
     struct Surface *floor;
     Vec3f floorNormal;
     Vec3f position;
@@ -2905,6 +2943,7 @@ s32 cur_obj_check_interacted(void) {
 }
 
 void cur_obj_spawn_loot_blue_coin(void) {
+    N64_FRAME(24);
     if (o->oNumLootCoins >= 5) {
         spawn_object(o, MODEL_BLUE_COIN, bhvMrIBlueCoin);
         o->oNumLootCoins -= 5;
@@ -2913,6 +2952,7 @@ void cur_obj_spawn_loot_blue_coin(void) {
 
 #ifndef VERSION_JP
 void cur_obj_spawn_star_at_y_offset(f32 targetX, f32 targetY, f32 targetZ, f32 offsetY) {
+    N64_FRAME(32);
     f32 objectPosY = o->oPosY;
     o->oPosY += offsetY + gDebugInfo[5][0];
     spawn_default_star(targetX, targetY, targetZ);

@@ -34,6 +34,7 @@ void bhv_ship_part_3_loop(void) {
 }
 
 void bhv_jrb_sliding_box_loop(void) {
+    N64_FRAME(160);
     Mat4 sp60;
     Vec3f sp54;
     Vec3f sp48;
@@ -42,7 +43,13 @@ void bhv_jrb_sliding_box_loop(void) {
     struct Surface *sp38;
     UNUSED Vec3f sp2C;
     Vec3f sp20;
+#ifdef N64_STACK_MODEL
+    //! sp1E is read on the first frame without being set: on the N64 it is the
+    //  low half of the word at sp + 28, last written by find_floor_from_list.
+    s16 sp1E = (s16) n64_stack_load(gN64Sp + 28);
+#else
     s16 sp1E;
+#endif
     if (o->oJrbSlidingBoxUnkF4 == NULL) {
         sp3C = cur_obj_nearest_object_with_behavior(bhvInSunkenShip3);
         if (sp3C != NULL) // NULL check only for assignment, not for dereference?

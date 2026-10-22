@@ -41,6 +41,7 @@ void tuxies_mother_act_2(void) {
 }
 
 void tuxies_mother_act_1(void) {
+    N64_FRAME(48);
     s32 sp2C;
     s32 sp28;
     s32 dialogID;
@@ -136,6 +137,7 @@ void (*sTuxiesMotherActions[])(void) = { tuxies_mother_act_0, tuxies_mother_act_
                                          tuxies_mother_act_2 };
 
 void bhv_tuxies_mother_loop(void) {
+    N64_FRAME(24);
     o->activeFlags |= ACTIVE_FLAG_UNK10;
     cur_obj_update_floor_and_walls();
     cur_obj_call_action_function(sTuxiesMotherActions);
@@ -246,6 +248,7 @@ void (*sSmallPenguinActions[])(void) = {
 };
 
 void small_penguin_free_actions(void) {
+    N64_FRAME(24);
     if (o->oSmallPenguinUnk88 != 0) {
         o->oAction = 5;
         o->oSmallPenguinUnk88 = 0;
@@ -257,6 +260,7 @@ void small_penguin_free_actions(void) {
 }
 
 void bhv_small_penguin_loop(void) {
+    N64_FRAME(40);
     switch (o->oHeldState) {
         case HELD_FREE:
             small_penguin_free_actions();

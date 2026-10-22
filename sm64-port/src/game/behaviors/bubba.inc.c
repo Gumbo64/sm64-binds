@@ -57,7 +57,7 @@ void bubba_act_1(void) {
         } else if (o->oBubbaUnk100 < 15) {
             o->oAnimState = 1;
         } else if (o->oBubbaUnk100 == 20) {
-            s16 val06 = 10000 - (s16)(20.0f * (find_water_level(o->oPosX, o->oPosZ) - o->oPosY));
+            s16 val06 = 10000 - (s16)IDO_S16((20.0f * (find_water_level(o->oPosX, o->oPosZ) - o->oPosY)));
             o->oBubbaUnk1AC -= val06;
             o->oMoveAnglePitch = o->oBubbaUnk1AC;
             o->oBubbaUnkF4 = 40.0f;
@@ -96,6 +96,7 @@ void bubba_act_1(void) {
 }
 
 void bhv_bubba_loop(void) {
+    N64_FRAME(64);
     UNUSED s32 unused;
 
     o->oInteractionSubtype &= ~INT_SUBTYPE_EATS_MARIO;
@@ -137,7 +138,7 @@ void bhv_bubba_loop(void) {
             if ((o->oBubbaUnk10C -= o->oBubbaUnk108) > 1.0f) {
                 s16 sp36 = random_u16();
                 o->oBubbaUnk10C -= 1.0f;
-                spawn_object_relative(0, 150.0f * coss(sp36), 0x64, 150.0f * sins(sp36), o,
+                spawn_object_relative(0, IDO_S16(150.0f * coss(sp36)), 0x64, IDO_S16(150.0f * sins(sp36)), o,
                                       MODEL_WHITE_PARTICLE_SMALL, bhvSmallParticleSnow);
             }
         }

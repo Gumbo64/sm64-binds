@@ -81,6 +81,7 @@ void bhv_door_loop(void) {
 }
 
 void bhv_door_init(void) {
+    N64_FRAME(40);
     f32 x = o->oPosX;
     f32 z = o->oPosZ;
     struct Surface *floor;

@@ -1,6 +1,7 @@
 // breakable_box.c.inc
 
 void bhv_breakable_box_loop(void) {
+    N64_FRAME(24);
     obj_set_hitbox(o, &sBreakableBoxHitbox);
     cur_obj_set_model(MODEL_BREAKABLE_BOX_SMALL);
     if (o->oTimer == 0)

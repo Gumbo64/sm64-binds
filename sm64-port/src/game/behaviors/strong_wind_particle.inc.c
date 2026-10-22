@@ -50,16 +50,17 @@ void bhv_strong_wind_particle_loop(void) {
 // Spawn particles that blow Mario away and knock his cap off from the current object.
 // Used for the Snowman in SL and Fwoosh.
 void cur_obj_spawn_strong_wind_particles(s32 windSpread, f32 scale, f32 relPosX, f32 relPosY, f32 relPosZ) {
+    N64_FRAME(40);
     // Alternate between tiny particles and regular particles each frame.
     if ((gGlobalTimer & 1) != 0) {
         // Because the tiny particles are unimportant objects, invisible wind particles are spawned to provide collision.
         // There was absolutely no reason to make the smaller particles unimportant, though...
-        spawn_object_relative_with_scale(windSpread, relPosX, relPosY, relPosZ, 0.5f, o, MODEL_WHITE_PARTICLE_DL, bhvTinyStrongWindParticle);
-        spawn_object_relative_with_scale(windSpread, relPosX, relPosY, relPosZ, scale, o, MODEL_NONE, bhvStrongWindParticle);
+        spawn_object_relative_with_scale(windSpread, IDO_S16(relPosX), IDO_S16(relPosY), IDO_S16(relPosZ), 0.5f, o, MODEL_WHITE_PARTICLE_DL, bhvTinyStrongWindParticle);
+        spawn_object_relative_with_scale(windSpread, IDO_S16(relPosX), IDO_S16(relPosY), IDO_S16(relPosZ), scale, o, MODEL_NONE, bhvStrongWindParticle);
     } else
-        spawn_object_relative_with_scale(windSpread, relPosX, relPosY, relPosZ, scale, o, MODEL_MIST, bhvStrongWindParticle);
+        spawn_object_relative_with_scale(windSpread, IDO_S16(relPosX), IDO_S16(relPosY), IDO_S16(relPosZ), scale, o, MODEL_MIST, bhvStrongWindParticle);
     // There is also no need to spawn additional invisible wind particles here.
     // If the devs were worried about object overload when making small particles unimportant, why spawn these?
     // It isn't to ensure collision, as even 1 particle every 2 frames is enough to ensure this reliably.
-    spawn_object_relative_with_scale(windSpread, relPosX, relPosY, relPosZ, scale, o, MODEL_NONE, bhvStrongWindParticle);
+    spawn_object_relative_with_scale(windSpread, IDO_S16(relPosX), IDO_S16(relPosY), IDO_S16(relPosZ), scale, o, MODEL_NONE, bhvStrongWindParticle);
 }

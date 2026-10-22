@@ -71,6 +71,7 @@ s32 random_flower_offset(void) {
  * camera, and can land on any ground
  */
 void envfx_update_flower(Vec3s centerPos) {
+    N64_FRAME(48);
     s32 i;
     struct FloorGeometry *floorGeo; // unused
     s32 timer = gGlobalTimer;
@@ -87,7 +88,7 @@ void envfx_update_flower(Vec3s centerPos) {
             (gEnvFxBuffer + i)->yPos = find_floor_height_and_data((gEnvFxBuffer + i)->xPos, 10000.0f,
                                                                   (gEnvFxBuffer + i)->zPos, &floorGeo);
             (gEnvFxBuffer + i)->isAlive = 1;
-            (gEnvFxBuffer + i)->animFrame = random_float() * 5.0f;
+            (gEnvFxBuffer + i)->animFrame = IDO_S16(random_float() * 5.0f);
         } else if ((timer & 0x03) == 0) {
             (gEnvFxBuffer + i)->animFrame += 1;
             if ((gEnvFxBuffer + i)->animFrame > 5) {
@@ -107,6 +108,7 @@ void envfx_update_flower(Vec3s centerPos) {
  * camera below the lava plane.
  */
 void envfx_set_lava_bubble_position(s32 index, Vec3s centerPos) {
+    N64_FRAME(40);
     struct Surface *surface;
     s16 floorY;
     s16 centerX, centerY, centerZ;
@@ -133,7 +135,7 @@ void envfx_set_lava_bubble_position(s32 index, Vec3s centerPos) {
     }
 
     floorY =
-        find_floor((gEnvFxBuffer + index)->xPos, centerY + 500, (gEnvFxBuffer + index)->zPos, &surface);
+        IDO_S16(find_floor((gEnvFxBuffer + index)->xPos, centerY + 500, (gEnvFxBuffer + index)->zPos, &surface));
     if (surface == NULL) {
         (gEnvFxBuffer + index)->yPos = FLOOR_LOWER_LIMIT_MISC;
         return;
@@ -151,6 +153,7 @@ void envfx_set_lava_bubble_position(s32 index, Vec3s centerPos) {
  * animation is over.
  */
 void envfx_update_lava(Vec3s centerPos) {
+    N64_FRAME(40);
     s32 i;
     s32 timer = gGlobalTimer;
     s8 chance;
@@ -350,7 +353,7 @@ s32 envfx_init_bubble(s32 mode) {
     switch (mode) {
         case ENVFX_LAVA_BUBBLES:
             for (i = 0; i < sBubbleParticleCount; i++) {
-                (gEnvFxBuffer + i)->animFrame = random_float() * 7.0f;
+                (gEnvFxBuffer + i)->animFrame = IDO_S16(random_float() * 7.0f);
             }
             break;
     }
@@ -365,6 +368,7 @@ s32 envfx_init_bubble(s32 mode) {
  * though they are not being rotated yet.
  */
 void envfx_bubbles_update_switch(s32 mode, Vec3s camTo, Vec3s vertex1, Vec3s vertex2, Vec3s vertex3) {
+    N64_FRAME(40);
     switch (mode) {
         case ENVFX_FLOWERS:
             envfx_update_flower(camTo);
@@ -466,6 +470,7 @@ void envfx_set_bubble_texture(s32 mode, s16 index) {
  * list drawing them.
  */
 Gfx *envfx_update_bubble_particles(s32 mode, UNUSED Vec3s marioPos, Vec3s camFrom, Vec3s camTo) {
+    N64_FRAME(104);
     s32 i;
     s16 radius, pitch, yaw;
 
@@ -527,6 +532,7 @@ void envfx_set_max_bubble_particles(s32 mode) {
  * Returns a display list drawing the particles.
  */
 Gfx *envfx_update_bubbles(s32 mode, Vec3s marioPos, Vec3s camTo, Vec3s camFrom) {
+    N64_FRAME(40);
     Gfx *gfx;
 
     if (gEnvFxMode == 0 && !envfx_init_bubble(mode)) {

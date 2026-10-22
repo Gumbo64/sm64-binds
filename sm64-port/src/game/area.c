@@ -210,6 +210,7 @@ void clear_areas(void) {
 }
 
 void clear_area_graph_nodes(void) {
+    N64_FRAME(32);
     s32 i;
 
     if (gCurrentArea != NULL) {
@@ -227,6 +228,7 @@ void clear_area_graph_nodes(void) {
 }
 
 void load_area(s32 index) {
+    N64_FRAME(24);
     if (gCurrentArea == NULL && gAreaData[index].unk04 != NULL) {
         gCurrentArea = &gAreaData[index];
         gCurrAreaIndex = gCurrentArea->index;
@@ -246,6 +248,7 @@ void load_area(s32 index) {
 }
 
 void unload_area(void) {
+    N64_FRAME(24);
     if (gCurrentArea != NULL) {
         unload_objects_from_area(0, gCurrentArea->index);
         geo_call_global_function_nodes(&gCurrentArea->unk04->node, GEO_CONTEXT_AREA_UNLOAD);
@@ -257,6 +260,7 @@ void unload_area(void) {
 }
 
 void load_mario_area(void) {
+    N64_FRAME(24);
     stop_sounds_in_continuous_banks();
     load_area(gMarioSpawnInfo->areaIndex);
 
@@ -267,6 +271,7 @@ void load_mario_area(void) {
 }
 
 void unload_mario_area(void) {
+    N64_FRAME(24);
     if (gCurrentArea != NULL && (gCurrentArea->flags & 0x01)) {
         unload_objects_from_area(0, gMarioSpawnInfo->activeAreaIndex);
 
@@ -278,6 +283,7 @@ void unload_mario_area(void) {
 }
 
 void change_area(s32 index) {
+    N64_FRAME(32);
     s32 areaFlags = gCurrentArea->flags;
 
     if (gCurrAreaIndex != index) {
@@ -294,6 +300,7 @@ void change_area(s32 index) {
 }
 
 void area_update_objects(void) {
+    N64_FRAME(24);
     gAreaUpdateCounter++;
     update_objects(0);
 }
@@ -337,7 +344,7 @@ void play_transition(s16 transType, s16 time, u8 red, u8 green, u8 blue) {
 
         if (transType & 1) // Is the image fading in?
         {
-            gWarpTransition.data.startTexRadius = GFX_DIMENSIONS_FULL_RADIUS;
+            gWarpTransition.data.startTexRadius = IDO_S16(GFX_DIMENSIONS_FULL_RADIUS);
             if (transType >= 0x0F) {
                 gWarpTransition.data.endTexRadius = 16;
             } else {
@@ -350,7 +357,7 @@ void play_transition(s16 transType, s16 time, u8 red, u8 green, u8 blue) {
             } else {
                 gWarpTransition.data.startTexRadius = 0;
             }
-            gWarpTransition.data.endTexRadius = GFX_DIMENSIONS_FULL_RADIUS;
+            gWarpTransition.data.endTexRadius = IDO_S16(GFX_DIMENSIONS_FULL_RADIUS);
         }
     }
 }
@@ -366,6 +373,7 @@ void play_transition_after_delay(s16 transType, s16 time, u8 red, u8 green, u8 b
 }
 
 void render_game(void) {
+    N64_FRAME(56);
     if (gCurrentArea != NULL && !gWarpTransition.pauseRendering) {
         geo_process_root(gCurrentArea->unk04, D_8032CE74, D_8032CE78, gFBSetColor);
 

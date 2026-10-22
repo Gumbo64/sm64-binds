@@ -140,6 +140,7 @@ void unagi_act_3(void) {
 }
 
 void bhv_unagi_loop(void) {
+    N64_FRAME(48);
     s32 val04;
 
     if (o->oUnagiUnk1B2 == 0) {
@@ -173,6 +174,7 @@ void bhv_unagi_loop(void) {
 }
 
 void bhv_unagi_subobject_loop(void) {
+    N64_FRAME(32);
     f32 val04;
 
     if (o->parentObj->oUnagiUnk1B2 == 0) {

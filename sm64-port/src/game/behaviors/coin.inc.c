@@ -16,6 +16,7 @@ s16 sCoinArrowPositions[][2] = { { 0, -150 },  { 0, -50 },   { 0, 50 },   { 0, 1
                         { -50, 100 }, { -100, 50 }, { 50, 100 }, { 100, 50 } };
 
 s32 bhv_coin_sparkles_init(void) {
+    N64_FRAME(24);
     if (o->oInteractStatus & INT_STATUS_INTERACTED && !(o->oInteractStatus & INT_STATUS_TOUCHED_BOB_OMB)) {
         spawn_object(o, MODEL_SPARKLES, bhvGoldenCoinSparkles);
         obj_mark_for_deletion(o);
@@ -26,6 +27,7 @@ s32 bhv_coin_sparkles_init(void) {
 }
 
 void bhv_yellow_coin_init(void) {
+    N64_FRAME(24);
     cur_obj_set_behavior(bhvYellowCoin);
     obj_set_hitbox(o, &sYellowCoinHitbox);
     bhv_init_room();
@@ -37,11 +39,13 @@ void bhv_yellow_coin_init(void) {
 }
 
 void bhv_yellow_coin_loop(void) {
+    N64_FRAME(24);
     bhv_coin_sparkles_init();
     o->oAnimState++;
 }
 
 void bhv_temp_coin_loop(void) {
+    N64_FRAME(24);
     o->oAnimState++;
     if (cur_obj_wait_then_blink(200, 20))
         obj_mark_for_deletion(o);
@@ -58,6 +62,7 @@ void bhv_coin_init(void) {
 }
 
 void bhv_coin_loop(void) {
+    N64_FRAME(32);
     struct Surface *sp1C;
     s16 sp1A;
     cur_obj_update_floor_and_walls();
@@ -108,6 +113,7 @@ void bhv_coin_loop(void) {
 }
 
 void bhv_coin_formation_spawn_loop(void) {
+    N64_FRAME(40);
     if (o->oTimer == 0) {
         cur_obj_set_behavior(bhvYellowCoin);
         obj_set_hitbox(o, &sYellowCoinHitbox);
@@ -134,6 +140,7 @@ void bhv_coin_formation_spawn_loop(void) {
 }
 
 void spawn_coin_in_formation(s32 sp50, s32 sp54) {
+    N64_FRAME(80);
     struct Object *sp4C;
     Vec3i sp40;
     s32 sp3C = 1;
@@ -179,6 +186,7 @@ void bhv_coin_formation_init(void) {
 }
 
 void bhv_coin_formation_loop(void) {
+    N64_FRAME(40);
     s32 bitIndex;
     switch (o->oAction) {
         case 0:
@@ -204,6 +212,7 @@ void bhv_coin_formation_loop(void) {
 }
 
 void coin_inside_boo_act_1(void) {
+    N64_FRAME(24);
     cur_obj_update_floor_and_walls();
     cur_obj_if_hit_wall_bounce_away();
     if (o->oMoveFlags & OBJ_MOVE_BOUNCE)
@@ -244,6 +253,7 @@ void coin_inside_boo_act_0(void) {
 void (*sCoinInsideBooActions[])(void) = { coin_inside_boo_act_0, coin_inside_boo_act_1 };
 
 void bhv_coin_inside_boo_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sCoinInsideBooActions);
 }
 
@@ -252,6 +262,7 @@ void bhv_coin_sparkles_loop(void) {
 }
 
 void bhv_golden_coin_sparkles_loop(void) {
+    N64_FRAME(48);
     struct Object *sp2C;
     UNUSED s32 unused;
     f32 sp24 = 30.0f;

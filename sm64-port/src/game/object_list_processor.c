@@ -63,7 +63,11 @@ s16 gDebugInfoOverwrite[16][8];
  */
 u32 gTimeStopState;
 
-#ifndef USE_SYSTEM_MALLOC
+// Objects come from the N64's fixed pool even with USE_SYSTEM_MALLOC: its
+// limit (unimportant objects are evicted when it is full) and the reuse of
+// slots without clearing them are part of how the game plays. Define
+// MALLOC_OBJECTS for heap-allocated objects instead.
+#ifndef MALLOC_OBJECTS
 /**
  * The pool that objects are allocated from.
  */
@@ -255,6 +259,7 @@ void copy_mario_state_to_object(void) {
  * Spawn a particle at gCurrentObject's location.
  */
 void spawn_particle(u32 activeParticleFlag, s16 model, const BehaviorScript *behavior) {
+    N64_FRAME(32);
     if (!(gCurrentObject->oActiveParticleFlags & activeParticleFlag)) {
         struct Object *particle;
         gCurrentObject->oActiveParticleFlags |= activeParticleFlag;
@@ -267,6 +272,7 @@ void spawn_particle(u32 activeParticleFlag, s16 model, const BehaviorScript *beh
  * Mario's primary behavior update function.
  */
 void bhv_mario_update(void) {
+    N64_FRAME(32);
     u32 particleFlags = 0;
     s32 i;
 
@@ -293,6 +299,7 @@ void bhv_mario_update(void) {
  * including firstObj itself. Return the number of objects that were updated.
  */
 s32 update_objects_starting_at(struct ObjectNode *objList, struct ObjectNode *firstObj) {
+    N64_FRAME(32);
     s32 count = 0;
 
     while (objList != firstObj) {
@@ -318,6 +325,7 @@ s32 update_objects_starting_at(struct ObjectNode *objList, struct ObjectNode *fi
  * updated)
  */
 s32 update_objects_during_time_stop(struct ObjectNode *objList, struct ObjectNode *firstObj) {
+    N64_FRAME(32);
     s32 count = 0;
     s32 unfrozen;
 
@@ -363,6 +371,7 @@ s32 update_objects_during_time_stop(struct ObjectNode *objList, struct ObjectNod
  * the list.
  */
 s32 update_objects_in_list(struct ObjectNode *objList) {
+    N64_FRAME(32);
     s32 count;
     struct ObjectNode *firstObj = objList->next;
 
@@ -453,6 +462,7 @@ void unload_objects_from_area(UNUSED s32 unused, s32 areaIndex) {
  * Spawn objects given a list of SpawnInfos. Called when loading an area.
  */
 void spawn_objects_from_info(UNUSED s32 unused, struct SpawnInfo *spawnInfo) {
+    N64_FRAME(40);
     gObjectLists = gObjectListArray;
     gTimeStopState = 0;
 
@@ -542,7 +552,7 @@ void clear_objects(void) {
 
     debug_unknown_level_select_check();
 
-#ifndef USE_SYSTEM_MALLOC
+#ifndef MALLOC_OBJECTS
     init_free_object_list();
 #endif
     clear_object_lists(gObjectListArray);
@@ -550,7 +560,7 @@ void clear_objects(void) {
     stub_behavior_script_2();
     stub_obj_list_processor_1();
 
-#ifndef USE_SYSTEM_MALLOC
+#ifndef MALLOC_OBJECTS
     for (i = 0; i < OBJECT_POOL_CAPACITY; i++) {
         gObjectPool[i].activeFlags = ACTIVE_FLAG_DEACTIVATED;
         geo_reset_object_node(&gObjectPool[i].header.gfx);
@@ -567,6 +577,7 @@ void clear_objects(void) {
  * Update spawner and surface objects.
  */
 void update_terrain_objects(void) {
+    N64_FRAME(24);
     gObjectCounter = update_objects_in_list(&gObjectLists[OBJ_LIST_SPAWNER]);
     //! This was meant to be +=
     gObjectCounter = update_objects_in_list(&gObjectLists[OBJ_LIST_SURFACE]);
@@ -577,6 +588,7 @@ void update_terrain_objects(void) {
  * the order specified by sObjectListUpdateOrder.
  */
 void update_non_terrain_objects(void) {
+    N64_FRAME(48);
     UNUSED s32 unused;
     s32 listIndex;
 
@@ -617,7 +629,7 @@ UNUSED static u16 unused_get_elapsed_time(u64 *cycleCounts, s32 index) {
         cycles = 0;
     }
 
-    time = (u16)(((u64) cycles * 1000000 / osClockRate) / 16667.0 * 1000.0);
+    time = (u16)IDO_U16((((u64) cycles * 1000000 / osClockRate) / 16667.0 * 1000.0));
     if (time > 999) {
         time = 999;
     }
@@ -630,6 +642,7 @@ UNUSED static u16 unused_get_elapsed_time(u64 *cycleCounts, s32 index) {
  * and object surface management.
  */
 void update_objects(UNUSED s32 unused) {
+    N64_FRAME(264);
     s64 cycleCounts[30];
 
     cycleCounts[0] = get_current_clock();

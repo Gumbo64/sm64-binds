@@ -6,6 +6,7 @@
 
 // TODO: Rename these. These have nothing to do with birds.
 void bub_spawner_act_0(void) {
+    N64_FRAME(32);
     s32 i;
     s32 sp18 = o->oBirdChirpChirpUnkF4;
     if (o->oDistanceToMario < 1500.0f) {
@@ -32,6 +33,7 @@ void (*sBirdChirpChirpActions[])(void) = { bub_spawner_act_0, bub_spawner_act_1,
                                            bub_spawner_act_2, bub_spawner_act_3 };
 
 void bhv_bub_spawner_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sBirdChirpChirpActions);
 }
 
@@ -80,6 +82,7 @@ void bub_act_1(void) {
 }
 
 void bub_act_2(void) {
+    N64_FRAME(32);
     f32 dy;
     if (o->oTimer < 20) {
         if (o->oInteractStatus & INT_STATUS_INTERACTED)
@@ -113,6 +116,7 @@ void bub_act_2(void) {
 void (*sCheepCheepActions[])(void) = { bub_act_0, bub_act_1, bub_act_2 };
 
 void bhv_bub_loop(void) {
+    N64_FRAME(24);
     o->oCheepCheepUnkF4 = find_water_level(o->oPosX, o->oPosZ);
     o->oCheepCheepUnkF8 = gMarioObject->oPosY + o->oCheepCheepUnkFC;
     o->oWallHitboxRadius = 30.0f;

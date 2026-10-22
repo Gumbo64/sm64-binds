@@ -1,6 +1,7 @@
 // flame.inc.c
 
 void bhv_small_piranha_flame_loop(void) {
+    N64_FRAME(48);
     if ((u16)(o->oBehParams >> 16) == 0) {
         if (o->oTimer > 0) {
             obj_mark_for_deletion(o);
@@ -23,7 +24,7 @@ void bhv_small_piranha_flame_loop(void) {
                                 0.4f * o->header.gfx.scale[0]);
 
         if (o->oTimer > o->oSmallPiranhaFlameNextFlameTimer) {
-            spawn_object_relative_with_scale(1, 0, o->oGraphYOffset, 0, o->header.gfx.scale[0], o,
+            spawn_object_relative_with_scale(1, 0, IDO_S16(o->oGraphYOffset), 0, o->header.gfx.scale[0], o,
                                              o->oSmallPiranhaFlameModel, bhvFlyguyFlame);
             o->oSmallPiranhaFlameNextFlameTimer = random_linear_offset(8, 15);
             o->oTimer = 0;

@@ -619,6 +619,7 @@ u32 get_area_terrain_size(s16 *data) {
  * boxes (water, gas, JRB fog).
  */
 void load_area_terrain(s16 index, s16 *data, s8 *surfaceRooms, s16 *macroObjects) {
+    N64_FRAME(40);
     s16 terrainLoadType;
     s16 *vertexData;
     UNUSED s32 unused;
@@ -743,9 +744,9 @@ void transform_object_vertices(s16 **data, s16 *vertexData) {
         vz = *(vertices++);
 
         //! No bounds check on vertex data
-        *vertexData++ = (s16)(vx * m[0][0] + vy * m[1][0] + vz * m[2][0] + m[3][0]);
-        *vertexData++ = (s16)(vx * m[0][1] + vy * m[1][1] + vz * m[2][1] + m[3][1]);
-        *vertexData++ = (s16)(vx * m[0][2] + vy * m[1][2] + vz * m[2][2] + m[3][2]);
+        *vertexData++ = (s16)IDO_S16((vx * m[0][0] + vy * m[1][0] + vz * m[2][0] + m[3][0]));
+        *vertexData++ = (s16)IDO_S16((vx * m[0][1] + vy * m[1][1] + vz * m[2][1] + m[3][1]));
+        *vertexData++ = (s16)IDO_S16((vx * m[0][2] + vy * m[1][2] + vz * m[2][2] + m[3][2]));
     }
 
     *data = vertices;

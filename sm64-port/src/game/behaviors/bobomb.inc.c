@@ -20,6 +20,7 @@ void bhv_bobomb_init(void) {
 }
 
 void bobomb_spawn_coin(void) {
+    N64_FRAME(24);
     if (((o->oBehParams >> 8) & 0x1) == 0) {
         obj_spawn_yellow_coins(o, 1);
         o->oBehParams = 0x100;
@@ -28,6 +29,7 @@ void bobomb_spawn_coin(void) {
 }
 
 void bobomb_act_explode(void) {
+    N64_FRAME(32);
     struct Object *explosion;
     if (o->oTimer < 5)
         cur_obj_scale(1.0 + (f32) o->oTimer / 5.0);
@@ -65,6 +67,7 @@ void bobomb_check_interactions(void) {
 }
 
 void bobomb_act_patrol(void) {
+    N64_FRAME(40);
     UNUSED s8 filler[4];
     UNUSED s16 sp22;
     s16 collisionFlags;
@@ -82,6 +85,7 @@ void bobomb_act_patrol(void) {
 }
 
 void bobomb_act_chase_mario(void) {
+    N64_FRAME(32);
     UNUSED u8 filler[4];
     s16 sp1a, collisionFlags;
 
@@ -98,6 +102,7 @@ void bobomb_act_chase_mario(void) {
 }
 
 void bobomb_act_launched(void) {
+    N64_FRAME(32);
     s16 collisionFlags = 0;
     collisionFlags = object_step();
     if ((collisionFlags & OBJ_COL_FLAG_GROUNDED) == OBJ_COL_FLAG_GROUNDED)
@@ -105,6 +110,7 @@ void bobomb_act_launched(void) {
 }
 
 void generic_bobomb_free_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case BOBOMB_ACT_PATROL:
             bobomb_act_patrol();
@@ -140,6 +146,7 @@ void generic_bobomb_free_loop(void) {
 }
 
 void stationary_bobomb_free_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case BOBOMB_ACT_LAUNCHED:
             bobomb_act_launched();
@@ -167,6 +174,7 @@ void stationary_bobomb_free_loop(void) {
 }
 
 void bobomb_free_loop(void) {
+    N64_FRAME(24);
     if (o->oBehParams2ndByte == BOBOMB_BP_STYPE_GENERIC)
         generic_bobomb_free_loop();
     else
@@ -189,6 +197,7 @@ void bobomb_held_loop(void) {
 }
 
 void bobomb_dropped_loop(void) {
+    N64_FRAME(24);
     cur_obj_get_dropped();
 
     o->header.gfx.node.flags &= ~GRAPH_RENDER_INVISIBLE;
@@ -213,7 +222,7 @@ void bobomb_thrown_loop(void) {
 
 void curr_obj_random_blink(s32 *blinkTimer) {
     if (*blinkTimer == 0) {
-        if ((s16)(random_float() * 100.0f) == 0) {
+        if ((s16)IDO_S16((random_float() * 100.0f)) == 0) {
             o->oAnimState = 1;
             *blinkTimer = 1;
         }
@@ -231,6 +240,7 @@ void curr_obj_random_blink(s32 *blinkTimer) {
 }
 
 void bhv_bobomb_loop(void) {
+    N64_FRAME(40);
     s8 dustPeriodMinus1;
     if (is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 4000) != 0) {
         switch (o->oHeldState) {
@@ -285,6 +295,7 @@ void bhv_bobomb_buddy_init(void) {
 }
 
 void bobomb_buddy_act_idle(void) {
+    N64_FRAME(32);
     UNUSED u8 filler[4];
     s16 sp1a = o->header.gfx.animInfo.animFrame;
     UNUSED s16 collisionFlags = 0;
@@ -395,6 +406,7 @@ void bobomb_buddy_act_turn_to_talk(void) {
 }
 
 void bobomb_buddy_actions(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case BOBOMB_BUDDY_ACT_IDLE:
             bobomb_buddy_act_idle();
@@ -413,6 +425,7 @@ void bobomb_buddy_actions(void) {
 }
 
 void bhv_bobomb_buddy_loop(void) {
+    N64_FRAME(24);
     bobomb_buddy_actions();
 
     curr_obj_random_blink(&o->oBobombBuddyBlinkTimer);

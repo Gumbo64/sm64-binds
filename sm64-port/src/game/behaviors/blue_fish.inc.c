@@ -95,6 +95,7 @@ void bhv_blue_fish_movement_loop(void) {
  * They move at random within 200.0f
  */
 void bhv_tank_fish_group_loop(void) {
+    N64_FRAME(64);
     struct Object *fish;
     s32 i;
     switch (o->oAction) {

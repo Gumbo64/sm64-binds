@@ -47,6 +47,7 @@ void falling_bowser_plat_act_check(void) {
 }
 
 void falling_bowser_plat_act_fall(void) {
+    N64_FRAME(48);
     Vec3f pos;
     s16 angle;
     f32 val;
@@ -86,5 +87,6 @@ void (*sFallingBowserPlatformActions[])(void) = {
 };
 
 void bhv_falling_bowser_platform_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sFallingBowserPlatformActions);
 }

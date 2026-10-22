@@ -118,6 +118,7 @@ void cap_scale_vertically(void) {
 }
 
 void wing_vanish_cap_act_0(void) {
+    N64_FRAME(32);
     s16 sp1E;
 
     o->oFaceAngleYaw += o->oForwardVel * 128.0f;
@@ -135,6 +136,7 @@ void wing_vanish_cap_act_0(void) {
 }
 
 void bhv_wing_vanish_cap_loop(void) {
+    N64_FRAME(24);
     switch (o->oAction) {
         case 0:
             wing_vanish_cap_act_0();
@@ -161,6 +163,7 @@ void bhv_metal_cap_init(void) {
 }
 
 void metal_cap_act_0(void) {
+    N64_FRAME(32);
     s16 sp1E;
 
     o->oFaceAngleYaw += o->oForwardVel * 128.0f;
@@ -170,6 +173,7 @@ void metal_cap_act_0(void) {
 }
 
 void bhv_metal_cap_loop(void) {
+    N64_FRAME(24);
     switch (o->oAction) {
         case 0:
             metal_cap_act_0();
@@ -194,7 +198,7 @@ void bhv_normal_cap_init(void) {
     o->oBuoyancy = 0.9f;
     o->oOpacity = 0xFF;
 
-    save_file_set_cap_pos(o->oPosX, o->oPosY, o->oPosZ);
+    save_file_set_cap_pos(IDO_S16(o->oPosX), IDO_S16(o->oPosY), IDO_S16(o->oPosZ));
 }
 
 void normal_cap_set_save_flags(void) {
@@ -220,6 +224,7 @@ void normal_cap_set_save_flags(void) {
 }
 
 void normal_cap_act_0(void) {
+    N64_FRAME(32);
     s16 sp1E;
 
     o->oFaceAngleYaw += o->oForwardVel * 128.0f;
@@ -240,6 +245,7 @@ void normal_cap_act_0(void) {
 }
 
 void bhv_normal_cap_loop(void) {
+    N64_FRAME(24);
     switch (o->oAction) {
         case 0:
             normal_cap_act_0();
@@ -252,7 +258,7 @@ void bhv_normal_cap_loop(void) {
     }
 
     if ((s32) o->oForwardVel != 0)
-        save_file_set_cap_pos(o->oPosX, o->oPosY, o->oPosZ);
+        save_file_set_cap_pos(IDO_S16(o->oPosX), IDO_S16(o->oPosY), IDO_S16(o->oPosZ));
 
     if (o->activeFlags == ACTIVE_FLAG_DEACTIVATED)
         normal_cap_set_save_flags();

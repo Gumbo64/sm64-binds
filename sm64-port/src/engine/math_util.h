@@ -24,8 +24,8 @@ extern f32 gSineTable[];
 extern f32 gCosineTable[];
 #endif
 
-#define sins(x) gSineTable[(u16) (x) >> 4]
-#define coss(x) gCosineTable[(u16) (x) >> 4]
+#define sins(x) gSineTable[IDO_U16_ANY(x) >> 4]
+#define coss(x) gCosineTable[IDO_U16_ANY(x) >> 4]
 
 #define min(a, b) ((a) <= (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))

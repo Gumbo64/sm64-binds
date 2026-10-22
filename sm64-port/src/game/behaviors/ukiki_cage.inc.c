@@ -15,6 +15,7 @@
  * Not an actual star object until later.
  */
 void bhv_ukiki_cage_star_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case UKIKI_CAGE_STAR_ACT_IN_CAGE:
             // Initialization to see if the star is collected (blue) or not (yellow).
@@ -72,6 +73,7 @@ void ukiki_cage_act_spin(void) {
  * Assist ukiki in his death.
  */
 void ukiki_cage_act_fall(void) {
+    N64_FRAME(24);
     //! (PARTIAL_UPDATE)
     cur_obj_update_floor_and_walls();
     cur_obj_move_standard(78);
@@ -102,5 +104,6 @@ void (*sUkikiCageActions[])(void) = {
  * Main behavior loop for the cage. Only calls the relevant action.
  */
 void bhv_ukiki_cage_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sUkikiCageActions);
 }

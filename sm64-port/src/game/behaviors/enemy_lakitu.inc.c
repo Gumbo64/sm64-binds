@@ -24,6 +24,7 @@ static struct ObjectHitbox sEnemyLakituHitbox = {
  * Wait for mario to approach, then spawn the cloud and become visible.
  */
 static void enemy_lakitu_act_uninitialized(void) {
+    N64_FRAME(40);
     if (o->oDistanceToMario < 2000.0f) {
         spawn_object_relative_with_scale(CLOUD_BP_LAKITU_CLOUD, 0, 0, 0, 2.0f, o, MODEL_MIST, bhvCloud);
 
@@ -83,7 +84,7 @@ static void enemy_lakitu_update_speed_and_angle(void) {
     }
 
     // Change move angle toward mario faster when farther from mario
-    turnSpeed = (s16)(distToMario * 2);
+    turnSpeed = (s16)IDO_S16((distToMario * 2));
     clamp_s16(&turnSpeed, 0xC8, 0xFA0);
     cur_obj_rotate_yaw_toward(o->oAngleToMario, turnSpeed);
 }
@@ -93,6 +94,7 @@ static void enemy_lakitu_update_speed_and_angle(void) {
  * hold it, then enter the hold spiny sub-action.
  */
 static void enemy_lakitu_sub_act_no_spiny(void) {
+    N64_FRAME(32);
     cur_obj_init_animation_with_sound(1);
 
     if (o->oEnemyLakituSpinyCooldown != 0) {
@@ -150,6 +152,7 @@ static void enemy_lakitu_sub_act_throw_spiny(void) {
  * Main update function.
  */
 static void enemy_lakitu_act_main(void) {
+    N64_FRAME(40);
     cur_obj_play_sound_1(SOUND_AIR_LAKITU_FLY);
 
     cur_obj_update_floor_and_walls();
@@ -186,6 +189,7 @@ static void enemy_lakitu_act_main(void) {
  * Update function for bhvEnemyLakitu.
  */
 void bhv_enemy_lakitu_update(void) {
+    N64_FRAME(40);
     // PARTIAL_UPDATE
 
     treat_far_home_as_mario(2000.0f);

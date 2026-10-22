@@ -29,6 +29,13 @@ void init_scene_graph_node_links(struct GraphNode *graphNode, s32 type) {
     graphNode->next = graphNode;
     graphNode->parent = NULL;
     graphNode->children = NULL;
+#ifdef HEADLESS_VERSION
+    // New nodes can reuse the memory of nodes the render walk knows about.
+    // Objects are never in its cache, and are made all the time.
+    if (type != GRAPH_NODE_TYPE_OBJECT) {
+        geo_cache_invalidate();
+    }
+#endif
 }
 
 /**
@@ -81,6 +88,7 @@ struct GraphNodePerspective *init_graph_node_perspective(struct AllocOnlyPool *p
                                                          struct GraphNodePerspective *graphNode,
                                                          f32 fov, s16 near, s16 far,
                                                          GraphNodeFunc nodeFunc, s32 unused) {
+    N64_FRAME(24);
     if (pool != NULL) {
         graphNode = alloc_only_pool_alloc(pool, sizeof(struct GraphNodePerspective));
     }
@@ -164,6 +172,7 @@ struct GraphNodeSwitchCase *init_graph_node_switch_case(struct AllocOnlyPool *po
                                                         struct GraphNodeSwitchCase *graphNode,
                                                         s16 numCases, s16 selectedCase,
                                                         GraphNodeFunc nodeFunc, s32 unused) {
+    N64_FRAME(24);
     if (pool != NULL) {
         graphNode = alloc_only_pool_alloc(pool, sizeof(struct GraphNodeSwitchCase));
     }
@@ -189,6 +198,7 @@ struct GraphNodeSwitchCase *init_graph_node_switch_case(struct AllocOnlyPool *po
 struct GraphNodeCamera *init_graph_node_camera(struct AllocOnlyPool *pool,
                                                struct GraphNodeCamera *graphNode, f32 *pos,
                                                f32 *focus, GraphNodeFunc func, s32 mode) {
+    N64_FRAME(24);
     if (pool != NULL) {
         graphNode = alloc_only_pool_alloc(pool, sizeof(struct GraphNodeCamera));
     }
@@ -453,6 +463,7 @@ struct GraphNodeObjectParent *init_graph_node_object_parent(struct AllocOnlyPool
 struct GraphNodeGenerated *init_graph_node_generated(struct AllocOnlyPool *pool,
                                                      struct GraphNodeGenerated *graphNode,
                                                      GraphNodeFunc gfxFunc, s32 parameter) {
+    N64_FRAME(24);
     if (pool != NULL) {
         graphNode = alloc_only_pool_alloc(pool, sizeof(struct GraphNodeGenerated));
     }
@@ -477,6 +488,7 @@ struct GraphNodeBackground *init_graph_node_background(struct AllocOnlyPool *poo
                                                        struct GraphNodeBackground *graphNode,
                                                        u16 background, GraphNodeFunc backgroundFunc,
                                                        s32 zero) {
+    N64_FRAME(24);
     if (pool != NULL) {
         graphNode = alloc_only_pool_alloc(pool, sizeof(struct GraphNodeBackground));
     }
@@ -504,6 +516,7 @@ struct GraphNodeHeldObject *init_graph_node_held_object(struct AllocOnlyPool *po
                                                         struct Object *objNode,
                                                         Vec3s translation,
                                                         GraphNodeFunc nodeFunc, s32 playerIndex) {
+    N64_FRAME(24);
     if (pool != NULL) {
         graphNode = alloc_only_pool_alloc(pool, sizeof(struct GraphNodeHeldObject));
     }
@@ -615,6 +628,7 @@ struct GraphNode *geo_make_first_child(struct GraphNode *newFirstChild) {
  * traverses the scene graph and calls the functions of global nodes.
  */
 void geo_call_global_function_nodes_helper(struct GraphNode *graphNode, s32 callContext) {
+    N64_FRAME(48);
     struct GraphNode **globalPtr;
     struct GraphNode *curNode;
     struct FnGraphNode *asFnNode;
@@ -670,6 +684,7 @@ void geo_call_global_function_nodes_helper(struct GraphNode *graphNode, s32 call
  * The graphNode argument should be of type GraphNodeRoot.
  */
 void geo_call_global_function_nodes(struct GraphNode *graphNode, s32 callContext) {
+    N64_FRAME(24);
     if (graphNode->flags & GRAPH_RENDER_ACTIVE) {
         gCurGraphNodeRoot = (struct GraphNodeRoot *) graphNode;
 

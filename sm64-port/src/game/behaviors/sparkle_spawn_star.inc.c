@@ -54,6 +54,7 @@ void slow_star_rotation(void) {
 }
 
 void bhv_spawned_star_loop(void) {
+    N64_FRAME(24);
     if (o->oAction == 0) {
         if (o->oTimer == 0) {
             cutscene_object(CUTSCENE_STAR_SPAWN, o);
@@ -111,6 +112,7 @@ void bhv_spawned_star_loop(void) {
 }
 
 void bhv_spawn_star_no_level_exit(u32 sp20) {
+    N64_FRAME(32);
     struct Object *sp1C = spawn_object(o, MODEL_STAR, bhvSpawnedStarNoLevelExit);
     sp1C->oBehParams = sp20 << 24;
     sp1C->oInteractionSubtype = INT_SUBTYPE_NO_EXIT;

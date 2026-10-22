@@ -192,11 +192,11 @@ s16 find_mario_anim_flags_and_translation(struct Object *obj, s32 yaw, Vec3s tra
     f32 c = (f32) coss(yaw);
 
     dx = *(animValues + (retrieve_animation_index(animFrame, &animIndex))) / 4.0f;
-    translation[1] = *(animValues + (retrieve_animation_index(animFrame, &animIndex))) / 4.0f;
+    translation[1] = IDO_S16(*(animValues + (retrieve_animation_index(animFrame, &animIndex))) / 4.0f);
     dz = *(animValues + (retrieve_animation_index(animFrame, &animIndex))) / 4.0f;
 
-    translation[0] = (dx * c) + (dz * s);
-    translation[2] = (-dx * s) + (dz * c);
+    translation[0] = IDO_S16((dx * c) + (dz * s));
+    translation[2] = IDO_S16((-dx * s) + (dz * c));
 
     return curAnim->flags;
 }
@@ -672,6 +672,7 @@ s32 mario_floor_is_steep(struct MarioState *m) {
  * Finds the floor height relative from Mario given polar displacement.
  */
 f32 find_floor_height_relative_polar(struct MarioState *m, s16 angleFromMario, f32 distFromMario) {
+    N64_FRAME(40);
     struct Surface *floor;
     f32 floorY;
 
@@ -687,6 +688,7 @@ f32 find_floor_height_relative_polar(struct MarioState *m, s16 angleFromMario, f
  * Returns the slope of the floor based off points around Mario.
  */
 s16 find_floor_slope(struct MarioState *m, s16 yawOffset) {
+    N64_FRAME(56);
     struct Surface *floor;
     f32 forwardFloorY, backwardFloorY;
     f32 forwardYDelta, backwardYDelta;
@@ -716,6 +718,7 @@ s16 find_floor_slope(struct MarioState *m, s16 yawOffset) {
  * Adjusts Mario's camera and sound based on his action status.
  */
 void update_mario_sound_and_camera(struct MarioState *m) {
+    N64_FRAME(32);
     u32 action = m->action;
     s32 camPreset = m->area->camera->mode;
 
@@ -1156,6 +1159,7 @@ s32 check_common_hold_action_exits(struct MarioState *m) {
  * Transitions Mario from a submerged action to a walking action.
  */
 s32 transition_submerged_to_walking(struct MarioState *m) {
+    N64_FRAME(24);
     set_camera_mode(m->area->camera, m->area->camera->defMode, 1);
 
     vec3s_set(m->angleVel, 0, 0, 0);
@@ -1172,6 +1176,7 @@ s32 transition_submerged_to_walking(struct MarioState *m) {
  * non-submerged action. This also applies the water surface camera preset.
  */
 s32 set_water_plunge_action(struct MarioState *m) {
+    N64_FRAME(24);
     m->forwardVel = m->forwardVel / 4.0f;
     m->vel[1] = m->vel[1] / 2.0f;
 
@@ -1312,6 +1317,7 @@ void update_mario_joystick_inputs(struct MarioState *m) {
  * Resolves wall collisions, and updates a variety of inputs.
  */
 void update_mario_geometry_inputs(struct MarioState *m) {
+    N64_FRAME(40);
     f32 gasLevel;
     f32 ceilToFloorDist;
 
@@ -1331,7 +1337,7 @@ void update_mario_geometry_inputs(struct MarioState *m) {
 
     m->ceilHeight = vec3f_find_ceil(&m->pos[0], m->floorHeight, &m->ceil);
     gasLevel = find_poison_gas_level(m->pos[0], m->pos[2]);
-    m->waterLevel = find_water_level(m->pos[0], m->pos[2]);
+    m->waterLevel = IDO_S16(find_water_level(m->pos[0], m->pos[2]));
 
     if (m->floor != NULL) {
         m->floorAngle = atan2s(m->floor->normal.z, m->floor->normal.x);
@@ -1371,6 +1377,7 @@ void update_mario_geometry_inputs(struct MarioState *m) {
  * Handles Mario's input flags as well as a couple timers.
  */
 void update_mario_inputs(struct MarioState *m) {
+    N64_FRAME(24);
     m->particleFlags = 0;
     m->input = 0;
     m->collidedObjInteractTypes = m->marioObj->collidedObjInteractTypes;
@@ -1417,6 +1424,7 @@ void update_mario_inputs(struct MarioState *m) {
  * Set's the camera preset for submerged action behaviors.
  */
 void set_submerged_cam_preset_and_spawn_bubbles(struct MarioState *m) {
+    N64_FRAME(32);
     f32 heightBelowWater;
     s16 camPreset;
 
@@ -1697,6 +1705,7 @@ void func_sh_8025574C(void) {
  * Main function for executing Mario's behavior.
  */
 s32 execute_mario_action(UNUSED struct Object *o) {
+    N64_FRAME(40);
     s32 inLoop = TRUE;
 
     if (gMarioState->action) {
@@ -1786,6 +1795,7 @@ s32 execute_mario_action(UNUSED struct Object *o) {
  **************************************************/
 
 void init_mario(void) {
+    N64_FRAME(40);
     Vec3s capPos;
     struct Object *capObject;
 
@@ -1819,7 +1829,7 @@ void init_mario(void) {
     gMarioState->usedObj = NULL;
 
     gMarioState->waterLevel =
-        find_water_level(gMarioSpawnInfo->startPos[0], gMarioSpawnInfo->startPos[2]);
+        IDO_S16(find_water_level(gMarioSpawnInfo->startPos[0], gMarioSpawnInfo->startPos[2]));
 
     gMarioState->area = gCurrentArea;
     gMarioState->marioObj = gMarioObject;

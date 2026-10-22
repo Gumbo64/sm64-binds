@@ -1,6 +1,7 @@
 // tree_particles.c.inc
 
 void bhv_tree_snow_or_leaf_loop(void) {
+    N64_FRAME(24);
     cur_obj_update_floor_height();
     if (o->oTimer == 0) {
         o->oAngleVelPitch = (random_float() - 0.5) * 0x1000;
@@ -32,6 +33,7 @@ void bhv_tree_snow_or_leaf_loop(void) {
 }
 
 void bhv_snow_leaf_particle_spawn_init(void) {
+    N64_FRAME(48);
     struct Object *obj; // Either snow or leaf
     UNUSED s32 unused;
     s32 isSnow;

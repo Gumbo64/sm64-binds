@@ -18,6 +18,7 @@ void bhv_yoshi_init(void) {
 }
 
 void yoshi_walk_loop(void) {
+    N64_FRAME(40);
     UNUSED s16 sp26;
     s16 sp24 = o->header.gfx.animInfo.animFrame;
 
@@ -45,7 +46,7 @@ void yoshi_idle_loop(void) {
     UNUSED s16 sp1C = o->header.gfx.animInfo.animFrame;
 
     if (o->oTimer > 90) {
-        chosenHome = random_float() * 3.99;
+        chosenHome = IDO_S16(random_float() * 3.99);
 
         if (o->oYoshiChosenHome == chosenHome) {
             return;
@@ -95,6 +96,7 @@ void yoshi_talk_loop(void) {
 }
 
 void yoshi_walk_and_jump_off_roof_loop(void) {
+    N64_FRAME(40);
     s16 sp26 = o->header.gfx.animInfo.animFrame;
 
     o->oForwardVel = 10.0f;
@@ -147,6 +149,7 @@ void yoshi_give_present_loop(void) {
 }
 
 void bhv_yoshi_loop(void) {
+    N64_FRAME(24);
     switch (o->oAction) {
         case YOSHI_ACT_IDLE:
             yoshi_idle_loop();

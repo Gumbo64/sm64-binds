@@ -22,6 +22,7 @@ static struct TripletButterflyActivationData sTripletButterflyActivationData[] =
 };
 
 static void triplet_butterfly_act_init(void) {
+    N64_FRAME(48);
     s32 butterflyNum;
     s32 i;
 
@@ -86,6 +87,7 @@ static void triplet_butterfly_act_wander(void) {
 }
 
 static void triplet_butterfly_act_activate(void) {
+    N64_FRAME(40);
     if (o->oTimer > 20) {
         if (o->oTripletButterflyModel == 0) {
             spawn_object_relative_with_scale(0, 0, -40, 0, 1.5f, o, MODEL_SMOKE, bhvWhitePuffSmoke2);
@@ -116,6 +118,7 @@ static void triplet_butterfly_act_activate(void) {
 }
 
 static void triplet_butterfly_act_explode(void) {
+    N64_FRAME(32);
     f32 scaleIncrease;
 
     obj_check_attacks(&sTripletButterflyExplodeHitbox, -1);
@@ -144,6 +147,7 @@ static void triplet_butterfly_act_explode(void) {
 }
 
 void bhv_triplet_butterfly_update(void) {
+    N64_FRAME(40);
     cur_obj_update_floor_and_walls();
 
     switch (o->oAction) {

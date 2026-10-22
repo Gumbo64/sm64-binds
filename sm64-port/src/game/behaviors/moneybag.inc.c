@@ -108,6 +108,7 @@ void moneybag_jump(s8 collisionFlags) {
 }
 
 void moneybag_act_move_around(void) {
+    N64_FRAME(40);
     s16 collisionFlags;
 
     obj_return_and_displace_home(o, o->oHomeX, o->oHomeY, o->oHomeZ, 200);
@@ -132,6 +133,7 @@ void moneybag_act_move_around(void) {
 }
 
 void moneybag_act_return_home(void) {
+    N64_FRAME(48);
     s16 collisionFlags;
     f32 sp28 = o->oHomeX - o->oPosX;
     f32 sp24 = o->oHomeZ - o->oPosZ;
@@ -171,6 +173,7 @@ void moneybag_act_disappear(void) {
 }
 
 void moneybag_act_death(void) {
+    N64_FRAME(24);
     if (o->oTimer == 1) {
         obj_spawn_yellow_coins(o, 5);
         create_sound_spawner(SOUND_GENERAL_SPLATTERING);
@@ -180,6 +183,7 @@ void moneybag_act_death(void) {
 }
 
 void bhv_moneybag_loop(void) {
+    N64_FRAME(24);
     switch (o->oAction) {
         case MONEYBAG_ACT_APPEAR:
         case MONEYBAG_ACT_UNUSED_APPEAR:
@@ -212,6 +216,7 @@ void bhv_moneybag_loop(void) {
 }
 
 void bhv_moneybag_hidden_loop(void) {
+    N64_FRAME(40);
     obj_set_hitbox(o, &sMoneybagHiddenHitbox);
 
     switch (o->oAction) {

@@ -8,6 +8,7 @@
  * These settings are animations, colour, and spawn quantity.
  */
 static void fish_spawner_act_spawn(void) {
+    N64_FRAME(64);
     s32 i;
     s32 schoolQuantity;
     s16 model;
@@ -72,6 +73,7 @@ static void (*sFishSpawnerActions[])(void) = {
 };
 
 void bhv_fish_spawner_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sFishSpawnerActions);
 }
 
@@ -218,7 +220,7 @@ static void fish_act_flee(void) {
  */
 static void fish_act_init(void) {
     cur_obj_init_animation_with_accel_and_sound(0, 1.0f);
-    o->header.gfx.animInfo.animFrame = (s16)(random_float() * 28.0f);
+    o->header.gfx.animInfo.animFrame = (s16)IDO_S16((random_float() * 28.0f));
     o->oFishDepthDistance = random_float() * 300.0f;
     cur_obj_scale(random_float() * 0.4 + 0.8);
     o->oAction = FISH_ACT_ROAM;
@@ -233,6 +235,7 @@ static void (*sFishActions[])(void) = {
  */
 void bhv_fish_loop(void)
 {
+    N64_FRAME(40);
     UNUSED s32 unused[4];
     cur_obj_scale(1.0f);
 

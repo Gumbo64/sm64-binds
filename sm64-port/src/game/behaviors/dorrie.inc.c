@@ -6,7 +6,7 @@ void dorrie_raise_head(void) {
 
     startAngle = o->oDorrieNeckAngle;
 
-    o->oDorrieNeckAngle -= (s16) absf(370.0f * sins(o->oDorrieHeadRaiseSpeed));
+    o->oDorrieNeckAngle -= (s16) IDO_S16(absf(370.0f * sins(o->oDorrieHeadRaiseSpeed)));
 
     xzDisp = 440.0f * (coss(o->oDorrieNeckAngle) - coss(startAngle));
     yDisp = 440.0f * (sins(o->oDorrieNeckAngle) - sins(startAngle));

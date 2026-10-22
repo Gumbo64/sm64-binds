@@ -11,6 +11,7 @@ void bhv_big_boulder_init(void) {
 }
 
 void boulder_act_1(void) {
+    N64_FRAME(32);
     s16 sp1E;
 
     sp1E = object_step_without_floor_orient();
@@ -27,6 +28,7 @@ void boulder_act_1(void) {
 }
 
 void bhv_big_boulder_loop(void) {
+    N64_FRAME(40);
     cur_obj_scale(1.5f);
     o->oGraphYOffset = 270.0f;
     switch (o->oAction) {
@@ -46,6 +48,7 @@ void bhv_big_boulder_loop(void) {
 }
 
 void bhv_big_boulder_generator_loop(void) {
+    N64_FRAME(32);
     struct Object *sp1C;
     if (o->oTimer >= 256) {
         o->oTimer = 0;

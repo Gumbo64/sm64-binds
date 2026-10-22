@@ -74,6 +74,7 @@ void (*sToxBoxActions[])(void) = { tox_box_act_0, tox_box_act_1, tox_box_act_2, 
                                    tox_box_act_4, tox_box_act_5, tox_box_act_6, tox_box_act_7 };
 
 void bhv_tox_box_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sToxBoxActions);
     load_object_collision_model();
 }

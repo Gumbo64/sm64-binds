@@ -20,6 +20,7 @@ void grand_star_zero_velocity(void) {
 }
 
 void bhv_grand_star_loop(void) {
+    N64_FRAME(56);
     UNUSED s32 unused;
     Vec3f sp28;
     sp28[0] = sp28[1] = sp28[2] = 0.0f;

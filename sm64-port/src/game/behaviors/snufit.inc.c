@@ -97,6 +97,7 @@ void snufit_act_idle(void) {
  * Controls the literal shooting action, spawning three bhvSnufitBalls.
  */
 void snufit_act_shoot(void) {
+    N64_FRAME(40);
     o->oSnufitBodyScalePeriod
         = approach_s16_symmetric(o->oSnufitBodyScalePeriod, -0x8000, 3000);
     o->oSnufitBodyBaseScale
@@ -118,6 +119,7 @@ void snufit_act_shoot(void) {
  * and the action brain of the object.
  */
 void bhv_snufit_loop(void) {
+    N64_FRAME(40);
     // Only update if Mario is in the current room.
     if (!(o->activeFlags & ACTIVE_FLAG_IN_DIFFERENT_ROOM)) {
         o->oDeathSound = SOUND_OBJ_SNUFIT_SKEETER_DEATH;
@@ -159,8 +161,8 @@ void bhv_snufit_loop(void) {
         o->oSnufitYOffset = -0x20;
         o->oSnufitZOffset = o->oSnufitRecoil + 180;
         o->oSnufitBodyScale
-            = (s16)(o->oSnufitBodyBaseScale + 666
-            + o->oSnufitBodyBaseScale * coss(o->oSnufitBodyScalePeriod));
+            = (s16)IDO_S16((o->oSnufitBodyBaseScale + 666
+            + o->oSnufitBodyBaseScale * coss(o->oSnufitBodyScalePeriod)));
 
         if (o->oSnufitBodyScale > 1000) {
             o->oSnufitScale = (o->oSnufitBodyScale - 1000) / 1000.0f + 1.0f;
@@ -178,6 +180,7 @@ void bhv_snufit_loop(void) {
  * Snufit bullets live to run into stuff and die when they do.
  */
 void bhv_snufit_balls_loop(void) {
+    N64_FRAME(24);
     // If far from Mario or in a different room, despawn.
     if ((o->activeFlags & ACTIVE_FLAG_IN_DIFFERENT_ROOM)
         || (o->oTimer != 0 && o->oDistanceToMario > 1500.0f)) {

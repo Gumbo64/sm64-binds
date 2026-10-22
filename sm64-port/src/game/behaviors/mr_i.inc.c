@@ -12,6 +12,7 @@ void bhv_piranha_particle_loop(void) {
 }
 
 void mr_i_piranha_particle_act_0(void) {
+    N64_FRAME(24);
     cur_obj_scale(3.0f);
     o->oForwardVel = 20.0f;
     cur_obj_update_floor_and_walls();
@@ -24,6 +25,7 @@ void mr_i_piranha_particle_act_0(void) {
 }
 
 void mr_i_piranha_particle_act_1(void) {
+    N64_FRAME(32);
     s32 i;
     obj_mark_for_deletion(o);
     for (i = 0; i < 10; i++)
@@ -33,10 +35,12 @@ void mr_i_piranha_particle_act_1(void) {
 void (*sMrIParticleActions[])(void) = { mr_i_piranha_particle_act_0, mr_i_piranha_particle_act_1 };
 
 void bhv_mr_i_particle_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sMrIParticleActions);
 }
 
 void spawn_mr_i_particle(void) {
+    N64_FRAME(32);
     struct Object *particle;
     f32 sp18 = o->header.gfx.scale[1];
     particle = spawn_object(o, MODEL_PURPLE_MARBLE, bhvMrIParticle);
@@ -50,7 +54,7 @@ void bhv_mr_i_body_loop(void) {
     obj_copy_pos_and_angle(o, o->parentObj);
     if (!(o->activeFlags & ACTIVE_FLAG_IN_DIFFERENT_ROOM)) {
         obj_copy_scale(o, o->parentObj);
-        obj_set_parent_relative_pos(o, 0, 0, o->header.gfx.scale[1] * 100.0f);
+        obj_set_parent_relative_pos(o, 0, 0, IDO_S16(o->header.gfx.scale[1] * 100.0f));
         obj_build_transform_from_pos_and_angle(o, 44, 15);
         obj_translate_local(o, 6, 44);
         o->oFaceAnglePitch = o->oMoveAnglePitch;
@@ -68,6 +72,7 @@ void bhv_mr_i_body_loop(void) {
 }
 
 void mr_i_act_3(void) {
+    N64_FRAME(56);
     s16 sp36;
     s16 sp34;
     f32 sp30;
@@ -123,6 +128,7 @@ void mr_i_act_3(void) {
 }
 
 void mr_i_act_2(void) {
+    N64_FRAME(32);
     s16 sp1E;
     s16 sp1C;
     sp1E = o->oMoveAngleYaw;
@@ -181,6 +187,7 @@ void mr_i_act_2(void) {
 }
 
 void mr_i_act_1(void) {
+    N64_FRAME(32);
     s16 sp1E;
     s16 sp1C;
     s16 sp1A;
@@ -245,6 +252,7 @@ struct ObjectHitbox sMrIHitbox = {
 };
 
 void bhv_mr_i_loop(void) {
+    N64_FRAME(24);
     obj_set_hitbox(o, &sMrIHitbox);
     cur_obj_call_action_function(sMrIActions);
     if (o->oAction != 3)

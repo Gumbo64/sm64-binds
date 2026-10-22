@@ -27,6 +27,7 @@ void jumping_box_act_0(void) {
 }
 
 void jumping_box_act_1(void) {
+    N64_FRAME(24);
     if (o->oMoveFlags & (OBJ_MOVE_HIT_WALL | OBJ_MOVE_MASK_IN_WATER | OBJ_MOVE_LANDED)) {
         obj_mark_for_deletion(o);
         spawn_mist_particles();
@@ -36,6 +37,7 @@ void jumping_box_act_1(void) {
 void (*sJumpingBoxActions[])(void) = { jumping_box_act_0, jumping_box_act_1 };
 
 void jumping_box_free_update(void) {
+    N64_FRAME(24);
     cur_obj_set_model(MODEL_BREAKABLE_BOX);
     cur_obj_scale(0.5f);
     obj_set_hitbox(o, &sJumpingBoxHitbox);
@@ -45,6 +47,7 @@ void jumping_box_free_update(void) {
 }
 
 void bhv_jumping_box_loop(void) {
+    N64_FRAME(40);
     switch (o->oHeldState) {
         case HELD_FREE:
             jumping_box_free_update();

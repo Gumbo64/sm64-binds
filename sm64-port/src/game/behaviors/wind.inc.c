@@ -1,6 +1,7 @@
 // wind.c.inc
 
 void spawn_wind_particles(s16 pitch, s16 yaw) {
+    N64_FRAME(32);
     s32 i;
     for (i = 0; i < 3; i++) {
         struct Object *wind = spawn_object(o, MODEL_MIST, bhvWind);

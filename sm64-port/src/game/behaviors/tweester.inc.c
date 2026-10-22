@@ -69,6 +69,7 @@ void tweester_act_idle(void) {
  * After Mario is twirling, then return home.
  */
 void tweester_act_chase(void) {
+    N64_FRAME(32);
     f32 activationRadius = o->oBehParams2ndByte * 100;
 
     o->oAngleToHome = cur_obj_angle_to_home();
@@ -129,6 +130,7 @@ void (*sTweesterActions[])(void) = { tweester_act_idle, tweester_act_chase, twee
  * Loads the hitbox and calls its relevant action.
  */
 void bhv_tweester_loop(void) {
+    N64_FRAME(24);
     obj_set_hitbox(o, &sTweesterHitbox);
     cur_obj_call_action_function(sTweesterActions);
     o->oInteractStatus = 0;

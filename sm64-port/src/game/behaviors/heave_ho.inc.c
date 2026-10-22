@@ -55,7 +55,7 @@ void heave_ho_act_2(void) {
         o->oHeaveHoUnkF4 = 1.0f;
     cur_obj_init_animation_with_accel_and_sound(0, o->oHeaveHoUnkF4);
     o->oForwardVel = o->oHeaveHoUnkF4 * 10.0f;
-    angleVel = o->oHeaveHoUnkF4 * 0x400;
+    angleVel = IDO_S16(o->oHeaveHoUnkF4 * 0x400);
     o->oMoveAngleYaw = approach_s16_symmetric(o->oMoveAngleYaw, o->oAngleToMario, angleVel);
 }
 
@@ -86,6 +86,7 @@ void heave_ho_act_0(void) {
 void (*sHeaveHoActions[])(void) = { heave_ho_act_0, heave_ho_act_1, heave_ho_act_2, heave_ho_act_3 };
 
 void heave_ho_move(void) {
+    N64_FRAME(24);
     cur_obj_update_floor_and_walls();
     cur_obj_call_action_function(sHeaveHoActions);
     cur_obj_move_standard(-78);
@@ -105,6 +106,7 @@ void heave_ho_move(void) {
 }
 
 void bhv_heave_ho_loop(void) {
+    N64_FRAME(40);
     cur_obj_scale(2.0f);
     switch (o->oHeldState) {
         case HELD_FREE:

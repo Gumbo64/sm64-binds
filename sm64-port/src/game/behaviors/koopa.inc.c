@@ -222,6 +222,7 @@ static void koopa_shelled_act_run_from_mario(void) {
  * If on the ground, decelerate. Generate dust if moving fast enough.
  */
 static void koopa_dive_update_speed(f32 decel) {
+    N64_FRAME(24);
     if (o->oMoveFlags & OBJ_MOVE_MASK_ON_GROUND) {
         obj_forward_vel_approach(0.0f, decel);
         if (o->oForwardVel > 5.0f) {
@@ -236,6 +237,7 @@ static void koopa_dive_update_speed(f32 decel) {
  * Slide on the ground and then come to a stop.
  */
 static void koopa_shelled_act_lying(void) {
+    N64_FRAME(24);
     if (o->oForwardVel != 0.0f) {
         if (o->oMoveFlags & OBJ_MOVE_HIT_WALL) {
             o->oMoveAngleYaw = cur_obj_reflect_move_angle_off_wall();
@@ -256,6 +258,7 @@ static void koopa_shelled_act_lying(void) {
  * Lose shell and enter lying action.
  */
 void shelled_koopa_attack_handler(s32 attackType) {
+    N64_FRAME(24);
     if (o->header.gfx.scale[0] > 0.8f) {
         cur_obj_play_sound_2(SOUND_OBJ_KOOPA_DAMAGE);
 
@@ -285,6 +288,7 @@ void shelled_koopa_attack_handler(s32 attackType) {
  * Update function for both regular and tiny shelled koopa.
  */
 static void koopa_shelled_update(void) {
+    N64_FRAME(40);
     cur_obj_update_floor_and_walls();
     obj_update_blinking(&o->oKoopaBlinkTimer, 20, 50, 4);
 
@@ -385,6 +389,7 @@ static void koopa_unshelled_act_run(void) {
  * and otherwise enter the running action.
  */
 static void koopa_unshelled_act_dive(void) {
+    N64_FRAME(32);
     struct Object *shell;
     f32 distToShell;
 
@@ -444,6 +449,7 @@ static void koopa_unshelled_act_unused3(void) {
  * Update function for koopa after losing his shell.
  */
 static void koopa_unshelled_update(void) {
+    N64_FRAME(40);
     cur_obj_update_floor_and_walls();
     obj_update_blinking(&o->oKoopaBlinkTimer, 10, 15, 3);
 
@@ -603,7 +609,7 @@ static void koopa_the_quick_act_race(void) {
         if (cur_obj_follow_path(0) == PATH_REACHED_END) {
             o->oAction = KOOPA_THE_QUICK_ACT_DECELERATE;
         } else {
-            downhillSteepness = 1.0f + sins((s16)(f32) o->oPathedTargetPitch);
+            downhillSteepness = 1.0f + sins((s16) IDO_S16((f32) o->oPathedTargetPitch));
             cur_obj_rotate_yaw_toward(o->oPathedTargetYaw, (s32)(o->oKoopaAgility * 150.0f));
 
             switch (o->oSubAction) {
@@ -705,6 +711,7 @@ static void koopa_the_quick_act_stop(void) {
  * the star.
  */
 static void koopa_the_quick_act_after_race(void) {
+    N64_FRAME(32);
     cur_obj_init_animation_with_sound(7);
 
     if (o->parentObj->oKoopaRaceEndpointDialog == 0) {
@@ -750,6 +757,7 @@ static void koopa_the_quick_act_after_race(void) {
  * Update function for koopa the quick.
  */
 static void koopa_the_quick_update(void) {
+    N64_FRAME(24);
     cur_obj_update_floor_and_walls();
     obj_update_blinking(&o->oKoopaBlinkTimer, 10, 15, 3);
 
@@ -789,6 +797,7 @@ static void koopa_the_quick_update(void) {
  * Update function.
  */
 void bhv_koopa_update(void) {
+    N64_FRAME(40);
     // PARTIAL_UPDATE
     o->oDeathSound = SOUND_OBJ_KOOPA_FLYGUY_DEATH;
 

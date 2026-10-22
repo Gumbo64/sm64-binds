@@ -92,7 +92,7 @@ struct Object *try_allocate_object(struct ObjectNode *destList, struct ObjectNod
         destList->prev->next = nextObj;
         destList->prev = nextObj;
     } else {
-#ifdef USE_SYSTEM_MALLOC
+#ifdef MALLOC_OBJECTS
         nextObj = (struct ObjectNode *) malloc(sizeof(struct Object));
         if (nextObj == NULL) {
             abort();
@@ -107,7 +107,7 @@ struct Object *try_allocate_object(struct ObjectNode *destList, struct ObjectNod
 #endif
     }
 
-#ifdef USE_SYSTEM_MALLOC
+#ifdef MALLOC_OBJECTS
     init_graph_node_object(NULL, &nextObj->gfx, 0, gVec3fZero, gVec3sZero, gVec3fOne);
 #else
     geo_remove_child(&nextObj->gfx.node);
@@ -146,7 +146,7 @@ static void deallocate_object(struct ObjectNode *freeList, struct ObjectNode *ob
     freeList->next = obj;
 }
 
-#ifndef USE_SYSTEM_MALLOC
+#ifndef MALLOC_OBJECTS
 /**
  * Add every object in the pool to the free object list.
  */
@@ -176,7 +176,7 @@ void clear_object_lists(struct ObjectNode *objLists) {
     s32 i;
 
     for (i = 0; i < NUM_OBJ_LISTS; i++) {
-#ifdef USE_SYSTEM_MALLOC
+#ifdef MALLOC_OBJECTS
         struct ObjectNode *list = objLists + i;
         struct ObjectNode *node = list->next;
 
@@ -225,7 +225,7 @@ void unload_object(struct Object *obj) {
     obj->header.gfx.throwMatrix = NULL;
     stop_sounds_from_source(obj->header.gfx.cameraToObject);
     geo_remove_child(&obj->header.gfx.node);
-#ifndef USE_SYSTEM_MALLOC
+#ifndef MALLOC_OBJECTS
     geo_add_child(&gObjParentGraphNode, &obj->header.gfx.node);
 #endif
 
@@ -244,7 +244,7 @@ struct Object *allocate_object(struct ObjectNode *objList) {
     s32 i;
     struct Object *obj = try_allocate_object(objList, &gFreeObjectList);
 
-#ifndef USE_SYSTEM_MALLOC
+#ifndef MALLOC_OBJECTS
     // The object list is full if the newly created pointer is NULL.
     // If this happens, we first attempt to unload unimportant objects
     // in order to finish allocating the object.
@@ -334,6 +334,7 @@ struct Object *allocate_object(struct ObjectNode *objList) {
  * If the object is close to being on the floor, move it to be exactly on the floor.
  */
 static void snap_object_to_floor(struct Object *obj) {
+    N64_FRAME(32);
     struct Surface *surface;
 
     obj->oFloorHeight = find_floor(obj->oPosX, obj->oPosY, obj->oPosZ, &surface);
@@ -348,6 +349,7 @@ static void snap_object_to_floor(struct Object *obj) {
  * Spawn an object at the origin with the behavior script at virtual address bhvScript.
  */
 struct Object *create_object(const BehaviorScript *bhvScript) {
+    N64_FRAME(56);
     s32 objListIndex;
     struct Object *obj;
     struct ObjectNode *objList;

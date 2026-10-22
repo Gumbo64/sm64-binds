@@ -110,9 +110,9 @@ void *vec3s_to_vec3f(Vec3f dest, Vec3s a) {
  */
 void *vec3f_to_vec3s(Vec3s dest, Vec3f a) {
     // add/subtract 0.5 in order to round to the nearest s32 instead of truncating
-    dest[0] = a[0] + ((a[0] > 0) ? 0.5f : -0.5f);
-    dest[1] = a[1] + ((a[1] > 0) ? 0.5f : -0.5f);
-    dest[2] = a[2] + ((a[2] > 0) ? 0.5f : -0.5f);
+    dest[0] = IDO_S16(a[0] + ((a[0] > 0) ? 0.5f : -0.5f));
+    dest[1] = IDO_S16(a[1] + ((a[1] > 0) ? 0.5f : -0.5f));
+    dest[2] = IDO_S16(a[2] + ((a[2] > 0) ? 0.5f : -0.5f));
     return &dest; //! warning: function returns address of local variable
 }
 
@@ -415,6 +415,7 @@ void mtxf_align_terrain_normal(Mat4 dest, Vec3f upDir, Vec3f pos, s16 yaw) {
  * 'radius' is the distance from each triangle vertex to the center
  */
 void mtxf_align_terrain_triangle(Mat4 mtx, Vec3f pos, s16 yaw, f32 radius) {
+    N64_FRAME(120);
     struct Surface *sp74;
     Vec3f point0;
     Vec3f point1;
@@ -556,9 +557,9 @@ void mtxf_mul_vec3s(Mat4 mtx, Vec3s b) {
     register f32 y = b[1];
     register f32 z = b[2];
 
-    b[0] = x * mtx[0][0] + y * mtx[1][0] + z * mtx[2][0] + mtx[3][0];
-    b[1] = x * mtx[0][1] + y * mtx[1][1] + z * mtx[2][1] + mtx[3][1];
-    b[2] = x * mtx[0][2] + y * mtx[1][2] + z * mtx[2][2] + mtx[3][2];
+    b[0] = IDO_S16(x * mtx[0][0] + y * mtx[1][0] + z * mtx[2][0] + mtx[3][0]);
+    b[1] = IDO_S16(x * mtx[0][1] + y * mtx[1][1] + z * mtx[2][1] + mtx[3][1]);
+    b[2] = IDO_S16(x * mtx[0][2] + y * mtx[1][2] + z * mtx[2][2] + mtx[3][2]);
 }
 
 /**

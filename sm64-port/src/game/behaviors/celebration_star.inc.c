@@ -29,6 +29,7 @@ void bhv_celebration_star_init(void) {
 }
 
 void celeb_star_act_spin_around_mario(void) {
+    N64_FRAME(24);
     o->oPosX = o->oHomeX + sins(o->oMoveAngleYaw) * (f32)(o->oCelebStarDiameterOfRotation / 2);
     o->oPosZ = o->oHomeZ + coss(o->oMoveAngleYaw) * (f32)(o->oCelebStarDiameterOfRotation / 2);
     o->oPosY += 5.0f;
@@ -66,6 +67,7 @@ void celeb_star_act_face_camera(void) {
 }
 
 void bhv_celebration_star_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case CELEB_STAR_ACT_SPIN_AROUND_MARIO:
             celeb_star_act_spin_around_mario();
@@ -85,6 +87,7 @@ void bhv_celebration_star_sparkle_loop(void) {
 }
 
 void bhv_star_key_collection_puff_spawner_loop(void) {
+    N64_FRAME(24);
     spawn_mist_particles_variable(0, 10, 30.0f);
     o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
 }

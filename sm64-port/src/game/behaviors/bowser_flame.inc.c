@@ -23,6 +23,7 @@ struct ObjectHitbox sBowserFlameHitbox = {
 };
 
 void bowser_flame_despawn(void) {
+    N64_FRAME(24);
     obj_mark_for_deletion(o);
     spawn_object_with_scale(o, MODEL_NONE, bhvBlackSmokeUpward, 1.0f);
     if (random_float() < 0.1) {
@@ -75,6 +76,7 @@ void bowser_flame_move(void) {
 }
 
 void bhv_flame_bowser_loop(void) {
+    N64_FRAME(24);
     cur_obj_update_floor_and_walls();
     cur_obj_move_standard(78);
     if (o->oVelY < -4.0f) {
@@ -116,6 +118,7 @@ void bhv_flame_moving_forward_growing_init(void) {
 }
 
 void bhv_flame_moving_forward_growing_loop(void) {
+    N64_FRAME(32);
     UNUSED s32 unused;
     UNUSED struct Object *flame;
     obj_set_hitbox(o, &sGrowingBowserFlameHitbox);
@@ -152,6 +155,7 @@ void bhv_flame_floating_landing_init(void) {
 f32 sFlameFloatingYLimit[] = { -8.0f, -6.0f, -3.0f };
 
 void bhv_flame_floating_landing_loop(void) {
+    N64_FRAME(32);
     UNUSED s32 unused;
     cur_obj_update_floor_and_walls();
     cur_obj_move_standard(78);
@@ -185,6 +189,7 @@ void bhv_blue_bowser_flame_init(void) {
 }
 
 void bhv_blue_bowser_flame_loop(void) {
+    N64_FRAME(48);
     s32 i;
     obj_set_hitbox(o, &sGrowingBowserFlameHitbox);
     if (o->oFlameScale < 16.0f) {
@@ -218,6 +223,7 @@ void bhv_flame_bouncing_init(void) {
 }
 
 void bhv_flame_bouncing_loop(void) {
+    N64_FRAME(32);
     struct Object *bowser;
     if (o->oTimer == 0) {
         o->oFlameBowser = cur_obj_nearest_object_with_behavior(bhvBowser);
@@ -242,6 +248,7 @@ void bhv_flame_bouncing_loop(void) {
 }
 
 void bhv_blue_flames_group_loop(void) {
+    N64_FRAME(32);
     struct Object *flame;
     s32 i;
     if (o->oTimer == 0) {

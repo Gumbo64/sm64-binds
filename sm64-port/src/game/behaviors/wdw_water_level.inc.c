@@ -8,7 +8,7 @@ void bhv_init_changing_water_level_loop(void) {
     } else if (gCurrentObject->oTimer < 10)
         *gEnvironmentLevels = gEnvironmentRegions[6];
     else {
-        gEnvironmentRegions[6] = *gEnvironmentLevels + sins(o->oWaterLevelTriggerUnkF4) * 20.0f;
+        gEnvironmentRegions[6] = IDO_S16(*gEnvironmentLevels + sins(o->oWaterLevelTriggerUnkF4) * 20.0f);
         gCurrentObject->oWaterLevelTriggerUnkF4 += 0x200;
     }
 }

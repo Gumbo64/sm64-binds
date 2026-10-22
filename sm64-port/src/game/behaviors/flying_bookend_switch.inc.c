@@ -68,6 +68,7 @@ void flying_bookend_act_1(void) {
 }
 
 void flying_bookend_act_2(void) {
+    N64_FRAME(24);
     cur_obj_init_animation_with_sound(1);
     cur_obj_update_floor_and_walls();
 
@@ -98,6 +99,7 @@ void flying_bookend_act_3(void) {
 }
 
 void bhv_flying_bookend_loop(void) {
+    N64_FRAME(40);
     if (!(o->activeFlags & ACTIVE_FLAG_IN_DIFFERENT_ROOM)) {
         o->oDeathSound = SOUND_OBJ_POUNDING1;
         cur_obj_scale(o->header.gfx.scale[0]);
@@ -128,6 +130,7 @@ void bhv_flying_bookend_loop(void) {
 }
 
 void bhv_bookend_spawn_loop(void) {
+    N64_FRAME(32);
     struct Object *sp1C;
 
     if (!(o->activeFlags & ACTIVE_FLAG_IN_DIFFERENT_ROOM)) {
@@ -143,6 +146,7 @@ void bhv_bookend_spawn_loop(void) {
 }
 
 void bookshelf_manager_act_0(void) {
+    N64_FRAME(48);
     s32 val04;
 
     if (!(o->activeFlags & ACTIVE_FLAG_IN_DIFFERENT_ROOM)) {
@@ -211,6 +215,7 @@ void bookshelf_manager_act_4(void) {
 }
 
 void bhv_haunted_bookshelf_manager_loop(void) {
+    N64_FRAME(24);
     switch (o->oAction) {
         case 0:
             bookshelf_manager_act_0();
@@ -231,6 +236,7 @@ void bhv_haunted_bookshelf_manager_loop(void) {
 }
 
 void bhv_book_switch_loop(void) {
+    N64_FRAME(64);
     s32 sp3C;
     struct Object *sp38;
     s16 sp36;
@@ -273,7 +279,7 @@ void bhv_book_switch_loop(void) {
                         o->parentObj->oBookSwitchManagerUnkF4 += 1;
                     } else {
                         sp36 = random_u16() & 0x1;
-                        sp34 = gMarioObject->oPosZ + 1.5f * gMarioStates[0].vel[2];
+                        sp34 = IDO_S16(gMarioObject->oPosZ + 1.5f * gMarioStates[0].vel[2]);
 
                         play_sound(SOUND_MENU_CAMERA_BUZZ, gGlobalSoundSource);
                         if (sp34 > 0) {

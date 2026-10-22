@@ -85,6 +85,12 @@ void load_engine_code_segment(void);
 
 #ifdef USE_SYSTEM_MALLOC
 struct AllocOnlyPool *alloc_only_pool_init(void);
+#ifdef HEADLESS_VERSION
+struct AllocOnlyPool *alloc_only_pool_init_draw(void);
+void draw_arena_reset(void);
+#else
+#define alloc_only_pool_init_draw alloc_only_pool_init
+#endif
 void alloc_only_pool_clear(struct AllocOnlyPool *pool);
 void *alloc_only_pool_alloc(struct AllocOnlyPool *pool, s32 size);
 #else

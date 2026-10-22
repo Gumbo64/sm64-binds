@@ -112,6 +112,7 @@ void bhv_monty_mole_hole_update(void) {
  * Spawn dirt particles when rising out of the ground.
  */
 void monty_mole_spawn_dirt_particles(s8 offsetY, s8 velYBase) {
+    N64_FRAME(24);
     static struct SpawnParticlesInfo sMontyMoleRiseFromGroundParticles = {
         /* behParam:        */ 0,
         /* count:           */ 3,
@@ -144,6 +145,7 @@ void bhv_monty_mole_init(void) {
  * either the rise from hole or jump out of hole action.
  */
 static void monty_mole_act_select_hole(void) {
+    N64_FRAME(56);
     f32 minDistToMario;
 
     if (o->oBehParams2ndByte != MONTY_MOLE_BP_NO_ROCK) {
@@ -207,6 +209,7 @@ static void monty_mole_act_rise_from_hole(void) {
  * Otherwise, enter the begin jump into hole action.
  */
 static void monty_mole_act_spawn_rock(void) {
+    N64_FRAME(32);
     struct Object *rock;
 
     if (cur_obj_init_anim_and_check_if_end(2)) {
@@ -251,6 +254,7 @@ static void monty_mole_act_throw_rock(void) {
  * Tilt downward and wait until close to landing, then enter the hide action.
  */
 static void monty_mole_act_jump_into_hole(void) {
+    N64_FRAME(24);
     cur_obj_init_anim_extend(0);
 
     o->oFaceAnglePitch = -atan2s(o->oVelY, -4.0f);
@@ -331,6 +335,7 @@ static struct ObjectHitbox sMontyMoleHitbox = {
  * Update function for bhvMontyMole.
  */
 void bhv_monty_mole_update(void) {
+    N64_FRAME(40);
     // PARTIAL_UPDATE
 
     o->oDeathSound = SOUND_OBJ_DYING_ENEMY1;
@@ -467,6 +472,7 @@ static struct SpawnParticlesInfo sMontyMoleRockBreakParticles = {
  * Move, then despawn after hitting the ground or water.
  */
 static void monty_mole_rock_act_move(void) {
+    N64_FRAME(24);
     cur_obj_update_floor_and_walls();
 
     if (o->oMoveFlags & (OBJ_MOVE_MASK_ON_GROUND | OBJ_MOVE_ENTERED_WATER)) {
@@ -481,6 +487,7 @@ static void monty_mole_rock_act_move(void) {
  * Update function for bhvMontyMoleRock.
  */
 void bhv_monty_mole_rock_update(void) {
+    N64_FRAME(40);
     // PARTIAL_UPDATE
     //! Since we can prevent them from despawning using partial updates, we
     //  can fill up object slots to crash the game.

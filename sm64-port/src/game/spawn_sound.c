@@ -49,6 +49,7 @@ void exec_anim_sound_state(struct SoundState *soundStates) {
  * (Breakable walls, King Bobomb exploding, etc)
  */
 void create_sound_spawner(s32 soundMagic) {
+    N64_FRAME(32);
     struct Object *obj = spawn_object(gCurrentObject, 0, bhvSoundSpawner);
 
     obj->oSoundEffectUnkF4 = soundMagic;

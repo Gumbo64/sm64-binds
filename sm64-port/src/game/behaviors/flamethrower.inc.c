@@ -1,6 +1,7 @@
 // flamethrower.c.inc
 
 void bhv_flamethrower_flame_loop(void) {
+    N64_FRAME(32);
     f32 size;
     s32 sp18;
     if (o->oTimer == 0) {
@@ -34,6 +35,7 @@ void bhv_flamethrower_flame_loop(void) {
 }
 
 void bhv_flamethrower_loop(void) {
+    N64_FRAME(64);
     struct Object *flame;
     f32 flameVel;
     s32 sp34;
@@ -66,6 +68,7 @@ void bhv_flamethrower_loop(void) {
 }
 
 void bhv_rr_rotating_bridge_platform_loop(void) {
+    N64_FRAME(24);
     o->oMoveAngleYaw -= 0x80;
     o->oAngleVelYaw = -0x80;
     bhv_flamethrower_loop();

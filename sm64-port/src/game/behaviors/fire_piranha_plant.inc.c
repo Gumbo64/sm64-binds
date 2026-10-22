@@ -48,6 +48,7 @@ void bhv_fire_piranha_plant_init(void) {
 }
 
 static void fire_piranha_plant_act_hide(void) {
+    N64_FRAME(24);
     if (o->oFirePiranhaPlantDeathSpinTimer != 0) {
         o->oMoveAngleYaw += (s32) o->oFirePiranhaPlantDeathSpinVel;
         approach_f32_ptr(&o->oFirePiranhaPlantDeathSpinVel, 0.0f, 200.0f);
@@ -91,6 +92,7 @@ static void fire_piranha_plant_act_hide(void) {
 }
 
 static void fire_piranha_plant_act_grow(void) {
+    N64_FRAME(40);
     cur_obj_init_anim_extend(4);
 
     if (approach_f32_ptr(&o->oFirePiranhaPlantScale, o->oFirePiranhaPlantNeutralScale,
@@ -118,6 +120,7 @@ static void fire_piranha_plant_act_grow(void) {
 }
 
 void bhv_fire_piranha_plant_update(void) {
+    N64_FRAME(40);
     cur_obj_scale(o->oFirePiranhaPlantScale);
 
     switch (o->oAction) {

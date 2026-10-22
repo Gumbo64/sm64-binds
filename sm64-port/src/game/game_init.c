@@ -375,6 +375,9 @@ void select_gfx_pool(void) {
     gDisplayListHeadInChunk = gGfxPool->buffer;
     gDisplayListEndInChunk = gDisplayListHeadInChunk + 1;
     alloc_only_pool_clear(gGfxAllocOnlyPool);
+#ifdef HEADLESS_VERSION
+    draw_arena_reset();
+#endif
 #else
     gDisplayListHead = gGfxPool->buffer;
     gGfxPoolEnd = (u8 *) (gGfxPool->buffer + GFX_POOL_SIZE);
@@ -389,6 +392,7 @@ void select_gfx_pool(void) {
  * - Selects which framebuffer will be rendered and displayed to next time.
  */
 void display_and_vsync(void) {
+    N64_FRAME(24);
     profiler_log_thread5_time(BEFORE_DISPLAY_LISTS);
     osRecvMesg(&gGfxVblankQueue, &gMainReceivedMesg, OS_MESG_BLOCK);
     if (gGoddardVblankCallback != NULL) {
@@ -674,6 +678,7 @@ static struct LevelCommand *levelCommandAddr;
  * Main game loop thread. Runs forever as long as the game continues.
  */
 void thread5_game_loop(UNUSED void *arg) {
+    N64_FRAME(40);
 #ifdef TARGET_N64
     struct LevelCommand *levelCommandAddr;
 #endif
@@ -729,7 +734,13 @@ void game_loop_one_iteration(void) {
         audio_game_loop_tick();
         select_gfx_pool();
         read_controller_inputs();
+#ifdef N64_STACK_MODEL
+        gN64Sp = N64_GAME_LOOP_SP;
+#endif
         levelCommandAddr = level_script_execute(levelCommandAddr);
+#ifdef N64_STACK_MODEL
+        gN64Sp = 0;
+#endif
 
         display_and_vsync();
 

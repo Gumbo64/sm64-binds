@@ -139,6 +139,7 @@ void chuckya_act_0(void) {
 }
 
 void chuckya_act_1(void) {
+    N64_FRAME(40);
     if (o->oSubAction == 0) {
         if (cur_obj_init_animation_and_check_if_near_end(0))
             o->oSubAction++;
@@ -182,6 +183,7 @@ void chuckya_act_3(void) {
 }
 
 void chuckya_act_2(void) {
+    N64_FRAME(24);
     if (o->oMoveFlags & (OBJ_MOVE_HIT_WALL | OBJ_MOVE_MASK_IN_WATER | OBJ_MOVE_LANDED)) {
         obj_mark_for_deletion(o);
         obj_spawn_loot_yellow_coins(o, 5, 20.0f);
@@ -192,6 +194,7 @@ void chuckya_act_2(void) {
 void (*sChuckyaActions[])(void) = { chuckya_act_0, chuckya_act_1, chuckya_act_2, chuckya_act_3 };
 
 void chuckya_move(void) {
+    N64_FRAME(24);
     cur_obj_update_floor_and_walls();
     cur_obj_call_action_function(sChuckyaActions);
     cur_obj_move_standard(-30);
@@ -203,6 +206,7 @@ void chuckya_move(void) {
 }
 
 void bhv_chuckya_loop(void) {
+    N64_FRAME(48);
     f32 sp2C = 20.0f;
     f32 sp28 = 50.0f;
     cur_obj_scale(2.0f);

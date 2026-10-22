@@ -1,10 +1,11 @@
 // seaweed.c.inc
 
 void bhv_seaweed_init(void) {
-    o->header.gfx.animInfo.animFrame = random_float() * 80.0f;
+    o->header.gfx.animInfo.animFrame = IDO_S16(random_float() * 80.0f);
 }
 
 void bhv_seaweed_bundle_init(void) {
+    N64_FRAME(32);
     struct Object *seaweed;
 
     seaweed = spawn_object(o, MODEL_SEAWEED, bhvSeaweed);
@@ -23,7 +24,7 @@ void bhv_seaweed_bundle_init(void) {
     seaweed->header.gfx.scale[0] = 0.8;
     seaweed->header.gfx.scale[1] = 0.9;
     seaweed->header.gfx.scale[2] = 0.8;
-    seaweed->header.gfx.animInfo.animFrame = random_float() * 80.0f;
+    seaweed->header.gfx.animInfo.animFrame = IDO_S16(random_float() * 80.0f);
 
     seaweed = spawn_object(o, MODEL_SEAWEED, bhvSeaweed);
     seaweed->oFaceAngleYaw = 40500;
@@ -32,7 +33,7 @@ void bhv_seaweed_bundle_init(void) {
     seaweed->header.gfx.scale[0] = 0.8;
     seaweed->header.gfx.scale[1] = 0.8;
     seaweed->header.gfx.scale[2] = 0.8;
-    seaweed->header.gfx.animInfo.animFrame = random_float() * 80.0f;
+    seaweed->header.gfx.animInfo.animFrame = IDO_S16(random_float() * 80.0f);
 
     seaweed = spawn_object(o, MODEL_SEAWEED, bhvSeaweed);
     seaweed->oFaceAngleYaw = 57236;
@@ -41,5 +42,5 @@ void bhv_seaweed_bundle_init(void) {
     seaweed->header.gfx.scale[0] = 1.2;
     seaweed->header.gfx.scale[1] = 1.2;
     seaweed->header.gfx.scale[2] = 1.2;
-    seaweed->header.gfx.animInfo.animFrame = random_float() * 80.0f;
+    seaweed->header.gfx.animInfo.animFrame = IDO_S16(random_float() * 80.0f);
 }

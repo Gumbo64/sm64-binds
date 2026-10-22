@@ -23,6 +23,7 @@ void bhv_punch_tiny_triangle_loop(void) {
 }
 
 void bhv_punch_tiny_triangle_init(void) {
+    N64_FRAME(40);
     s32 i;
     UNUSED s32 unused;
     struct Object *triangle;
@@ -49,6 +50,7 @@ void bhv_wall_tiny_star_particle_loop(void) {
 }
 
 void bhv_tiny_star_particles_init(void) {
+    N64_FRAME(40);
     s32 i;
     UNUSED s32 unused;
     struct Object *particle;
@@ -74,6 +76,7 @@ void bhv_pound_tiny_star_particle_loop(void) {
 }
 
 void bhv_pound_tiny_star_particle_init(void) {
+    N64_FRAME(40);
     s32 sp24;
     s32 sp20 = 8;
     struct Object *particle;

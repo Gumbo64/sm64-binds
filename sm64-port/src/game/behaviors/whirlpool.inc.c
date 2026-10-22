@@ -40,12 +40,12 @@ void bhv_whirlpool_loop(void) {
 
         // not sure if actually an array
         gEnvFxBubbleConfig[ENVFX_STATE_PARTICLECOUNT] = 60;
-        gEnvFxBubbleConfig[ENVFX_STATE_SRC_X] = o->oPosX;
-        gEnvFxBubbleConfig[ENVFX_STATE_SRC_Z] = o->oPosZ;
-        gEnvFxBubbleConfig[ENVFX_STATE_DEST_X] = o->oPosX;
-        gEnvFxBubbleConfig[ENVFX_STATE_DEST_Y] = o->oPosY;
-        gEnvFxBubbleConfig[ENVFX_STATE_DEST_Z] = o->oPosZ;
-        gEnvFxBubbleConfig[ENVFX_STATE_SRC_Y] = o->oPosY + 800.0f;
+        gEnvFxBubbleConfig[ENVFX_STATE_SRC_X] = IDO_S16(o->oPosX);
+        gEnvFxBubbleConfig[ENVFX_STATE_SRC_Z] = IDO_S16(o->oPosZ);
+        gEnvFxBubbleConfig[ENVFX_STATE_DEST_X] = IDO_S16(o->oPosX);
+        gEnvFxBubbleConfig[ENVFX_STATE_DEST_Y] = IDO_S16(o->oPosY);
+        gEnvFxBubbleConfig[ENVFX_STATE_DEST_Z] = IDO_S16(o->oPosZ);
+        gEnvFxBubbleConfig[ENVFX_STATE_SRC_Y] = IDO_S16(o->oPosY + 800.0f);
         gEnvFxBubbleConfig[ENVFX_STATE_PITCH] = o->oWhirlpoolInitFacePitch;
         gEnvFxBubbleConfig[ENVFX_STATE_YAW] = o->oWhirlpoolInitFaceRoll;
 
@@ -65,9 +65,9 @@ void bhv_whirlpool_loop(void) {
 void bhv_jet_stream_loop(void) {
     if (o->oDistanceToMario < 5000.0f) {
         gEnvFxBubbleConfig[ENVFX_STATE_PARTICLECOUNT] = 60;
-        gEnvFxBubbleConfig[ENVFX_STATE_SRC_X] = o->oPosX;
-        gEnvFxBubbleConfig[ENVFX_STATE_SRC_Y] = o->oPosY;
-        gEnvFxBubbleConfig[ENVFX_STATE_SRC_Z] = o->oPosZ;
+        gEnvFxBubbleConfig[ENVFX_STATE_SRC_X] = IDO_S16(o->oPosX);
+        gEnvFxBubbleConfig[ENVFX_STATE_SRC_Y] = IDO_S16(o->oPosY);
+        gEnvFxBubbleConfig[ENVFX_STATE_SRC_Z] = IDO_S16(o->oPosZ);
     } else
         gEnvFxBubbleConfig[ENVFX_STATE_PARTICLECOUNT] = 0;
 

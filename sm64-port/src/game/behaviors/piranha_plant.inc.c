@@ -36,6 +36,7 @@ void piranha_plant_act_idle(void) {
  * @return 1 if the player interacted with the Piranha Plant, 0 otherwise
  */
 s32 piranha_plant_check_interactions(void) {
+    N64_FRAME(32);
     s32 i;
     s32 interacted = 1;
     if (o->oInteractStatus & INT_STATUS_INTERACTED) {
@@ -67,6 +68,7 @@ s32 piranha_plant_check_interactions(void) {
  * to piranha_plant_check_interactions().
  */
 void piranha_plant_act_sleeping(void) {
+    N64_FRAME(24);
     cur_obj_become_tangible();
     o->oInteractType = INTERACT_BOUNCE_TOP;
 
@@ -106,6 +108,7 @@ void piranha_plant_act_sleeping(void) {
  * to the biting state.
  */
 void piranha_plant_act_woken_up(void) {
+    N64_FRAME(24);
 #if BUGFIX_PIRANHA_PLANT_SLEEP_DAMAGE || defined(VERSION_EU)
     /**
      * Make Piranha Plants damage the player while awake. This call is only
@@ -165,6 +168,7 @@ void piranha_plant_attacked(void) {
  * blue coin. Then, move it to the waiting state.
  */
 void piranha_plant_act_shrink_and_die(void) {
+    N64_FRAME(24);
     if (o->oTimer == 0) {
         cur_obj_play_sound_2(SOUND_OBJ_ENEMY_DEFEAT_SHRINK);
         o->oPiranhaPlantScale = 1.0f;
@@ -327,6 +331,7 @@ void (*TablePiranhaPlantActions[])(void) = {
  * Main loop for bhvPiranhaPlant.
  */
 void bhv_piranha_plant_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(TablePiranhaPlantActions);
 
     // In WF, hide all Piranha Plants once high enough up.

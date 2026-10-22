@@ -6,6 +6,7 @@
 #include "engine/surface_collision.h"
 #include "game_init.h"
 #include "geo_misc.h"
+#include "rendering_graph_node.h"
 #include "levels/castle_inside/header.h"
 #include "levels/hmc/header.h"
 #include "levels/ttm/header.h"
@@ -752,9 +753,9 @@ s8 normalize_component(f32 comp) {
     s8 rounded;
 
     if (comp > 0.0) {
-        rounded = comp * 127.0 + 0.5; // round up
+        rounded = IDO_S8(comp * 127.0 + 0.5); // round up
     } else if (comp < 0.0) {
-        rounded = comp * 128.0 - 0.5; // round down
+        rounded = IDO_S8(comp * 128.0 - 0.5); // round down
     } else {
         rounded = 0;                  // don't round 0
     }
@@ -1037,6 +1038,12 @@ Gfx *display_painting_rippling(struct Painting *painting) {
     }
 
     // The mesh data is freed every frame.
+#ifdef HEADLESS_VERSION
+    // Cleared first, so the pool's free memory does not depend on drawing
+    // (see ripple_painting_without_drawing).
+    bzero(gPaintingMesh, numVtx * sizeof(struct PaintingMeshVertex));
+    bzero(gPaintingTriNorms, numTris * sizeof(Vec3f));
+#endif
     mem_pool_free(gEffectsMemoryPool, gPaintingMesh);
     mem_pool_free(gEffectsMemoryPool, gPaintingTriNorms);
     return dlist;
@@ -1153,9 +1160,35 @@ void set_painting_layer(struct GraphNodeGenerated *gen, struct Painting *paintin
 }
 
 /**
+ * What drawing a rippling painting does besides drawing: its mesh buffers come
+ * from and go back to gEffectsMemoryPool, and its ripple is updated.
+ */
+void ripple_painting_without_drawing(struct Painting *painting) {
+    s16 *mesh = segmented_to_virtual(seg2_painting_triangle_mesh);
+    s16 numVtx = mesh[0];
+    s16 numTris = mesh[numVtx * 3 + 1];
+
+    gPaintingMesh = mem_pool_alloc(gEffectsMemoryPool, numVtx * sizeof(struct PaintingMeshVertex));
+    gPaintingTriNorms = mem_pool_alloc(gEffectsMemoryPool, numTris * sizeof(Vec3f));
+    if (painting->textureType == PAINTING_IMAGE || painting->textureType == PAINTING_ENV_MAP) {
+        painting_update_ripple_state(painting);
+    }
+    bzero(gPaintingMesh, numVtx * sizeof(struct PaintingMeshVertex));
+    bzero(gPaintingTriNorms, numTris * sizeof(Vec3f));
+    mem_pool_free(gEffectsMemoryPool, gPaintingMesh);
+    mem_pool_free(gEffectsMemoryPool, gPaintingTriNorms);
+}
+
+/**
  * Display either a normal painting or a rippling one depending on the painting's ripple status
  */
 Gfx *display_painting(struct Painting *painting) {
+    if (!GEO_DRAW) {
+        if (painting->state != PAINTING_IDLE) {
+            ripple_painting_without_drawing(painting);
+        }
+        return NULL;
+    }
     switch (painting->state) {
         case PAINTING_IDLE:
             return display_painting_not_rippling(painting);
@@ -1249,7 +1282,7 @@ Gfx *geo_painting_draw(s32 callContext, struct GraphNode *node, UNUSED void *con
 
         // Update the painting
         painting_update_floors(painting);
-        switch ((s16) painting->pitch) {
+        switch ((s16) IDO_S16(painting->pitch)) {
             // only paintings with 0 pitch are treated as walls
             case 0:
                 wall_painting_update(painting, paintingGroup);
@@ -1266,6 +1299,7 @@ Gfx *geo_painting_draw(s32 callContext, struct GraphNode *node, UNUSED void *con
  * Update the painting system's local copy of Mario's current floor and position.
  */
 Gfx *geo_painting_update(s32 callContext, UNUSED struct GraphNode *node, UNUSED Mat4 c) {
+    N64_FRAME(32);
     struct Surface *surface;
 
     // Reset the update counter

@@ -6,6 +6,8 @@
 
 #include <ultra64.h>
 #include "macros.h"
+#include "ido_convert.h"
+#include "n64_stack.h"
 #include "config.h"
 
 

@@ -139,6 +139,7 @@ void king_bobomb_act_1(void) {
 }
 
 void king_bobomb_act_6(void) {
+    N64_FRAME(24);
     if (o->oSubAction == 0) {
         if (o->oTimer == 0) {
             o->oKingBobombUnk104 = 0;
@@ -170,6 +171,7 @@ void king_bobomb_act_6(void) {
 }
 
 void king_bobomb_act_7(void) {
+    N64_FRAME(24);
     cur_obj_init_animation_with_sound(2);
     if (cur_obj_update_dialog_with_cutscene(MARIO_DIALOG_LOOK_UP, 
         DIALOG_FLAG_TEXT_DEFAULT, CUTSCENE_DIALOG, DIALOG_116)) {
@@ -291,6 +293,7 @@ struct SoundState sKingBobombSoundStates[] = {
 };
 
 void king_bobomb_move(void) {
+    N64_FRAME(24);
     cur_obj_update_floor_and_walls();
     if (o->oKingBobombUnkF8 == 0)
         cur_obj_move_standard(-78);
@@ -305,6 +308,7 @@ void king_bobomb_move(void) {
 }
 
 void bhv_king_bobomb_loop(void) {
+    N64_FRAME(56);
     f32 sp34 = 20.0f;
     f32 sp30 = 50.0f;
     UNUSED u8 pad[8];

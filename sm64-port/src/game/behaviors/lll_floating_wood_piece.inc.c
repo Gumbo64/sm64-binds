@@ -10,6 +10,7 @@ void bhv_lll_wood_piece_loop(void) {
 }
 
 void bhv_lll_floating_wood_bridge_loop(void) {
+    N64_FRAME(64);
     struct Object *sp3C;
     s32 i;
     switch (o->oAction) {

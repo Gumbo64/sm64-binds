@@ -56,6 +56,7 @@ void play_climbing_sounds(struct MarioState *m, s32 b) {
 }
 
 s32 set_pole_position(struct MarioState *m, f32 offsetY) {
+    N64_FRAME(88);
     UNUSED s32 unused1;
     UNUSED s32 unused2;
     UNUSED s32 unused3;
@@ -113,6 +114,7 @@ s32 set_pole_position(struct MarioState *m, f32 offsetY) {
 }
 
 s32 act_holding_pole(struct MarioState *m) {
+    N64_FRAME(40);
     struct Object *marioObj = m->marioObj;
 
 #ifdef VERSION_JP
@@ -177,7 +179,7 @@ s32 act_holding_pole(struct MarioState *m) {
         set_sound_moving_speed(SOUND_BANK_MOVING, marioObj->oMarioPoleYawVel / 0x100 * 2);
     } else {
         marioObj->oMarioPoleYawVel = 0;
-        m->faceAngle[1] -= m->controller->stickX * 16.0f;
+        m->faceAngle[1] = IDO_S16(m->faceAngle[1] - (m->controller->stickX * 16.0f));
     }
 
     if (set_pole_position(m, 0.0f) == POLE_NONE) {
@@ -188,6 +190,7 @@ s32 act_holding_pole(struct MarioState *m) {
 }
 
 s32 act_climbing_pole(struct MarioState *m) {
+    N64_FRAME(40);
     s32 sp24;
     struct Object *marioObj = m->marioObj;
     s16 cameraAngle = m->area->camera->yaw;
@@ -225,6 +228,7 @@ s32 act_climbing_pole(struct MarioState *m) {
 }
 
 s32 act_grab_pole_slow(struct MarioState *m) {
+    N64_FRAME(24);
     play_sound_if_no_flag(m, SOUND_MARIO_WHOA, MARIO_MARIO_SOUND_PLAYED);
 
     if (set_pole_position(m, 0.0f) == POLE_NONE) {
@@ -239,6 +243,7 @@ s32 act_grab_pole_slow(struct MarioState *m) {
 }
 
 s32 act_grab_pole_fast(struct MarioState *m) {
+    N64_FRAME(32);
     struct Object *marioObj = m->marioObj;
 
     play_sound_if_no_flag(m, SOUND_MARIO_WHOA, MARIO_MARIO_SOUND_PLAYED);
@@ -262,6 +267,7 @@ s32 act_grab_pole_fast(struct MarioState *m) {
 }
 
 s32 act_top_of_pole_transition(struct MarioState *m) {
+    N64_FRAME(40);
     struct Object *marioObj = m->marioObj;
 
     marioObj->oMarioPoleYawVel = 0;
@@ -282,6 +288,7 @@ s32 act_top_of_pole_transition(struct MarioState *m) {
 }
 
 s32 act_top_of_pole(struct MarioState *m) {
+    N64_FRAME(40);
     UNUSED struct Object *marioObj = m->marioObj;
 
     if (m->input & INPUT_A_PRESSED) {
@@ -291,7 +298,7 @@ s32 act_top_of_pole(struct MarioState *m) {
         return set_mario_action(m, ACT_TOP_OF_POLE_TRANSITION, 1);
     }
 
-    m->faceAngle[1] -= m->controller->stickX * 16.0f;
+    m->faceAngle[1] = IDO_S16(m->faceAngle[1] - (m->controller->stickX * 16.0f));
 
     set_mario_animation(m, MARIO_ANIM_HANDSTAND_IDLE);
     set_pole_position(m, return_mario_anim_y_translation(m));
@@ -299,6 +306,7 @@ s32 act_top_of_pole(struct MarioState *m) {
 }
 
 s32 perform_hanging_step(struct MarioState *m, Vec3f nextPos) {
+    N64_FRAME(48);
     UNUSED s32 unused;
     struct Surface *ceil;
     struct Surface *floor;
@@ -343,6 +351,7 @@ s32 perform_hanging_step(struct MarioState *m, Vec3f nextPos) {
 }
 
 s32 update_hang_moving(struct MarioState *m) {
+    N64_FRAME(48);
     s32 stepResult;
     Vec3f nextPos;
     f32 maxSpeed = 4.0f;
@@ -450,6 +459,7 @@ s32 act_hanging(struct MarioState *m) {
 }
 
 s32 act_hang_moving(struct MarioState *m) {
+    N64_FRAME(24);
     if (!(m->input & INPUT_A_DOWN)) {
         return set_mario_action(m, ACT_FREEFALL, 0);
     }
@@ -490,6 +500,7 @@ s32 act_hang_moving(struct MarioState *m) {
 }
 
 s32 let_go_of_ledge(struct MarioState *m) {
+    N64_FRAME(32);
     f32 floorHeight;
     struct Surface *floor;
 
@@ -543,6 +554,7 @@ void update_ledge_climb(struct MarioState *m, s32 animation, u32 endAction) {
 }
 
 s32 act_ledge_grab(struct MarioState *m) {
+    N64_FRAME(48);
     f32 heightAboveFloor;
     s16 intendedDYaw = m->intendedYaw - m->faceAngle[1];
     s32 hasSpaceForMario = (m->ceilHeight - m->floorHeight >= 160.0f);
@@ -601,6 +613,7 @@ s32 act_ledge_grab(struct MarioState *m) {
 }
 
 s32 act_ledge_climb_slow(struct MarioState *m) {
+    N64_FRAME(24);
     if (m->input & INPUT_OFF_FLOOR) {
         return let_go_of_ledge(m);
     }
@@ -627,6 +640,7 @@ s32 act_ledge_climb_slow(struct MarioState *m) {
 }
 
 s32 act_ledge_climb_down(struct MarioState *m) {
+    N64_FRAME(24);
     if (m->input & INPUT_OFF_FLOOR) {
         return let_go_of_ledge(m);
     }
@@ -640,6 +654,7 @@ s32 act_ledge_climb_down(struct MarioState *m) {
 }
 
 s32 act_ledge_climb_fast(struct MarioState *m) {
+    N64_FRAME(24);
     if (m->input & INPUT_OFF_FLOOR) {
         return let_go_of_ledge(m);
     }
@@ -711,8 +726,8 @@ s32 act_in_cannon(struct MarioState *m) {
             break;
 
         case 2:
-            m->faceAngle[0] -= (s16)(m->controller->stickY * 10.0f);
-            marioObj->oMarioCannonInputYaw -= (s16)(m->controller->stickX * 10.0f);
+            m->faceAngle[0] -= (s16)IDO_S16((m->controller->stickY * 10.0f));
+            marioObj->oMarioCannonInputYaw -= (s16)IDO_S16((m->controller->stickX * 10.0f));
 
             if (m->faceAngle[0] > 0x38E3) {
                 m->faceAngle[0] = 0x38E3;
@@ -765,6 +780,7 @@ s32 act_in_cannon(struct MarioState *m) {
 }
 
 s32 act_tornado_twirling(struct MarioState *m) {
+    N64_FRAME(96);
     struct Surface *floor;
     Vec3f nextPos;
     f32 sinAngleVel;
@@ -846,6 +862,7 @@ s32 act_tornado_twirling(struct MarioState *m) {
 }
 
 s32 check_common_automatic_cancels(struct MarioState *m) {
+    N64_FRAME(24);
     if (m->pos[1] < m->waterLevel - 100) {
         return set_water_plunge_action(m);
     }
@@ -854,6 +871,7 @@ s32 check_common_automatic_cancels(struct MarioState *m) {
 }
 
 s32 mario_execute_automatic_action(struct MarioState *m) {
+    N64_FRAME(40);
     s32 cancel;
 
     if (check_common_automatic_cancels(m)) {

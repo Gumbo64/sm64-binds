@@ -1,13 +1,14 @@
 // hidden_star.c.inc
 
 void bhv_hidden_star_init(void) {
+    N64_FRAME(56);
     s16 sp36;
     struct Object *sp30;
 
     sp36 = count_objects_with_behavior(bhvHiddenStarTrigger);
     if (sp36 == 0) {
         sp30 =
-            spawn_object_abs_with_rot(o, 0, MODEL_STAR, bhvStar, o->oPosX, o->oPosY, o->oPosZ, 0, 0, 0);
+            spawn_object_abs_with_rot(o, 0, MODEL_STAR, bhvStar, IDO_S16(o->oPosX), IDO_S16(o->oPosY), IDO_S16(o->oPosZ), 0, 0, 0);
         sp30->oBehParams = o->oBehParams;
         o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
     }
@@ -16,6 +17,7 @@ void bhv_hidden_star_init(void) {
 }
 
 void bhv_hidden_star_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case 0:
             if (o->oHiddenStarTriggerCounter == 5)
@@ -34,6 +36,7 @@ void bhv_hidden_star_loop(void) {
 
 /* TODO: this is likely not a checkpoint but a Secret */
 void bhv_hidden_star_trigger_loop(void) {
+    N64_FRAME(32);
     struct Object *hiddenStar;
     if (obj_check_if_collided_with_object(o, gMarioObject) == 1) {
         hiddenStar = cur_obj_nearest_object_with_behavior(bhvHiddenStar);
@@ -57,6 +60,7 @@ void bhv_hidden_star_trigger_loop(void) {
 }
 
 void bhv_bowser_course_red_coin_star_loop(void) {
+    N64_FRAME(40);
     gRedCoinsCollected = o->oHiddenStarTriggerCounter;
     switch (o->oAction) {
         case 0:

@@ -110,5 +110,6 @@ void (*sElevatorActions[])(void) = { elevator_act_0, elevator_act_1, elevator_ac
                                      elevator_act_4 };
 
 void bhv_elevator_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sElevatorActions);
 }

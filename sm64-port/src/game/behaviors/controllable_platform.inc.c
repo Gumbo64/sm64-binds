@@ -54,6 +54,7 @@ void bhv_controllable_platform_sub_loop(void) {
 }
 
 void bhv_controllable_platform_init(void) {
+    N64_FRAME(56);
     struct Object *sp34;
     sp34 = spawn_object_rel_with_rot(o, MODEL_HMC_METAL_ARROW_PLATFORM, bhvControllablePlatformSub, 0,
                                      51, 204, 0, 0, 0);
@@ -134,8 +135,8 @@ void controllable_platform_shake_on_wall_hit(void) {
 }
 
 void controllable_platform_tilt_from_mario(void) {
-    s16 sp1E = gMarioObject->header.gfx.pos[0] - o->oPosX;
-    s16 sp1C = gMarioObject->header.gfx.pos[2] - o->oPosZ;
+    s16 sp1E = IDO_S16(gMarioObject->header.gfx.pos[0] - o->oPosX);
+    s16 sp1C = IDO_S16(gMarioObject->header.gfx.pos[2] - o->oPosZ);
 
     if (gMarioObject->platform == o
         || gMarioObject->platform == cur_obj_nearest_object_with_behavior(bhvControllablePlatformSub)) {
@@ -151,6 +152,7 @@ void controllable_platform_tilt_from_mario(void) {
 }
 
 void bhv_controllable_platform_loop(void) {
+    N64_FRAME(88);
     s8 sp54[3];
     Vec3f sp48;
     Vec3f sp3C;
@@ -211,7 +213,7 @@ void bhv_controllable_platform_loop(void) {
         case 6:
             if (obj_flicker_and_disappear(o, 150))
                 spawn_object_abs_with_rot(o, 0, MODEL_HMC_METAL_PLATFORM, bhvControllablePlatform,
-                                          o->oHomeX, o->oHomeY, o->oHomeZ, 0, 0, 0);
+                                          IDO_S16(o->oHomeX), IDO_S16(o->oHomeY), IDO_S16(o->oHomeZ), 0, 0, 0);
             break;
     }
 

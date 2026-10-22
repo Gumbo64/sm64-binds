@@ -77,6 +77,7 @@ void bhv_platform_on_track_init(void) {
  * wait for mario action.
  */
 static void platform_on_track_act_init(void) {
+    N64_FRAME(64);
     s32 i;
 
     o->oPlatformOnTrackPrevWaypoint = o->oPlatformOnTrackStartWaypoint;
@@ -126,6 +127,7 @@ static void platform_on_track_act_wait_for_mario(void) {
  * return to the init action, or continue moving back to the start waypoint.
  */
 static void platform_on_track_act_move_along_track(void) {
+    N64_FRAME(32);
     s16 initialAngle;
 
     if (!o->oPlatformOnTrackIsNotSkiLift) {
@@ -267,6 +269,7 @@ static void platform_on_track_rock_ski_lift(void) {
  * Update function for bhvPlatformOnTrack.
  */
 void bhv_platform_on_track_update(void) {
+    N64_FRAME(24);
     switch (o->oAction) {
         case PLATFORM_ON_TRACK_ACT_INIT:
             platform_on_track_act_init();

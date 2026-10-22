@@ -1,6 +1,7 @@
 // tower_door.c.inc
 
 void bhv_tower_door_loop(void) {
+    N64_FRAME(24);
     if (o->oTimer == 0)
         o->oMoveAngleYaw -= 0x4000;
     if (check_mario_attacking(0)) {

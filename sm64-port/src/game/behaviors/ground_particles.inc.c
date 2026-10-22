@@ -10,20 +10,24 @@ static struct SpawnParticlesInfo sSnowParticles = { 0,    5,   MODEL_WHITE_PARTI
                                          2.0f, 2.0f };
 
 void bhv_pound_white_puffs_init(void) {
+    N64_FRAME(24);
     clear_particle_flags(0x8000);
     spawn_mist_from_global();
 }
 
 void spawn_mist_from_global(void) {
+    N64_FRAME(24);
     cur_obj_spawn_particles(&sGlobalMistParticles);
 }
 
 void bhv_ground_sand_init(void) {
+    N64_FRAME(24);
     clear_particle_flags(0x4000);
     cur_obj_spawn_particles(&sSandParticles);
 }
 
 void spawn_smoke_with_velocity(void) {
+    N64_FRAME(32);
     struct Object *smoke = spawn_object_with_scale(o, MODEL_SMOKE, bhvWhitePuffSmoke2, 1.0f);
     smoke->oForwardVel = sSmokeMovementParams[0];
     smoke->oVelY = sSmokeMovementParams[1];
@@ -37,6 +41,7 @@ void clear_particle_flags(u32 flags) {
 }
 
 void bhv_ground_snow_init(void) {
+    N64_FRAME(24);
     clear_particle_flags(1 << 16);
     cur_obj_spawn_particles(&sSnowParticles);
 }

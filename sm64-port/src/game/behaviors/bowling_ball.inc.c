@@ -77,6 +77,7 @@ void bowling_ball_set_waypoints(void) {
 }
 
 void bhv_bowling_ball_roll_loop(void) {
+    N64_FRAME(32);
     s16 collisionFlags;
     s32 sp18;
 #ifdef AVOID_UB
@@ -149,6 +150,7 @@ void bhv_bowling_ball_initializeLoop(void) {
 }
 
 void bhv_bowling_ball_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case BBALL_ACT_INITIALIZE:
             o->oAction = BBALL_ACT_ROLL;
@@ -186,6 +188,7 @@ void bhv_generic_bowling_ball_spawner_init(void) {
 }
 
 void bhv_generic_bowling_ball_spawner_loop(void) {
+    N64_FRAME(40);
     struct Object *bowlingBall;
 
     if (o->oTimer == 256)
@@ -207,6 +210,7 @@ void bhv_generic_bowling_ball_spawner_loop(void) {
 }
 
 void bhv_thi_bowling_ball_spawner_loop(void) {
+    N64_FRAME(32);
     struct Object *bowlingBall;
 
     if (o->oTimer == 256)
@@ -233,6 +237,7 @@ void bhv_bob_pit_bowling_ball_init(void) {
 }
 
 void bhv_bob_pit_bowling_ball_loop(void) {
+    N64_FRAME(32);
     struct FloorGeometry *sp1c;
     UNUSED s16 collisionFlags = object_step();
 
@@ -258,6 +263,7 @@ void bhv_free_bowling_ball_init(void) {
 }
 
 void bhv_free_bowling_ball_roll_loop(void) {
+    N64_FRAME(32);
     s16 collisionFlags = object_step();
     bowling_ball_set_hitbox();
 
@@ -282,6 +288,7 @@ void bhv_free_bowling_ball_roll_loop(void) {
 }
 
 void bhv_free_bowling_ball_loop(void) {
+    N64_FRAME(40);
     o->oGravity = 5.5f;
 
     switch (o->oAction) {

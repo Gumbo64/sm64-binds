@@ -2,6 +2,7 @@
 // TODO: Is this really "mist"?
 
 void bhv_water_mist_spawn_loop(void) {
+    N64_FRAME(24);
     clear_particle_flags(0x20000);
     spawn_object(o, MODEL_MIST, bhvWaterMist);
 }

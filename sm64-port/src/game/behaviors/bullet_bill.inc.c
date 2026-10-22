@@ -27,6 +27,7 @@ void bullet_bill_act_1(void) {
 }
 
 void bullet_bill_act_2(void) {
+    N64_FRAME(24);
     if (o->oTimer < 40)
         o->oForwardVel = 3.0f;
     else if (o->oTimer < 50) {
@@ -72,6 +73,7 @@ void (*sBulletBillActions[])(void) = { bullet_bill_act_0, bullet_bill_act_1, bul
                                        bullet_bill_act_3, bullet_bill_act_4 };
 
 void bhv_bullet_bill_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sBulletBillActions);
     if (cur_obj_check_interacted())
         o->oAction = 4;

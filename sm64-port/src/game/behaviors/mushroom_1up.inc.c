@@ -69,6 +69,7 @@ void one_up_move_away_from_mario(s16 sp1A) {
 }
 
 void bhv_1up_walking_loop(void) {
+    N64_FRAME(40);
     object_step();
 
     switch (o->oAction) {
@@ -105,6 +106,7 @@ void bhv_1up_walking_loop(void) {
 }
 
 void bhv_1up_running_away_loop(void) {
+    N64_FRAME(40);
     s16 sp26;
 
     sp26 = object_step();
@@ -140,6 +142,7 @@ void bhv_1up_running_away_loop(void) {
 }
 
 void sliding_1up_move(void) {
+    N64_FRAME(32);
     s16 sp1E;
 
     sp1E = object_step();
@@ -158,6 +161,7 @@ void sliding_1up_move(void) {
 }
 
 void bhv_1up_sliding_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case 0:
             set_object_visibility(o, 3000);
@@ -185,6 +189,7 @@ void bhv_1up_loop(void) {
 }
 
 void bhv_1up_jump_on_approach_loop(void) {
+    N64_FRAME(40);
     s16 sp26;
 
     switch (o->oAction) {
@@ -212,6 +217,7 @@ void bhv_1up_jump_on_approach_loop(void) {
 }
 
 void bhv_1up_hidden_loop(void) {
+    N64_FRAME(40);
     s16 sp26;
     switch (o->oAction) {
         case 0:
@@ -264,6 +270,7 @@ void bhv_1up_hidden_trigger_loop(void) {
 }
 
 void bhv_1up_hidden_in_pole_loop(void) {
+    N64_FRAME(40);
     UNUSED s16 sp26;
     switch (o->oAction) {
         case 0:
@@ -311,6 +318,7 @@ void bhv_1up_hidden_in_pole_trigger_loop(void) {
 }
 
 void bhv_1up_hidden_in_pole_spawner_loop(void) {
+    N64_FRAME(48);
     s8 sp2F;
 
     if (is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 700)) {

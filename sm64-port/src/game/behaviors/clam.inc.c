@@ -13,6 +13,7 @@ struct ObjectHitbox sClamShellHitbox = {
 };
 
 void clam_act_0(void) {
+    N64_FRAME(24);
     if (cur_obj_init_anim_check_frame(0, 25)) {
         cur_obj_play_sound_2(SOUND_GENERAL_CLAM_SHELL3);
         spawn_mist_from_global();
@@ -30,6 +31,7 @@ void clam_act_0(void) {
 }
 
 void clam_act_1(void) {
+    N64_FRAME(48);
     s16 val06;
     s16 val04;
     s16 val02;
@@ -38,8 +40,8 @@ void clam_act_1(void) {
         o->oAction = 0;
     } else if (obj_is_rendering_enabled() && cur_obj_init_anim_check_frame(1, 8)) {
         for (val06 = -0x2000; val06 < 0x2000; val06 += 0x555) {
-            val04 = (s16)(100.0f * sins(val06));
-            val02 = (s16)(100.0f * coss(val06));
+            val04 = (s16)IDO_S16((100.0f * sins(val06)));
+            val02 = (s16)IDO_S16((100.0f * coss(val06)));
 
             spawn_object_relative(0, val04, 30, val02, o, MODEL_BUBBLE, bhvBubbleMaybe);
         }
@@ -49,6 +51,7 @@ void clam_act_1(void) {
 }
 
 void bhv_clam_loop(void) {
+    N64_FRAME(40);
     o->header.gfx.scale[1] = 1.5f;
 
     switch (o->oAction) {

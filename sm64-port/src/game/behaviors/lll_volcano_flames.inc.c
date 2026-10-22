@@ -1,6 +1,7 @@
 // lll_volcano_flames.c.inc
 
 void bhv_volcano_flames_loop(void) {
+    N64_FRAME(24);
     cur_obj_update_floor_height();
     cur_obj_compute_vel_xz();
     o->oPosX += o->oVelX;

@@ -108,6 +108,7 @@ void (*sOpenedCannonActions[])(void) = { opened_cannon_act_0, opened_cannon_act_
                                          opened_cannon_act_6 };
 
 void bhv_cannon_base_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sOpenedCannonActions);
     if (o->oCannonUnkF8)
         o->oCannonUnkF8++;

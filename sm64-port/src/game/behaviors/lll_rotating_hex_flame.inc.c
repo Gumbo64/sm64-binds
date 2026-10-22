@@ -11,6 +11,7 @@ void bhv_lll_rotating_hex_flame_loop(void) {
 }
 
 void fire_bar_spawn_flames(s16 a0) {
+    N64_FRAME(48);
     struct Object *sp2C;
     UNUSED s32 unused;
     s32 i;
@@ -35,6 +36,7 @@ void fire_bar_act_0(void) {
 }
 
 void fire_bar_act_1(void) {
+    N64_FRAME(24);
     fire_bar_spawn_flames(0);
     fire_bar_spawn_flames(-0x8000);
     o->oAngleVelYaw = 0;
@@ -57,6 +59,7 @@ void (*sRotatingCwFireBarsActions[])(void) = { fire_bar_act_0, fire_bar_act_1,
                                                fire_bar_act_2, fire_bar_act_3 };
 
 void bhv_lll_rotating_block_fire_bars_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sRotatingCwFireBarsActions);
     if (o->oBehParams2ndByte == 0)
         load_object_collision_model();

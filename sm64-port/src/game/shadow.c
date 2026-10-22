@@ -174,7 +174,7 @@ u8 dim_shadow_with_distance(u8 solidity, f32 distFromFloor) {
         return 120;
     } else {
         ret = ((120 - solidity) * distFromFloor) / 600.0 + (f32) solidity;
-        return ret;
+        return IDO_U8(ret);
     }
 }
 
@@ -421,7 +421,7 @@ s16 floor_local_tilt(struct Shadow s, f32 vtxX, f32 vtxY, f32 vtxZ) {
     f32 relZ = vtxZ - s.parentZ;
 
     f32 ret = (relX * s.floorNormalX) + (relY * s.floorNormalY) + (relZ * s.floorNormalZ);
-    return ret;
+    return IDO_S16(ret);
 }
 
 /**
@@ -501,7 +501,7 @@ void linearly_interpolate_solidity_positive(struct Shadow *s, u8 finalSolidity, 
     } else if (end < curr) {
         s->solidity = finalSolidity;
     } else {
-        s->solidity = (f32) finalSolidity * (curr - start) / (end - start);
+        s->solidity = IDO_U8((f32) finalSolidity * (curr - start) / (end - start));
     }
 }
 
@@ -517,7 +517,7 @@ void linearly_interpolate_solidity_negative(struct Shadow *s, u8 initialSolidity
     // This is not necessarily a bug, since this function is only used once,
     // with start == 0.
     if (curr >= start && end >= curr) {
-        s->solidity = ((f32) initialSolidity * (1.0 - (f32)(curr - start) / (end - start)));
+        s->solidity = IDO_U8(((f32) initialSolidity * (1.0 - (f32)(curr - start) / (end - start))));
     } else {
         s->solidity = 0;
     }

@@ -14,6 +14,7 @@
  * Spawn the four pillars' touch detectors.
  */
 void bhv_pyramid_top_init(void) {
+    N64_FRAME(48);
     spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvPyramidPillarTouchDetector, 1789, 1024, 764, 0, 0,
                               0);
     spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvPyramidPillarTouchDetector, 1789, 896, -2579, 0, 0,
@@ -29,6 +30,7 @@ void bhv_pyramid_top_init(void) {
  * fragments in the process.
  */
 void bhv_pyramid_top_spinning(void) {
+    N64_FRAME(32);
     struct Object *pyramidFragment;
 
     // (TODO: What is this doing)
@@ -69,6 +71,7 @@ void bhv_pyramid_top_spinning(void) {
  * Explode the pyramid top, generating dust and pyramid fragments.
  */
 void bhv_pyramid_top_explode(void) {
+    N64_FRAME(32);
     struct Object *pyramidFragment;
     s16 i;
 
@@ -91,6 +94,7 @@ void bhv_pyramid_top_explode(void) {
 }
 
 void bhv_pyramid_top_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case PYRAMID_TOP_ACT_CHECK_IF_SOLVED:
             if (o->oPyramidTopPillarsTouched == 4) {
@@ -132,6 +136,7 @@ void bhv_pyramid_top_fragment_init(void) {
  * deactivate it.
  */
 void bhv_pyramid_top_fragment_loop(void) {
+    N64_FRAME(24);
     object_step();
     o->oFaceAngleYaw += 0x1000;
     o->oFaceAnglePitch += 0x1000;

@@ -64,11 +64,49 @@ void set_vblank_handler(UNUSED s32 index, UNUSED struct VblankHandler *handler, 
 
 static uint8_t inited = 0;
 
+#ifdef HEADLESS_VERSION
+#include <emscripten.h>
+
+// Headless builds skip the display-list interpreter by default; its output
+// is never read back by the game. Re-enable it to compare against a build
+// that renders. While it is off, the render walk builds no display lists
+// either (GEO_DRAW in rendering_graph_node.h).
+int render_enabled = 0;
+
+EMSCRIPTEN_KEEPALIVE void set_render_enabled(int t) {
+    render_enabled = t;
+}
+
+#include "game/object_list_processor.h"
+
+// Opt-in approximation for cheaper search frames; a frozen game no longer
+// plays like the real one. 0 = off (exact), 1 = freeze every object except
+// Mario and doors, via the game's own time stop.
+static s32 sObjectFreezeMode = 0;
+static s32 sObjectsEverFrozen = 0;
+
+EMSCRIPTEN_KEEPALIVE void set_object_freeze(int mode) {
+    sObjectFreezeMode = mode;
+    sObjectsEverFrozen |= mode != 0;
+}
+
+// Nonzero once objects have been frozen: the game is approximate from then
+// on, even if freezing is switched off again.
+EMSCRIPTEN_KEEPALIVE int objects_ever_frozen(void) {
+    return sObjectsEverFrozen;
+}
+#endif
+
 #include "game/game_init.h" // for gGlobalTimer
 void exec_display_list(struct SPTask *spTask) {
     if (!inited) {
         return;
     }
+#ifdef HEADLESS_VERSION
+    if (!render_enabled) {
+        return;
+    }
+#endif
     gfx_run((Gfx *)spTask->task.t.data_ptr);
 }
 
@@ -82,9 +120,20 @@ void exec_display_list(struct SPTask *spTask) {
 #define SAMPLES_LOW 528
 #endif
 
+#ifdef HEADLESS_VERSION
+// Nothing plays the audio in a headless build, so don't synthesise it.
+static int audio_enabled = 0;
+#else
 static int audio_enabled = 1;
+#endif
 
 void produce_one_frame(void) {
+#ifdef HEADLESS_VERSION
+    // Reasserted every frame: dialogs, doors and star dances end time stop.
+    if (sObjectFreezeMode == 1) {
+        gTimeStopState |= TIME_STOP_ENABLED | TIME_STOP_ACTIVE;
+    }
+#endif
     gfx_start_frame();
     game_loop_one_iteration();
     
@@ -121,7 +170,7 @@ void nothing() {}
 void main_func() {
 #ifdef USE_SYSTEM_MALLOC
     main_pool_init();
-    gGfxAllocOnlyPool = alloc_only_pool_init();
+    gGfxAllocOnlyPool = alloc_only_pool_init_draw();
 #else
     static u64 pool[0x165000/8 / 4 * sizeof(void *)];
     main_pool_init(pool, pool + sizeof(pool) / sizeof(pool[0]));

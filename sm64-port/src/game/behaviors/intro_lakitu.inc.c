@@ -45,7 +45,7 @@ s32 intro_lakitu_set_pos_and_focus(struct Object *o, struct CutsceneSplinePoint 
                                    struct CutsceneSplinePoint focus[]) {
     Vec3f newOffset, newFocus;
     s32 splineFinished = 0;
-    s16 splineSegment = o->oIntroLakituSplineSegment;
+    s16 splineSegment = IDO_S16(o->oIntroLakituSplineSegment);
 
     if ((move_point_along_spline(newFocus, offset, &splineSegment, &(o->oIntroLakituSplineSegmentProgress)) == 1)
         || (move_point_along_spline(newOffset, focus, &splineSegment, &(o->oIntroLakituSplineSegmentProgress)) == 1))
@@ -58,6 +58,7 @@ s32 intro_lakitu_set_pos_and_focus(struct Object *o, struct CutsceneSplinePoint 
 }
 
 void bhv_intro_lakitu_loop(void) {
+    N64_FRAME(112);
     Vec3f sp64, sp58, sp4C;
     UNUSED u32 pad[4];
 
@@ -146,7 +147,7 @@ void bhv_intro_lakitu_loop(void) {
                 gCurrentObject->oFaceAngleYaw, gCurrentObject->oMoveAngleYaw + 0x8000, 4);
             vec3f_set_dist_and_angle(sp58, sp4C, gCurrentObject->oIntroLakituUnk100, 0,
                                      gCurrentObject->oMoveAngleYaw);
-            sp4C[1] += 150.f * coss((s16) gCurrentObject->oIntroLakituUnk104);
+            sp4C[1] += 150.f * coss((s16) IDO_S16(gCurrentObject->oIntroLakituUnk104));
             gCurrentObject->oIntroLakituUnk104 += gCurrentObject->oIntroLakituUnk108;
             gCurrentObject->oIntroLakituUnk108 =
                 approach_f32_asymptotic(gCurrentObject->oIntroLakituUnk108, 512.f, 0.05f);

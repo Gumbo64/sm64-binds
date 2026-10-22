@@ -3,6 +3,7 @@
 UNUSED u8 sCapSwitchText[] = { DIALOG_010, DIALOG_011, DIALOG_012 };
 
 void cap_switch_act_0(void) {
+    N64_FRAME(56);
     o->oAnimState = o->oBehParams2ndByte;
     cur_obj_scale(0.5f);
     o->oPosY += 71.0f;
@@ -26,6 +27,7 @@ void cap_switch_act_1(void) {
 }
 
 void cap_switch_act_2(void) {
+    N64_FRAME(32);
     s32 sp1C;
     if (o->oTimer < 5) {
         cur_obj_scale_over_time(2, 4, 0.5f, 0.1f);
@@ -55,5 +57,6 @@ void (*sCapSwitchActions[])(void) = { cap_switch_act_0, cap_switch_act_1,
                                       cap_switch_act_2, cap_switch_act_3 };
 
 void bhv_cap_switch_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sCapSwitchActions);
 }

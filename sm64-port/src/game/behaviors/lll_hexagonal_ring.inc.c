@@ -1,6 +1,7 @@
 // lll_hexagonal_ring.c.inc
 
 void hexagonal_ring_spawn_flames(void) {
+    N64_FRAME(32);
     struct Object *sp1C;
     f32 size;
     sp1C = spawn_object(o, MODEL_RED_FLAME, bhvVolcanoFlames);
@@ -15,6 +16,7 @@ void hexagonal_ring_spawn_flames(void) {
 }
 
 void bhv_lll_rotating_hexagonal_ring_loop(void) {
+    N64_FRAME(32);
     UNUSED s32 unused;
     o->oCollisionDistance = 4000.0f;
     o->oDrawingDistance = 8000.0f;

@@ -27,6 +27,17 @@ extern u16 gAreaUpdateCounter;
 // translation types the type is set to this
 #define ANIM_TYPE_ROTATION              5
 
+// Whether the render walk builds display lists. Headless builds can walk
+// without drawing (set_render_enabled in pc_main.c): the walk then keeps
+// everything the game reads from it and builds no display lists.
+#ifdef HEADLESS_VERSION
+extern int render_enabled;
+#define GEO_DRAW (render_enabled != 0)
+void geo_cache_invalidate(void);
+#else
+#define GEO_DRAW TRUE
+#endif
+
 void geo_process_node_and_siblings(struct GraphNode *firstNode);
 void geo_process_root(struct GraphNodeRoot *node, Vp *b, Vp *c, s32 clearColor);
 

@@ -198,6 +198,7 @@ static void amp_attack_cooldown_loop(void) {
  * Homing amp update function.
  */
 void bhv_homing_amp_loop(void) {
+    N64_FRAME(24);
     switch (o->oAction) {
         case HOMING_AMP_ACT_INACTIVE:
             if (is_point_within_radius_of_mario(o->oHomeX, o->oHomeY, o->oHomeZ, 800) == TRUE) {

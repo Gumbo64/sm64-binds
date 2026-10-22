@@ -152,7 +152,7 @@ void orbit_from_positions(Vec3s from, Vec3s to, s16 *radius, s16 *pitch, s16 *ya
     f32 dy = to[1] - from[1];
     f32 dz = to[2] - from[2];
 
-    *radius = (s16) sqrtf(dx * dx + dy * dy + dz * dz);
+    *radius = (s16) IDO_S16(sqrtf(dx * dx + dy * dy + dz * dz));
     *pitch = atan2s(sqrtf(dx * dx + dz * dz), dy);
     *yaw = atan2s(dz, dx);
 }
@@ -162,9 +162,9 @@ void orbit_from_positions(Vec3s from, Vec3s to, s16 *radius, s16 *pitch, s16 *ya
  * with a vector added represented by radius, pitch and yaw.
  */
 void pos_from_orbit(Vec3s origin, Vec3s result, s16 radius, s16 pitch, s16 yaw) {
-    result[0] = origin[0] + radius * coss(pitch) * sins(yaw);
-    result[1] = origin[1] + radius * sins(pitch);
-    result[2] = origin[2] + radius * coss(pitch) * coss(yaw);
+    result[0] = IDO_S16(origin[0] + radius * coss(pitch) * sins(yaw));
+    result[1] = IDO_S16(origin[1] + radius * sins(pitch));
+    result[2] = IDO_S16(origin[2] + radius * coss(pitch) * coss(yaw));
 }
 
 /**
@@ -219,9 +219,9 @@ void envfx_update_snow_normal(s32 snowCylinderX, s32 snowCylinderY, s32 snowCyli
             (gEnvFxBuffer + i)->yPos = 200.0f * random_float() + snowCylinderY;
             (gEnvFxBuffer + i)->isAlive = 1;
         } else {
-            (gEnvFxBuffer + i)->xPos += random_float() * 2 - 1.0f + (s16)(deltaX / 1.2);
-            (gEnvFxBuffer + i)->yPos -= 2 -(s16)(deltaY * 0.8);
-            (gEnvFxBuffer + i)->zPos += random_float() * 2 - 1.0f + (s16)(deltaZ / 1.2);
+            (gEnvFxBuffer + i)->xPos += random_float() * 2 - 1.0f + (s16)IDO_S16((deltaX / 1.2));
+            (gEnvFxBuffer + i)->yPos -= 2 -(s16)IDO_S16((deltaY * 0.8));
+            (gEnvFxBuffer + i)->zPos += random_float() * 2 - 1.0f + (s16)IDO_S16((deltaZ / 1.2));
         }
     }
 
@@ -253,9 +253,9 @@ void envfx_update_snow_blizzard(s32 snowCylinderX, s32 snowCylinderY, s32 snowCy
             (gEnvFxBuffer + i)->yPos = 400.0f * random_float() - 200.0f + snowCylinderY;
             (gEnvFxBuffer + i)->isAlive = 1;
         } else {
-            (gEnvFxBuffer + i)->xPos += random_float() * 2 - 1.0f + (s16)(deltaX / 1.2) + 20.0f;
-            (gEnvFxBuffer + i)->yPos -= 5 -(s16)(deltaY * 0.8);
-            (gEnvFxBuffer + i)->zPos += random_float() * 2 - 1.0f + (s16)(deltaZ / 1.2);
+            (gEnvFxBuffer + i)->xPos += random_float() * 2 - 1.0f + (s16)IDO_S16((deltaX / 1.2)) + 20.0f;
+            (gEnvFxBuffer + i)->yPos -= 5 -(s16)IDO_S16((deltaY * 0.8));
+            (gEnvFxBuffer + i)->zPos += random_float() * 2 - 1.0f + (s16)IDO_S16((deltaZ / 1.2));
         }
     }
 
@@ -323,17 +323,17 @@ void rotate_triangle_vertices(Vec3s vertex1, Vec3s vertex2, Vec3s vertex3, s16 p
     v3[1] = vertex3[1];
     v3[2] = vertex3[2];
 
-    vertex1[0] = v1[0] * cosMYaw + v1[1] * (sinPitch * sinMYaw) + v1[2] * (-sinMYaw * cosPitch);
-    vertex1[1] = v1[1] * cosPitch + v1[2] * sinPitch;
-    vertex1[2] = v1[0] * sinMYaw + v1[1] * (-sinPitch * cosMYaw) + v1[2] * (cosPitch * cosMYaw);
+    vertex1[0] = IDO_S16(v1[0] * cosMYaw + v1[1] * (sinPitch * sinMYaw) + v1[2] * (-sinMYaw * cosPitch));
+    vertex1[1] = IDO_S16(v1[1] * cosPitch + v1[2] * sinPitch);
+    vertex1[2] = IDO_S16(v1[0] * sinMYaw + v1[1] * (-sinPitch * cosMYaw) + v1[2] * (cosPitch * cosMYaw));
 
-    vertex2[0] = v2[0] * cosMYaw + v2[1] * (sinPitch * sinMYaw) + v2[2] * (-sinMYaw * cosPitch);
-    vertex2[1] = v2[1] * cosPitch + v2[2] * sinPitch;
-    vertex2[2] = v2[0] * sinMYaw + v2[1] * (-sinPitch * cosMYaw) + v2[2] * (cosPitch * cosMYaw);
+    vertex2[0] = IDO_S16(v2[0] * cosMYaw + v2[1] * (sinPitch * sinMYaw) + v2[2] * (-sinMYaw * cosPitch));
+    vertex2[1] = IDO_S16(v2[1] * cosPitch + v2[2] * sinPitch);
+    vertex2[2] = IDO_S16(v2[0] * sinMYaw + v2[1] * (-sinPitch * cosMYaw) + v2[2] * (cosPitch * cosMYaw));
 
-    vertex3[0] = v3[0] * cosMYaw + v3[1] * (sinPitch * sinMYaw) + v3[2] * (-sinMYaw * cosPitch);
-    vertex3[1] = v3[1] * cosPitch + v3[2] * sinPitch;
-    vertex3[2] = v3[0] * sinMYaw + v3[1] * (-sinPitch * cosMYaw) + v3[2] * (cosPitch * cosMYaw);
+    vertex3[0] = IDO_S16(v3[0] * cosMYaw + v3[1] * (sinPitch * sinMYaw) + v3[2] * (-sinMYaw * cosPitch));
+    vertex3[1] = IDO_S16(v3[1] * cosPitch + v3[2] * sinPitch);
+    vertex3[2] = IDO_S16(v3[0] * sinMYaw + v3[1] * (-sinPitch * cosMYaw) + v3[2] * (cosPitch * cosMYaw));
 }
 
 /**
@@ -462,6 +462,7 @@ Gfx *envfx_update_snow(s32 snowMode, Vec3s marioPos, Vec3s camFrom, Vec3s camTo)
  * and returns a display list drawing them.
  */
 Gfx *envfx_update_particles(s32 mode, Vec3s marioPos, Vec3s camTo, Vec3s camFrom) {
+    N64_FRAME(40);
     Gfx *gfx;
 
     if (get_dialog_id() != DIALOG_NONE) {

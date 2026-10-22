@@ -8,6 +8,7 @@
  * Update function for bhvHiddenBlueCoin.
  */
 void bhv_hidden_blue_coin_loop(void) {
+    N64_FRAME(40);
     struct Object *blueCoinSwitch;
 
     switch (o->oAction) {
@@ -60,6 +61,7 @@ void bhv_hidden_blue_coin_loop(void) {
  * Update function for bhvBlueCoinSwitch.
  */
 void bhv_blue_coin_switch_loop(void) {
+    N64_FRAME(40);
     // The switch's model is 1/3 size.
     cur_obj_scale(3.0f);
 

@@ -8,6 +8,7 @@ static void fire_spitter_act_idle(void) {
 }
 
 static void fire_spitter_act_spit_fire(void) {
+    N64_FRAME(48);
     s32 scaleStatus;
 
     o->oMoveAngleYaw = o->oAngleToMario;
@@ -27,6 +28,7 @@ static void fire_spitter_act_spit_fire(void) {
 }
 
 void bhv_fire_spitter_update(void) {
+    N64_FRAME(40);
     cur_obj_scale(o->header.gfx.scale[0]);
     o->oGraphYOffset = 40.0f;
     cur_obj_update_floor_and_walls();

@@ -68,9 +68,9 @@ void make_vertex(Vtx *vtx, s32 n, f32 x, f32 y, f32 z, s16 tx, s16 ty, u8 r, u8 
 s16 round_float(f32 num) {
     // Note that double literals are used here, rather than float literals.
     if (num >= 0.0) {
-        return num + 0.5;
+        return IDO_S16(num + 0.5);
     } else {
-        return num - 0.5;
+        return IDO_S16(num - 0.5);
     }
 }
 

@@ -54,6 +54,22 @@ static u8 sWigglerAttackHandlers[] = {
  */
 static f32 sWigglerSpeeds[] = { 2.0f, 40.0f, 30.0f, 16.0f };
 
+extern f32 gVolRampingLhs144[];
+
+/**
+ * sWigglerSpeeds[o->oHealth - 1], reading past the array where the N64 does:
+ * on his first walking frame his health is still the 2048 every object spawns
+ * with, and the float 2047 entries on is gVolRampingLhs144[80] (113762.27).
+ */
+static f32 wiggler_target_speed(void) {
+    s32 i = o->oHealth - 1;
+
+    if (i >= 0 && i < (s32) ARRAY_COUNT(sWigglerSpeeds)) {
+        return sWigglerSpeeds[i];
+    }
+    return i == 2047 ? gVolRampingLhs144[80] : 0.0f;
+}
+
 /**
  * Update function for bhvWigglerBody.
  * Set object position and angle based on wiggler segment data and avoid falling
@@ -62,6 +78,7 @@ static f32 sWigglerSpeeds[] = { 2.0f, 40.0f, 30.0f, 16.0f };
  * attack.
  */
 void bhv_wiggler_body_part_update(void) {
+    N64_FRAME(48);
     f32 dx;
     f32 dy;
     f32 dz;
@@ -116,6 +133,7 @@ void bhv_wiggler_body_part_update(void) {
  * Initialize the segment data and spawn the body part objects.
  */
 void wiggler_init_segments(void) {
+    N64_FRAME(56);
     s32 i;
     struct ChainSegment *segments;
     struct Object *bodyPart;
@@ -153,7 +171,7 @@ void wiggler_init_segments(void) {
         cur_obj_unhide();
     }
 
-#if defined(VERSION_EU) || defined(AVOID_UB)
+#ifdef VERSION_EU
     o->oHealth = 4; // This fixes Wiggler reading UB on his first frame of his acceleration, as his health is not set.
 #endif
 }
@@ -215,6 +233,7 @@ void wiggler_init_segments(void) {
  * If attacked by mario, enter either the jumped on or knockback action.
  */
 static void wiggler_act_walk(void) {
+    N64_FRAME(32);
     s16 yawTurnSpeed;
 
     o->oWigglerWalkAnimSpeed = 0.06f * o->oForwardVel;
@@ -236,8 +255,8 @@ static void wiggler_act_walk(void) {
         //! Every object's health is initially 2048, and wiggler's doesn't change
         //  to 4 until after this runs the first time. It indexes out of bounds
         //  and uses the value 113762.3 for one frame on US. This is fixed up
-        //  in wiggler_init_segments if AVOID_UB is defined.
-        obj_forward_vel_approach(sWigglerSpeeds[o->oHealth - 1], 1.0f);
+        //  in wiggler_init_segments on EU.
+        obj_forward_vel_approach(wiggler_target_speed(), 1.0f);
 
         if (o->oWigglerWalkAwayFromWallTimer != 0) {
             o->oWigglerWalkAwayFromWallTimer -= 1;
@@ -266,7 +285,7 @@ static void wiggler_act_walk(void) {
 
         // If moving at high speeds, could overflow. But can't reach such speeds
         // in practice
-        yawTurnSpeed = (s16)(30.0f * o->oForwardVel);
+        yawTurnSpeed = (s16)IDO_S16((30.0f * o->oForwardVel));
         cur_obj_rotate_yaw_toward(o->oWigglerTargetYaw, yawTurnSpeed);
         obj_face_yaw_approach(o->oMoveAngleYaw, 2 * yawTurnSpeed);
 
@@ -290,6 +309,7 @@ static void wiggler_act_walk(void) {
  * action.
  */
 static void wiggler_act_jumped_on(void) {
+    N64_FRAME(40);
     // Text to show on first, second, and third attack.
     s32 attackText[3] = { DIALOG_152, DIALOG_168, DIALOG_151 };
 
@@ -335,6 +355,7 @@ static void wiggler_act_jumped_on(void) {
  * Decelerate to a stop and then enter the walk action.
  */
 static void wiggler_act_knockback(void) {
+    N64_FRAME(24);
     if (o->oVelY > 0.0f) {
         o->oFaceAnglePitch -= o->oVelY * 30.0f;
     } else {
@@ -353,6 +374,7 @@ static void wiggler_act_knockback(void) {
  * Shrink, then spawn the star and enter the fall through floor action.
  */
 static void wiggler_act_shrink(void) {
+    N64_FRAME(24);
     if (o->oTimer >= 20) {
         if (o->oTimer == 20) {
             cur_obj_play_sound_2(SOUND_OBJ_ENEMY_DEFEAT_SHRINK);
@@ -401,6 +423,7 @@ void wiggler_jumped_on_attack_handler(void) {
  * Update function for bhvWigglerHead.
  */
 void bhv_wiggler_update(void) {
+    N64_FRAME(40);
     // PARTIAL_UPDATE
 
     if (o->oAction == WIGGLER_ACT_UNINITIALIZED) {

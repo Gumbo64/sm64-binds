@@ -70,7 +70,7 @@ void idle_ukiki_taunt(void) {
         // Counter keeps track of the iterations done, while ToBeDone
         // is the count of iterations to be done (between 2 and 5).
         o->oUkikiTauntCounter = 0;
-        o->oUkikiTauntsToBeDone = (s16)(random_float() * 4.0f + 2.0f);
+        o->oUkikiTauntsToBeDone = (s16)IDO_S16((random_float() * 4.0f + 2.0f));
     }
 
     // Switch goes from 1-4.
@@ -122,6 +122,7 @@ void idle_ukiki_taunt(void) {
  * standing around.
  */
 void ukiki_act_idle(void) {
+    N64_FRAME(24);
     idle_ukiki_taunt();
 
     if (is_cap_ukiki_and_mario_has_normal_cap_on_head()) {
@@ -477,6 +478,7 @@ void (*sUkikiActions[])(void) = {
  * being held, dropped, or thrown.
  */
 void ukiki_free_loop(void) {
+    N64_FRAME(32);
     s32 steepSlopeAngleDegrees;
 
     cur_obj_update_floor_and_walls();
@@ -611,6 +613,7 @@ void bhv_ukiki_init(void) {
  * dependent on the held state and whick ukiki it is (cage or cap).
  */
 void bhv_ukiki_loop(void) {
+    N64_FRAME(40);
     switch(o->oHeldState) {
         case HELD_FREE:
             //! @bug (PARTIAL_UPDATE)

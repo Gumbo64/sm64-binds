@@ -123,6 +123,7 @@ static void toad_message_opaque(void) {
 }
 
 static void toad_message_talking(void) {
+    N64_FRAME(40);
     if (cur_obj_update_dialog_with_cutscene(MARIO_DIALOG_LOOK_DOWN, 
         DIALOG_FLAG_TURN_TO_MARIO, CUTSCENE_DIALOG, gCurrentObject->oToadMessageDialogId)) {
         gCurrentObject->oToadMessageRecentlyTalked = TRUE;
@@ -157,6 +158,7 @@ static void toad_message_fading(void) {
 }
 
 void bhv_toad_message_loop(void) {
+    N64_FRAME(24);
     if (gCurrentObject->header.gfx.node.flags & GRAPH_RENDER_ACTIVE) {
         gCurrentObject->oInteractionSubtype = 0;
         switch (gCurrentObject->oToadMessageState) {
@@ -216,6 +218,7 @@ void bhv_toad_message_init(void) {
 }
 
 static void star_door_unlock_spawn_particles(s16 angleOffset) {
+    N64_FRAME(32);
     struct Object *sparkleParticle = spawn_object(gCurrentObject, 0, bhvSparkleSpawn);
 
     sparkleParticle->oPosX +=
@@ -238,6 +241,7 @@ void bhv_unlock_door_star_init(void) {
 }
 
 void bhv_unlock_door_star_loop(void) {
+    N64_FRAME(48);
     UNUSED u8 unused1[4];
     s16 prevYaw = gCurrentObject->oMoveAngleYaw;
     UNUSED u8 unused2[4];
@@ -527,9 +531,9 @@ Gfx *geo_mario_rotate_wing_cap_wings(s32 callContext, struct GraphNode *node, UN
         struct GraphNodeRotation *rotNode = (struct GraphNodeRotation *) node->next;
 
         if (!gBodyStates[asGenerated->parameter >> 1].wingFlutter) {
-            rotX = (coss((gAreaUpdateCounter & 0xF) << 12) + 1.0f) * 4096.0f;
+            rotX = IDO_S16((coss((gAreaUpdateCounter & 0xF) << 12) + 1.0f) * 4096.0f);
         } else {
-            rotX = (coss((gAreaUpdateCounter & 7) << 13) + 1.0f) * 6144.0f;
+            rotX = IDO_S16((coss((gAreaUpdateCounter & 7) << 13) + 1.0f) * 6144.0f);
         }
         if (!(asGenerated->parameter & 1)) {
             rotNode->rotation[0] = -rotX;

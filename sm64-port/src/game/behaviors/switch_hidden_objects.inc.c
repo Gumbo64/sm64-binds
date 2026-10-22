@@ -32,6 +32,7 @@ void breakable_box_init(void) {
 }
 
 void hidden_breakable_box_actions(void) {
+    N64_FRAME(32);
     struct Object *sp1C;
     obj_set_hitbox(o, &sBreakableBoxHitbox);
     cur_obj_set_model(MODEL_BREAKABLE_BOX_SMALL);
@@ -92,6 +93,7 @@ void hidden_unbreakable_box_actions(void) {
 }
 
 void bhv_hidden_object_loop(void) {
+    N64_FRAME(24);
     if (o->oBehParams2ndByte == 0)
         hidden_breakable_box_actions(); // Confused, that function has code depending on the action
     else

@@ -353,8 +353,8 @@ Gfx *geo_movtex_pause_control(s32 callContext, UNUSED struct GraphNode *node, UN
  */
 void movtex_make_quad_vertex(Vtx *verts, s32 index, s16 x, s16 y, s16 z, s16 rot, s16 rotOffset,
                              f32 scale, u8 alpha) {
-    s16 s = 32.0 * (32.0 * scale - 1.0) * sins(rot + rotOffset);
-    s16 t = 32.0 * (32.0 * scale - 1.0) * coss(rot + rotOffset);
+    s16 s = IDO_S16(32.0 * (32.0 * scale - 1.0) * sins(rot + rotOffset));
+    s16 t = IDO_S16(32.0 * (32.0 * scale - 1.0) * coss(rot + rotOffset));
 
     if (gMovtexVtxColor == MOVTEX_VTX_COLOR_YELLOW) {
         make_vertex(verts, index, x, y, z, s, t, 255, 255, 0, alpha);

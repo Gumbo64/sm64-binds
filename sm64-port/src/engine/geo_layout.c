@@ -254,6 +254,7 @@ void geo_layout_cmd_node_ortho_projection(void) {
    [cmd+0x08: GraphNodeFunc frustumFunc]
 */
 void geo_layout_cmd_node_perspective(void) {
+    N64_FRAME(56);
     struct GraphNodePerspective *graphNode;
     GraphNodeFunc frustumFunc = NULL;
     s16 fov = cur_geo_cmd_s16(0x02);
@@ -333,6 +334,7 @@ void geo_layout_cmd_node_level_of_detail(void) {
   Used for animating coins, blinking, color selection, etc.
 */
 void geo_layout_cmd_node_switch_case(void) {
+    N64_FRAME(40);
     struct GraphNodeSwitchCase *graphNode;
 
     graphNode =
@@ -359,6 +361,7 @@ void geo_layout_cmd_node_switch_case(void) {
   cmd+0x10: GraphNodeFunc func
 */
 void geo_layout_cmd_node_camera(void) {
+    N64_FRAME(64);
     struct GraphNodeCamera *graphNode;
     s16 *cmdPos = (s16 *) &gGeoLayoutCommand[4];
 
@@ -671,6 +674,7 @@ void geo_layout_cmd_node_object_parent(void) {
    cmd+0x04: GraphNodeFunc func
 */
 void geo_layout_cmd_node_generated(void) {
+    N64_FRAME(32);
     struct GraphNodeGenerated *graphNode;
 
     graphNode = init_graph_node_generated(gGraphNodePool, NULL,
@@ -688,6 +692,7 @@ void geo_layout_cmd_node_generated(void) {
    cmd+0x04: GraphNodeFunc backgroundFunc
 */
 void geo_layout_cmd_node_background(void) {
+    N64_FRAME(40);
     struct GraphNodeBackground *graphNode;
 
     graphNode = init_graph_node_background(
@@ -742,6 +747,7 @@ void geo_layout_cmd_copy_view(void) {
    cmd+0x08: GraphNodeFunc nodeFunc
 */
 void geo_layout_cmd_node_held_obj(void) {
+    N64_FRAME(48);
     struct GraphNodeHeldObject *graphNode;
     Vec3s offset;
 
@@ -768,6 +774,7 @@ void geo_layout_cmd_node_culling_radius(void) {
 }
 
 struct GraphNode *process_geo_layout(struct AllocOnlyPool *pool, void *segptr) {
+    N64_FRAME(24);
     // set by register_scene_graph_node when gCurGraphNodeIndex is 0
     // and gCurRootGraphNode is NULL
     gCurRootGraphNode = NULL;

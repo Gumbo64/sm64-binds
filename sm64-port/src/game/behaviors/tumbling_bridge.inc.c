@@ -13,6 +13,7 @@ struct Struct8032F34C sTumblingBridgeParams[] = {
 };
 
 void bhv_tumbling_bridge_platform_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case 0:
             if (gMarioObject->platform == o) {
@@ -46,6 +47,7 @@ void bhv_tumbling_bridge_platform_loop(void) {
 }
 
 void tumbling_bridge_act_1(void) {
+    N64_FRAME(72);
     struct Object *platformObj;
     s32 i;
     s32 bridgeID = o->oBehParams2ndByte;
@@ -105,5 +107,6 @@ void (*sTumblingBridgeActions[])(void) = { tumbling_bridge_act_0, tumbling_bridg
                                            tumbling_bridge_act_2, tumbling_bridge_act_3 };
 
 void bhv_tumbling_bridge_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sTumblingBridgeActions);
 }

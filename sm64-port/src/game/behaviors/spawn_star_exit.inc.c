@@ -1,6 +1,7 @@
 // spawn_star_exit.c.inc
 
 void bhv_ccm_touched_star_spawn_loop(void) {
+    N64_FRAME(24);
     if (gCCMEnteredSlide & 1) {
         o->oPosY += 100.0f;
         o->oPosX = 2780.0f;

@@ -53,6 +53,7 @@ void bhv_beta_trampoline_spring_loop(void) {
  * do anything.
  */
 void bhv_beta_trampoline_top_loop(void) {
+    N64_FRAME(32);
     cur_obj_set_model(MODEL_TRAMPOLINE);
 
     // When initialized, spawn the rest of the trampoline

@@ -47,5 +47,6 @@ void (*sGrindelThwompActions[])(void) = { grindel_thwomp_act_0, grindel_thwomp_a
                                           grindel_thwomp_act_4 };
 
 void bhv_grindel_thwomp_loop(void) {
+    N64_FRAME(24);
     cur_obj_call_action_function(sGrindelThwompActions);
 }

@@ -44,6 +44,7 @@ s16 convert_rotation(s16 inRotation) {
  * The object will not spawn if 'behavior' is NULL.
  */
 void spawn_macro_abs_yrot_2params(s32 model, const BehaviorScript *behavior, s16 x, s16 y, s16 z, s16 ry, s16 params) {
+    N64_FRAME(64);
     if (behavior != NULL) {
         struct Object *newObj = spawn_object_abs_with_rot(
             &gMacroObjectDefaultParent, 0, model, behavior, x, y, z, 0, convert_rotation(ry), 0);
@@ -57,6 +58,7 @@ void spawn_macro_abs_yrot_2params(s32 model, const BehaviorScript *behavior, s16
  * The object will not spawn if 'behavior' is NULL.
  */
 void spawn_macro_abs_yrot_param1(s32 model, const BehaviorScript *behavior, s16 x, s16 y, s16 z, s16 ry, s16 param) {
+    N64_FRAME(64);
     if (behavior != NULL) {
         struct Object *newObj = spawn_object_abs_with_rot(
             &gMacroObjectDefaultParent, 0, model, behavior, x, y, z, 0, convert_rotation(ry), 0);
@@ -70,6 +72,7 @@ void spawn_macro_abs_yrot_param1(s32 model, const BehaviorScript *behavior, s16 
  */
 void spawn_macro_abs_special(s32 model, const BehaviorScript *behavior, s16 x, s16 y, s16 z, s16 unkA, s16 unkB,
                              s16 unkC) {
+    N64_FRAME(56);
     struct Object *newObj =
         spawn_object_abs_with_rot(&gMacroObjectDefaultParent, 0, model, behavior, x, y, z, 0, 0, 0);
 
@@ -80,6 +83,7 @@ void spawn_macro_abs_special(s32 model, const BehaviorScript *behavior, s16 x, s
 }
 
 UNUSED static void spawn_macro_coin_unknown(const BehaviorScript *behavior, s16 a1[]) {
+    N64_FRAME(64);
     struct Object *sp3C;
     s16 model;
 
@@ -105,6 +109,7 @@ struct LoadedPreset {
 #define MACRO_OBJ_PARAMS 4
 
 void spawn_macro_objects(s16 areaIndex, s16 *macroObjList) {
+    N64_FRAME(96);
     UNUSED u32 pad5C;
     s32 presetID;
 
@@ -172,6 +177,7 @@ void spawn_macro_objects(s16 areaIndex, s16 *macroObjList) {
 }
 
 void spawn_macro_objects_hardcoded(s16 areaIndex, s16 *macroObjList) {
+    N64_FRAME(72);
     UNUSED u8 pad[8];
 
     // This version of macroObjList has the preset and Y-Rotation separated,
@@ -238,6 +244,7 @@ void spawn_macro_objects_hardcoded(s16 areaIndex, s16 *macroObjList) {
 }
 
 void spawn_special_objects(s16 areaIndex, s16 **specialObjList) {
+    N64_FRAME(80);
     s32 numOfSpecialObjects;
     s32 i;
     s32 offset;

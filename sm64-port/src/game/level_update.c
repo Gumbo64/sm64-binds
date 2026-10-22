@@ -286,8 +286,8 @@ void init_door_warp(struct SpawnInfo *spawnInfo, u32 arg1) {
         spawnInfo->startAngle[1] += 0x8000;
     }
 
-    spawnInfo->startPos[0] += 300.0f * sins(spawnInfo->startAngle[1]);
-    spawnInfo->startPos[2] += 300.0f * coss(spawnInfo->startAngle[1]);
+    spawnInfo->startPos[0] = IDO_S16(spawnInfo->startPos[0] + (300.0f * sins(spawnInfo->startAngle[1])));
+    spawnInfo->startPos[2] = IDO_S16(spawnInfo->startPos[2] + (300.0f * coss(spawnInfo->startAngle[1])));
 }
 
 void set_mario_initial_cap_powerup(struct MarioState *m) {
@@ -373,13 +373,14 @@ void set_mario_initial_action(struct MarioState *m, u32 spawnType, u32 actionArg
 }
 
 void init_mario_after_warp(void) {
+    N64_FRAME(40);
     struct ObjectWarpNode *spawnNode = area_get_warp_node(sWarpDest.nodeId);
     u32 marioSpawnType = get_mario_spawn_type(spawnNode->object);
 
     if (gMarioState->action != ACT_UNINITIALIZED) {
-        gPlayerSpawnInfos[0].startPos[0] = (s16) spawnNode->object->oPosX;
-        gPlayerSpawnInfos[0].startPos[1] = (s16) spawnNode->object->oPosY;
-        gPlayerSpawnInfos[0].startPos[2] = (s16) spawnNode->object->oPosZ;
+        gPlayerSpawnInfos[0].startPos[0] = (s16) IDO_S16(spawnNode->object->oPosX);
+        gPlayerSpawnInfos[0].startPos[1] = (s16) IDO_S16(spawnNode->object->oPosY);
+        gPlayerSpawnInfos[0].startPos[2] = (s16) IDO_S16(spawnNode->object->oPosZ);
 
         gPlayerSpawnInfos[0].startAngle[0] = 0;
         gPlayerSpawnInfos[0].startAngle[1] = spawnNode->object->oMoveAngleYaw;
@@ -468,6 +469,7 @@ void init_mario_after_warp(void) {
 
 // used for warps inside one level
 void warp_area(void) {
+    N64_FRAME(24);
     if (sWarpDest.type != WARP_TYPE_NOT_WARPING) {
         if (sWarpDest.type == WARP_TYPE_CHANGE_AREA) {
             level_control_timer(TIMER_CONTROL_HIDE);
@@ -481,6 +483,7 @@ void warp_area(void) {
 
 // used for warps between levels
 void warp_level(void) {
+    N64_FRAME(24);
     gCurrLevelNum = sWarpDest.levelNum;
 
     level_control_timer(TIMER_CONTROL_HIDE);
@@ -490,6 +493,7 @@ void warp_level(void) {
 }
 
 void warp_credits(void) {
+    N64_FRAME(48);
     s32 marioAction;
 
     switch (sWarpDest.nodeId) {
@@ -535,6 +539,7 @@ void warp_credits(void) {
 }
 
 void check_instant_warp(void) {
+    N64_FRAME(40);
     s16 cameraAngle;
     struct Surface *floor;
 
@@ -958,6 +963,7 @@ void update_hud_values(void) {
  * warp twice.
  */
 void basic_update(UNUSED s16 *arg) {
+    N64_FRAME(24);
     area_update_objects();
     update_hud_values();
 
@@ -967,6 +973,7 @@ void basic_update(UNUSED s16 *arg) {
 }
 
 s32 play_mode_normal(void) {
+    N64_FRAME(40);
     if (gCurrDemoInput != NULL) {
         print_intro_text();
         if (gPlayer1Controller->buttonPressed & END_DEMO) {
@@ -1042,6 +1049,7 @@ s32 play_mode_paused(void) {
  * it uses the pause camera, making it basically unusable in most levels.
  */
 s32 play_mode_frame_advance(void) {
+    N64_FRAME(24);
     if (gPlayer1Controller->buttonPressed & D_JPAD) {
         gCameraMovementFlags &= ~CAM_MOVE_PAUSE_SCREEN;
         play_mode_normal();
@@ -1070,6 +1078,7 @@ void level_set_transition(s16 length, void (*updateFunction)(s16 *)) {
  * Play the transition and then return to normal play mode.
  */
 s32 play_mode_change_area(void) {
+    N64_FRAME(24);
     //! This maybe was supposed to be sTransitionTimer == -1? sTransitionUpdate
     // is never set to -1.
     if (sTransitionUpdate == (void (*)(s16 *)) - 1) {
@@ -1094,6 +1103,7 @@ s32 play_mode_change_area(void) {
  * Play the transition and then return to normal play mode.
  */
 s32 play_mode_change_level(void) {
+    N64_FRAME(24);
     if (sTransitionUpdate != NULL) {
         sTransitionUpdate(&sTransitionTimer);
     }
@@ -1131,6 +1141,7 @@ UNUSED static s32 play_mode_unused(void) {
 }
 
 s32 update_level(void) {
+    N64_FRAME(32);
     s32 changeLevel;
 
     switch (sCurrPlayMode) {
@@ -1160,6 +1171,7 @@ s32 update_level(void) {
 }
 
 s32 init_level(void) {
+    N64_FRAME(40);
     s32 val4 = 0;
 
     set_play_mode(PLAY_MODE_NORMAL);
@@ -1232,6 +1244,7 @@ s32 init_level(void) {
  * Initialize the current level if initOrUpdate is 0, or update the level if it is 1.
  */
 s32 lvl_init_or_update(s16 initOrUpdate, UNUSED s32 unused) {
+    N64_FRAME(40);
     s32 result = 0;
 
     switch (initOrUpdate) {

@@ -27,6 +27,7 @@ static struct ObjectHitbox sMovingBlueCoinHitbox = {
 };
 
 s32 coin_step(s16 *collisionFlagsPtr) {
+    N64_FRAME(24);
     *collisionFlagsPtr = object_step();
 
     obj_check_floor_death(*collisionFlagsPtr, sObjFloor);
@@ -41,6 +42,7 @@ s32 coin_step(s16 *collisionFlagsPtr) {
 }
 
 void moving_coin_flicker(void) {
+    N64_FRAME(32);
     s16 collisionFlags;
 
     coin_step(&collisionFlags);
@@ -48,6 +50,7 @@ void moving_coin_flicker(void) {
 }
 
 void coin_collected(void) {
+    N64_FRAME(24);
     spawn_object(o, MODEL_SPARKLES, bhvGoldenCoinSparkles);
     o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
 }
@@ -61,6 +64,7 @@ void bhv_moving_yellow_coin_init(void) {
 }
 
 void bhv_moving_yellow_coin_loop(void) {
+    N64_FRAME(40);
     s16 collisionFlags;
     switch (o->oAction) {
         case MOV_YCOIN_ACT_IDLE:
@@ -104,6 +108,7 @@ void bhv_moving_blue_coin_init(void) {
 }
 
 void bhv_moving_blue_coin_loop(void) {
+    N64_FRAME(40);
     s16 collisionFlags;
 
     switch (o->oAction) {
@@ -145,6 +150,7 @@ void bhv_blue_coin_sliding_jumping_init(void) {
 }
 
 void blue_coin_sliding_away_from_mario(void) {
+    N64_FRAME(32);
     s16 collisionFlags;
 
     o->oForwardVel = 15.0;
@@ -160,6 +166,7 @@ void blue_coin_sliding_away_from_mario(void) {
 }
 
 void blue_coin_sliding_slow_down(void) {
+    N64_FRAME(32);
     s16 collisionFlags;
 
     coin_step(&collisionFlags);
@@ -172,6 +179,7 @@ void blue_coin_sliding_slow_down(void) {
 }
 
 void bhv_blue_coin_sliding_loop(void) {
+    N64_FRAME(40);
     s16 collisionFlags;
 
     switch (o->oAction) {
@@ -218,6 +226,7 @@ void bhv_blue_coin_sliding_loop(void) {
 }
 
 void bhv_blue_coin_jumping_loop(void) {
+    N64_FRAME(32);
     s16 collisionFlags;
 
     switch (o->oAction) {

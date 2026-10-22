@@ -13,6 +13,7 @@ static struct ObjectHitbox sRollingSphereHitbox = {
 };
 
 void bhv_snowmans_bottom_init(void) {
+    N64_FRAME(56);
     struct Object *sp34;
 
     o->oHomeX = o->oPosX;
@@ -43,7 +44,7 @@ void set_rolling_sphere_hitbox(void) {
 }
 
 void adjust_rolling_face_pitch(f32 f12) {
-    o->oFaceAnglePitch += (s16)(o->oForwardVel * (100.0f / f12));
+    o->oFaceAnglePitch += (s16)IDO_S16((o->oForwardVel * (100.0f / f12)));
     o->oSnowmansBottomUnkF4 += o->oForwardVel * 1e-4;
 
     if (o->oSnowmansBottomUnkF4 > 1.0)
@@ -51,6 +52,7 @@ void adjust_rolling_face_pitch(f32 f12) {
 }
 
 void snowmans_bottom_act_1(void) {
+    N64_FRAME(40);
     UNUSED s16 sp26;
     s32 sp20;
     UNUSED s16 sp1E;
@@ -80,6 +82,7 @@ void snowmans_bottom_act_1(void) {
 }
 
 void snowmans_bottom_act_2(void) {
+    N64_FRAME(40);
     UNUSED s16 sp26;
 
     sp26 = object_step_without_floor_orient();
@@ -106,6 +109,7 @@ void snowmans_bottom_act_2(void) {
 }
 
 void snowmans_bottom_act_3(void) {
+    N64_FRAME(32);
     UNUSED s16 sp1E;
 
     sp1E = object_step_without_floor_orient();
@@ -123,6 +127,7 @@ void snowmans_bottom_act_3(void) {
 }
 
 void bhv_snowmans_bottom_loop(void) {
+    N64_FRAME(32);
     s16 sp1E;
 
     switch (o->oAction) {
@@ -166,6 +171,7 @@ void bhv_snowmans_bottom_loop(void) {
 }
 
 void bhv_snowmans_head_init(void) {
+    N64_FRAME(56);
     u8 sp37;
     s8 sp36;
 
@@ -189,6 +195,7 @@ void bhv_snowmans_head_init(void) {
 }
 
 void bhv_snowmans_head_loop(void) {
+    N64_FRAME(32);
     UNUSED s16 sp1E;
     s16 sp1C;
 

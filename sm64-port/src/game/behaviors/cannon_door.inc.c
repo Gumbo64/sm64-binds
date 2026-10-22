@@ -1,6 +1,7 @@
 // cannon.c.inc
 
 void bhv_cannon_closed_init(void) {
+    N64_FRAME(32);
     struct Object *cannon;
 
     if (save_file_is_cannon_unlocked() == 1) {
@@ -17,6 +18,7 @@ void bhv_cannon_closed_init(void) {
 }
 
 void cannon_door_act_opening(void) {
+    N64_FRAME(24);
     if (o->oTimer == 0)
         cur_obj_play_sound_2(SOUND_GENERAL_CANNON_UP);
 
@@ -37,6 +39,7 @@ void cannon_door_act_opening(void) {
 }
 
 void bhv_cannon_closed_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case CANNON_TRAP_DOOR_ACT_CLOSED:
             o->oVelX = 0;

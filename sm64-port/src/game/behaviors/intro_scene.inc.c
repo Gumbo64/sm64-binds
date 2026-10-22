@@ -3,9 +3,10 @@
 void spawn_child_obj_relative(struct Object *parent, s16 xOffset, s16 yOffset, s16 zOffset, s16 pitchOffset,
                    s16 yawOffset, s16 rollOffset, s16 forwardVel,
                    s32 model, const BehaviorScript *behavior) {
+    N64_FRAME(32);
     struct Object *sp1C = spawn_object(parent, model, behavior);
 
-    sp1C->header.gfx.animInfo.animFrame = random_float() * 6.f;
+    sp1C->header.gfx.animInfo.animFrame = IDO_S16(random_float() * 6.f);
     sp1C->oEndBirdUnk104 = sCutsceneVars[9].point[0];
     sCutsceneVars[9].point[0] += 1.f;
     sp1C->oPosX += xOffset;
@@ -20,6 +21,7 @@ void spawn_child_obj_relative(struct Object *parent, s16 xOffset, s16 yOffset, s
 }
 
 void bhv_intro_scene_loop(void) {
+    N64_FRAME(56);
     UNUSED struct Object *sp34;
 
     if (gCutsceneObjSpawn != 0) {

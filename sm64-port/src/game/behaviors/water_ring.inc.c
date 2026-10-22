@@ -45,6 +45,7 @@ void bhv_jet_stream_water_ring_init(void) {
 // sp2c = ringManager
 
 void water_ring_check_collection(f32 avgScale, struct Object *ringManager) {
+    N64_FRAME(40);
     f32 marioDistInFront = water_ring_calc_mario_dist();
     struct Object *ringSpawner;
 
@@ -106,6 +107,7 @@ void water_ring_act_collected(void) {
 }
 
 void water_ring_act_not_collected(void) {
+    N64_FRAME(40);
     f32 avgScale = (f32) o->oTimer / 225.0 * 3.0 + 0.5;
 
     //! In this case ringSpawner and ringManager are the same object,
@@ -134,6 +136,7 @@ void water_ring_act_not_collected(void) {
 }
 
 void bhv_jet_stream_water_ring_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case WATER_RING_ACT_NOT_COLLECTED:
             water_ring_act_not_collected();
@@ -146,11 +149,13 @@ void bhv_jet_stream_water_ring_loop(void) {
 }
 
 void spawn_manta_ray_ring_manager(void) {
+    N64_FRAME(32);
     struct Object *ringManager = spawn_object(o, MODEL_NONE, bhvMantaRayRingManager);
     o->parentObj = ringManager;
 }
 
 void water_ring_spawner_act_inactive(void) {
+    N64_FRAME(32);
     //! The Jet Stream Ring Spawner is its own parent object. The code may have been copied
     //  from the Manta Ray, which spawns rings but also has a Ring Manager object as its
     //  parent. The Jet Stream Ring Spawner functions as both a spawner and a Ring Manager.
@@ -173,6 +178,7 @@ void water_ring_spawner_act_inactive(void) {
 }
 
 void bhv_jet_stream_ring_spawner_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case JS_RING_SPAWNER_ACT_ACTIVE:
             water_ring_spawner_act_inactive();
@@ -197,6 +203,7 @@ void bhv_manta_ray_water_ring_init(void) {
 }
 
 void manta_water_ring_act_not_collected(void) {
+    N64_FRAME(40);
     f32 avgScale = (f32) o->oTimer / 50.0f * 1.3 + 0.1;
     struct Object *ringSpawner = o->parentObj;
     struct Object *ringManager = ringSpawner->parentObj;
@@ -222,6 +229,7 @@ void manta_water_ring_act_not_collected(void) {
 }
 
 void bhv_manta_ray_water_ring_loop(void) {
+    N64_FRAME(40);
     switch (o->oAction) {
         case WATER_RING_ACT_NOT_COLLECTED:
             manta_water_ring_act_not_collected();

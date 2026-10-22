@@ -53,6 +53,9 @@ struct AllocOnlyPool {
     struct AllocOnlyPoolBlock *lastBlock;
     u32 lastBlockSize;
     u32 lastBlockNextPos;
+#ifdef HEADLESS_VERSION
+    u32 inDrawArena;
+#endif
 };
 
 struct FreeListNode {
@@ -487,14 +490,55 @@ void load_engine_code_segment(void) {
 #endif
 
 #ifdef USE_SYSTEM_MALLOC
+#ifdef HEADLESS_VERSION
+// The display lists' memory (alloc_only_pool_init_draw) comes from an arena of
+// its own rather than from malloc, so that the heap is the same whether or not
+// a frame draws: the render walk can leave the display lists out (GEO_DRAW in
+// rendering_graph_node.h). Display lists last one frame, so the arena starts
+// over with the next frame's (select_gfx_pool). A drawn frame needs up to about
+// 128 KiB; if the arena ever runs out, blocks come from malloc again.
+#define DRAW_ARENA_SIZE (512 * 1024)
+static u8 sDrawArena[DRAW_ARENA_SIZE] __attribute__((aligned(16)));
+static u32 sDrawArenaUsed;
+
+void draw_arena_reset(void) {
+    sDrawArenaUsed = 0;
+}
+
+static void *alloc_only_pool_new_block(struct AllocOnlyPool *pool, u32 size) {
+    if (pool->inDrawArena && ALIGN16(size) <= DRAW_ARENA_SIZE - sDrawArenaUsed) {
+        void *block = sDrawArena + sDrawArenaUsed;
+        sDrawArenaUsed += ALIGN16(size);
+        return block;
+    }
+    return malloc(size);
+}
+
+static void alloc_only_pool_free_block(void *block) {
+    if ((u8 *) block < sDrawArena || (u8 *) block >= sDrawArena + DRAW_ARENA_SIZE) {
+        free(block);
+    }
+}
+#else
+#define alloc_only_pool_new_block(pool, size) malloc(size)
+#define alloc_only_pool_free_block(block) free(block)
+#endif
+
 static void alloc_only_pool_release_handler(void *addr) {
     struct AllocOnlyPool *pool = (struct AllocOnlyPool *) addr;
     struct AllocOnlyPoolBlock *block = pool->lastBlock;
     while (block != NULL) {
         struct AllocOnlyPoolBlock *prev = block->prev;
-        free(block);
+        alloc_only_pool_free_block(block);
         block = prev;
     }
+#ifdef HEADLESS_VERSION
+    // Forget the blocks: what is left in a freed pool then does not depend on
+    // whether the frame drew.
+    pool->lastBlock = NULL;
+    pool->lastBlockSize = 0;
+    pool->lastBlockNextPos = 0;
+#endif
 }
 
 struct AllocOnlyPool *alloc_only_pool_init(void) {
@@ -505,9 +549,24 @@ struct AllocOnlyPool *alloc_only_pool_init(void) {
     pool->lastBlock = NULL;
     pool->lastBlockSize = 0;
     pool->lastBlockNextPos = 0;
+#ifdef HEADLESS_VERSION
+    pool->inDrawArena = FALSE;
+#endif
 
     return pool;
 }
+
+#ifdef HEADLESS_VERSION
+/**
+ * An allocation-only pool for display lists, in the draw arena.
+ */
+struct AllocOnlyPool *alloc_only_pool_init_draw(void) {
+    struct AllocOnlyPool *pool = alloc_only_pool_init();
+
+    pool->inDrawArena = TRUE;
+    return pool;
+}
+#endif
 
 void alloc_only_pool_clear(struct AllocOnlyPool *pool) {
     alloc_only_pool_release_handler(pool);
@@ -528,7 +587,8 @@ void *alloc_only_pool_alloc(struct AllocOnlyPool *pool, s32 size) {
         if (nextSize < s) {
             nextSize = s;
         }
-        block = (struct AllocOnlyPoolBlock *) malloc(sizeof(struct AllocOnlyPoolBlock) + nextSize);
+        block = (struct AllocOnlyPoolBlock *) alloc_only_pool_new_block(
+            pool, sizeof(struct AllocOnlyPoolBlock) + nextSize);
         if (block == NULL) {
             abort();
         }

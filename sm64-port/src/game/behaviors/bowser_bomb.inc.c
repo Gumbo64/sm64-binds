@@ -1,6 +1,7 @@
 // bowser_bomb.c.inc
 
 void bhv_bowser_bomb_loop(void) {
+    N64_FRAME(24);
     if (obj_check_if_collided_with_object(o, gMarioObject) == 1) {
         o->oInteractStatus &= ~INT_STATUS_INTERACTED;
         spawn_object(o, MODEL_EXPLOSION, bhvExplosion);
@@ -19,6 +20,7 @@ void bhv_bowser_bomb_loop(void) {
 }
 
 void bhv_bowser_bomb_explosion_loop(void) {
+    N64_FRAME(40);
     struct Object *mineSmoke;
 
     cur_obj_scale((f32) o->oTimer / 14.0f * 9.0 + 1.0);

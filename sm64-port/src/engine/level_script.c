@@ -234,6 +234,7 @@ static void level_cmd_skippable_nop(void) {
 }
 
 static void level_cmd_call(void) {
+    N64_FRAME(32);
     typedef s32 (*Func)(s16, s32);
     Func func = CMD_GET(Func, 4);
     sRegister = func(CMD_GET(s16, 2), sRegister);
@@ -241,6 +242,7 @@ static void level_cmd_call(void) {
 }
 
 static void level_cmd_call_loop(void) {
+    N64_FRAME(32);
     typedef s32 (*Func)(s16, s32);
     Func func = CMD_GET(Func, 4);
     sRegister = func(CMD_GET(s16, 2), sRegister);
@@ -331,6 +333,7 @@ static void level_cmd_init_level(void) {
 }
 
 static void level_cmd_clear_level(void) {
+    N64_FRAME(24);
     clear_objects();
     clear_area_graph_nodes();
     clear_areas();
@@ -371,6 +374,7 @@ static void level_cmd_free_level_pool(void) {
 }
 
 static void level_cmd_begin_area(void) {
+    N64_FRAME(40);
     u8 areaIndex = CMD_GET(u8, 2);
     void *geoLayoutAddr = CMD_GET(void *, 4);
 
@@ -412,6 +416,7 @@ static void level_cmd_load_model_from_dl(void) {
 }
 
 static void level_cmd_load_model_from_geo(void) {
+    N64_FRAME(32);
     s16 arg0 = CMD_GET(s16, 2);
     void *arg1 = CMD_GET(void *, 4);
 
@@ -664,6 +669,7 @@ static void level_cmd_set_macro_objects(void) {
 }
 
 static void level_cmd_load_area(void) {
+    N64_FRAME(32);
     s16 areaIndex = CMD_GET(u8, 2);
     UNUSED void *unused = (u8 *) sCurrentCmd + 4;
 
@@ -674,6 +680,7 @@ static void level_cmd_load_area(void) {
 }
 
 static void level_cmd_unload_area(void) {
+    N64_FRAME(24);
     unload_area();
     sCurrentCmd = CMD_NEXT;
 }
@@ -692,11 +699,13 @@ static void level_cmd_set_mario_start_pos(void) {
 }
 
 static void level_cmd_2C(void) {
+    N64_FRAME(24);
     unload_mario_area();
     sCurrentCmd = CMD_NEXT;
 }
 
 static void level_cmd_2D(void) {
+    N64_FRAME(24);
     area_update_objects();
     sCurrentCmd = CMD_NEXT;
 }
@@ -846,6 +855,7 @@ static void (*LevelScriptJumpTable[])(void) = {
 };
 
 struct LevelCommand *level_script_execute(struct LevelCommand *cmd) {
+    N64_FRAME(24);
     sScriptStatus = SCRIPT_RUNNING;
     sCurrentCmd = cmd;
 

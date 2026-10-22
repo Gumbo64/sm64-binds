@@ -17,6 +17,7 @@ void bhv_bobomb_explosion_bubble_init(void) {
 }
 
 void bhv_bobomb_explosion_bubble_loop(void) {
+    N64_FRAME(32);
     f32 waterY = gMarioStates[0].waterLevel;
 
     o->header.gfx.scale[0] = sins(o->oBobombExpBubGfxScaleFacX) * 0.5 + 2.0;
@@ -39,6 +40,7 @@ void bhv_bobomb_explosion_bubble_loop(void) {
 }
 
 void bhv_respawner_loop(void) {
+    N64_FRAME(32);
     struct Object *spawnedObject;
 
     if (!is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, o->oRespawnerMinSpawnDist)) {
@@ -49,8 +51,9 @@ void bhv_respawner_loop(void) {
 }
 
 void create_respawner(s32 model, const BehaviorScript *behToSpawn, s32 minSpawnDist) {
-    struct Object *respawner = spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvRespawner, o->oHomeX,
-                                                         o->oHomeY, o->oHomeZ, 0, 0, 0);
+    N64_FRAME(56);
+    struct Object *respawner = spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvRespawner, IDO_S16(o->oHomeX),
+                                                         IDO_S16(o->oHomeY), IDO_S16(o->oHomeZ), 0, 0, 0);
     respawner->oBehParams = o->oBehParams;
     respawner->oRespawnerModelToRespawn = model;
     respawner->oRespawnerMinSpawnDist = minSpawnDist;

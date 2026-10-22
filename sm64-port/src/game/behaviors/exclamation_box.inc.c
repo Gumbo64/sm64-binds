@@ -50,6 +50,7 @@ void exclamation_box_act_0(void) {
 }
 
 void exclamation_box_act_1(void) {
+    N64_FRAME(40);
     cur_obj_become_intangible();
     if (o->oTimer == 0) {
         spawn_object(o, MODEL_EXCLAMATION_POINT, bhvRotatingExclamationMark);
@@ -104,6 +105,7 @@ void exclamation_box_act_3(void) {
 }
 
 void exclamation_box_spawn_contents(struct Struct802C0DF0 *a0, u8 a1) {
+    N64_FRAME(32);
     struct Object *sp1C = NULL;
 
     while (a0->unk0 != 99) {
@@ -122,6 +124,7 @@ void exclamation_box_spawn_contents(struct Struct802C0DF0 *a0, u8 a1) {
 }
 
 void exclamation_box_act_4(void) {
+    N64_FRAME(24);
     exclamation_box_spawn_contents(sExclamationBoxContents, o->oBehParams2ndByte);
     spawn_mist_particles_variable(0, 0, 46.0f);
     spawn_triangle_break_particles(20, MODEL_CARTOON_STAR, 0.3f, o->oAnimState);
@@ -143,6 +146,7 @@ void (*sExclamationBoxActions[])(void) = { exclamation_box_act_0, exclamation_bo
                                            exclamation_box_act_4, exclamation_box_act_5 };
 
 void bhv_exclamation_box_loop(void) {
+    N64_FRAME(24);
     cur_obj_scale(2.0f);
     cur_obj_call_action_function(sExclamationBoxActions);
 }

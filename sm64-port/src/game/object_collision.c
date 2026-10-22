@@ -22,6 +22,13 @@ struct Object *debug_print_obj_collision(struct Object *a) {
     return NULL;
 }
 
+// The two overlap tests below have no return value when the objects do not
+// overlap; the N64 returns what the v0 register holds, which is the previous
+// result of either test in the same collision pass (nothing else writes v0
+// between them). On US a pass starts with v0 = 0, so after the first overlap
+// every miss counts as a hit.
+static s32 sOverlapV0;
+
 s32 detect_object_hitbox_overlap(struct Object *a, struct Object *b) {
     f32 sp3C = a->oPosY - a->hitboxDownOffset;
     f32 sp38 = b->oPosY - b->hitboxDownOffset;
@@ -36,16 +43,16 @@ s32 detect_object_hitbox_overlap(struct Object *a, struct Object *b) {
         f32 sp1C = b->hitboxHeight + sp38;
 
         if (sp3C > sp1C) {
-            return 0;
+            return sOverlapV0 = 0;
         }
         if (sp20 < sp38) {
-            return 0;
+            return sOverlapV0 = 0;
         }
         if (a->numCollidedObjs >= 4) {
-            return 0;
+            return sOverlapV0 = 0;
         }
         if (b->numCollidedObjs >= 4) {
-            return 0;
+            return sOverlapV0 = 0;
         }
         a->collidedObjs[a->numCollidedObjs] = b;
         b->collidedObjs[b->numCollidedObjs] = a;
@@ -53,12 +60,12 @@ s32 detect_object_hitbox_overlap(struct Object *a, struct Object *b) {
         b->collidedObjInteractTypes |= a->oInteractType;
         a->numCollidedObjs++;
         b->numCollidedObjs++;
-        return 1;
+        return sOverlapV0 = 1;
     }
 
     //! no return value
 #ifdef AVOID_UB
-    return 0;
+    return sOverlapV0;
 #endif
 }
 
@@ -80,20 +87,20 @@ s32 detect_object_hurtbox_overlap(struct Object *a, struct Object *b) {
         f32 sp1C = b->hurtboxHeight + sp38;
 
         if (sp3C > sp1C) {
-            return 0;
+            return sOverlapV0 = 0;
         }
         if (sp20 < sp38) {
-            return 0;
+            return sOverlapV0 = 0;
         }
         if (a == gMarioObject) {
             b->oInteractionSubtype &= ~INT_SUBTYPE_DELAY_INVINCIBILITY;
         }
-        return 1;
+        return sOverlapV0 = 1;
     }
 
     //! no return value
 #ifdef AVOID_UB
-    return 0;
+    return sOverlapV0;
 #endif
 }
 
@@ -174,6 +181,7 @@ void check_destructive_object_collision(void) {
 }
 
 void detect_object_collisions(void) {
+    sOverlapV0 = 0;
     clear_object_collision((struct Object *) &gObjectLists[OBJ_LIST_POLELIKE]);
     clear_object_collision((struct Object *) &gObjectLists[OBJ_LIST_PLAYER]);
     clear_object_collision((struct Object *) &gObjectLists[OBJ_LIST_PUSHABLE]);

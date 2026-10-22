@@ -105,6 +105,7 @@ void mario_bonk_reflection(struct MarioState *m, u32 negateSpeed) {
 }
 
 u32 mario_update_quicksand(struct MarioState *m, f32 sinkingSpeed) {
+    N64_FRAME(24);
     if (m->action & ACT_FLAG_RIDING_SHELL) {
         m->quicksandDepth = 0.0f;
     } else {
@@ -234,6 +235,7 @@ void stop_and_set_height_to_floor(struct MarioState *m) {
 }
 
 s32 stationary_ground_step(struct MarioState *m) {
+    N64_FRAME(48);
     u32 takeStep;
     struct Object *marioObj = m->marioObj;
     u32 stepResult = GROUND_STEP_NONE;
@@ -256,6 +258,7 @@ s32 stationary_ground_step(struct MarioState *m) {
 }
 
 static s32 perform_ground_quarter_step(struct MarioState *m, Vec3f nextPos) {
+    N64_FRAME(64);
     UNUSED struct Surface *lowerWall;
     struct Surface *upperWall;
     struct Surface *ceil;
@@ -320,6 +323,7 @@ static s32 perform_ground_quarter_step(struct MarioState *m, Vec3f nextPos) {
 }
 
 s32 perform_ground_step(struct MarioState *m) {
+    N64_FRAME(48);
     s32 i;
     u32 stepResult;
     Vec3f intendedPos;
@@ -346,6 +350,7 @@ s32 perform_ground_step(struct MarioState *m) {
 }
 
 u32 check_ledge_grab(struct MarioState *m, struct Surface *wall, Vec3f intendedPos, Vec3f nextPos) {
+    N64_FRAME(48);
     struct Surface *ledgeFloor;
     Vec3f ledgePos;
     f32 displacementX;
@@ -386,6 +391,7 @@ u32 check_ledge_grab(struct MarioState *m, struct Surface *wall, Vec3f intendedP
 }
 
 s32 perform_air_quarter_step(struct MarioState *m, Vec3f intendedPos, u32 stepArg) {
+    N64_FRAME(80);
     s16 wallDYaw;
     Vec3f nextPos;
     struct Surface *upperWall;
@@ -608,6 +614,7 @@ void apply_vertical_wind(struct MarioState *m) {
 }
 
 s32 perform_air_step(struct MarioState *m, u32 stepArg) {
+    N64_FRAME(48);
     Vec3f intendedPos;
     s32 i;
     s32 quarterStepResult;

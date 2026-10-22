@@ -771,7 +771,7 @@ s16 get_str_x_pos_from_center(s16 centerPos, u8 *str, UNUSED f32 scale) {
     }
     // return the x position of where the string starts as half the string's
     // length from the position of the provided center.
-    return (s16)(centerPos - (s16)(spacesWidth / 2.0));
+    return (s16)(centerPos - (s16)IDO_S16((spacesWidth / 2.0)));
 }
 #endif
 
@@ -976,7 +976,7 @@ void change_and_flash_dialog_text_color_lines(s8 colorMode, s8 lineNum) {
             gDPSetEnvColor(gDisplayListHead++, 255, 255, 255, 255);
         } else {
             if (lineNum == gDialogLineNum) {
-                colorFade = (gSineTable[gDialogColorFadeTimer >> 4] * 50.0f) + 200.0f;
+                colorFade = IDO_U8((gSineTable[gDialogColorFadeTimer >> 4] * 50.0f) + 200.0f);
                 gDPSetEnvColor(gDisplayListHead++, colorFade, colorFade, colorFade, 255);
             } else {
                 gDPSetEnvColor(gDisplayListHead++, 200, 200, 200, 255);

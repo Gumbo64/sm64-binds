@@ -58,6 +58,7 @@ static void racing_penguin_act_prepare_for_race(void) {
 }
 
 static void racing_penguin_act_race(void) {
+    N64_FRAME(48);
     f32 targetSpeed;
     f32 minSpeed;
 
@@ -114,6 +115,7 @@ static void racing_penguin_act_finish_race(void) {
 }
 
 static void racing_penguin_act_show_final_text(void) {
+    N64_FRAME(32);
     s32 textResult;
 
     if (o->oRacingPenguinFinalTextbox == 0) {
@@ -159,6 +161,7 @@ static void racing_penguin_act_show_final_text(void) {
 }
 
 void bhv_racing_penguin_update(void) {
+    N64_FRAME(24);
     cur_obj_update_floor_and_walls();
 
     switch (o->oAction) {

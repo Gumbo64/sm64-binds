@@ -10,6 +10,7 @@
  * moves.
  */
 void bhv_pyramid_elevator_init(void) {
+    N64_FRAME(32);
     s32 i;
     struct Object *ball;
 

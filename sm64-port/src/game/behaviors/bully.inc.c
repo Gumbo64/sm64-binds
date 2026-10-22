@@ -167,6 +167,7 @@ void bully_play_stomping_sound(void) {
 }
 
 void bully_step(void) {
+    N64_FRAME(32);
     s16 collisionFlags = 0;
     collisionFlags = object_step();
     bully_backup_check(collisionFlags);
@@ -180,6 +181,7 @@ void bully_step(void) {
 }
 
 void bully_spawn_coin(void) {
+    N64_FRAME(32);
     struct Object *coin = spawn_object(o, MODEL_YELLOW_COIN, bhvMovingYellowCoin);
 #ifdef VERSION_JP // TODO: maybe move this ifdef logic to the header?
     cur_obj_play_sound_2(SOUND_GENERAL_COIN_SPURT);
@@ -195,6 +197,7 @@ void bully_spawn_coin(void) {
 }
 
 void bully_act_level_death(void) {
+    N64_FRAME(48);
     if (obj_lava_death() == 1) {
         if (o->oBehParams2ndByte == BULLY_BP_SIZE_SMALL) {
             if (o->oBullySubtype == BULLY_STYPE_MINION)
@@ -215,6 +218,7 @@ void bully_act_level_death(void) {
 }
 
 void bhv_bully_loop(void) {
+    N64_FRAME(48);
     o->oBullyPrevX = o->oPosX;
     o->oBullyPrevY = o->oPosY;
     o->oBullyPrevZ = o->oPosZ;
@@ -270,6 +274,7 @@ void bhv_bully_loop(void) {
 // sp44 = arg3
 
 void big_bully_spawn_minion(s32 arg0, s32 arg1, s32 arg2, s16 arg3) {
+    N64_FRAME(56);
     struct Object *bully =
         spawn_object_abs_with_rot(o, 0, MODEL_BULLY, bhvSmallBully, arg0, arg1, arg2, 0, arg3, 00);
     bully->oBullySubtype = BULLY_STYPE_MINION;
@@ -277,6 +282,7 @@ void big_bully_spawn_minion(s32 arg0, s32 arg1, s32 arg2, s16 arg3) {
 }
 
 void bhv_big_bully_with_minions_init(void) {
+    N64_FRAME(24);
     big_bully_spawn_minion(4454, 307, -5426, 0);
     big_bully_spawn_minion(3840, 307, -6041, 0);
     big_bully_spawn_minion(3226, 307, -5426, 0);
@@ -289,6 +295,7 @@ void bhv_big_bully_with_minions_init(void) {
 }
 
 void big_bully_spawn_star(void) {
+    N64_FRAME(24);
     if (obj_lava_death() == 1) {
         spawn_mist_particles();
         spawn_default_star(3700.0f, 600.0f, -5500.0f);
@@ -296,6 +303,7 @@ void big_bully_spawn_star(void) {
 }
 
 void bhv_big_bully_with_minions_loop(void) {
+    N64_FRAME(48);
     s16 collisionFlags;
 
     o->oBullyPrevX = o->oPosX;

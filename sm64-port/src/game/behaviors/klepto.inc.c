@@ -319,6 +319,7 @@ void obj_set_speed_to_zero(void) {
 }
 
 void bhv_klepto_update(void) {
+    N64_FRAME(32);
     UNUSED s32 unused;
 
     cur_obj_update_floor_and_walls();

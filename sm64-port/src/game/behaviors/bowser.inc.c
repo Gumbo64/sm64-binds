@@ -58,6 +58,7 @@ void (*sBowserTailAnchorActions[])(void) = {
  * Bowser's tail main loop
  */
 void bhv_bowser_tail_anchor_loop(void) {
+    N64_FRAME(24);
     // Call its actions
     cur_obj_call_action_function(sBowserTailAnchorActions);
     // Position the tail
@@ -77,6 +78,7 @@ void bhv_bowser_tail_anchor_loop(void) {
  * Bowser's Flame spawn main loop
  */
 void bhv_bowser_flame_spawn_loop(void) {
+    N64_FRAME(56);
     struct Object *bowser = o->parentObj;
     s32 animFrame;
     f32 posX;
@@ -155,6 +157,7 @@ void bhv_bowser_body_anchor_loop(void) {
  * Bowser's shockwave attack, spawns only in BITS
  */
 s32 bowser_spawn_shockwave(void) {
+    N64_FRAME(32);
     struct Object *wave;
     if (o->oBehParams2ndByte == BOWSER_BP_BITS) {
         wave = spawn_object(o, MODEL_BOWSER_WAVE, bhvBowserShockWave);
@@ -169,6 +172,7 @@ s32 bowser_spawn_shockwave(void) {
  * Plays step sound, spawns particles and changes camera event
  */
 void bowser_bounce_effects(s32 *timer) {
+    N64_FRAME(24);
     if (o->oMoveFlags & OBJ_MOVE_LANDED) {
         (*timer)++;
         if (*timer < 4) {
@@ -603,6 +607,7 @@ void bowser_act_teleport(void) {
  * Makes Bowser do a fire split into the sky
  */
 void bowser_act_spit_fire_into_sky(void) {
+    N64_FRAME(48);
     s32 frame;
     // Play animation
     cur_obj_init_animation_with_sound(BOWSER_ANIM_BREATH_UP);
@@ -629,6 +634,7 @@ void bowser_act_spit_fire_into_sky(void) {
  * Flips Bowser back on stage if he hits a mine with more than 1 health
  */
 void bowser_act_hit_mine(void) {
+    N64_FRAME(24);
     // Similar vel values from bowser_fly_back_dead
     if (o->oTimer == 0) {
         o->oForwardVel = -400.0f;
@@ -686,6 +692,7 @@ s32 bowser_set_anim_jump(void) {
  * Returns TRUE when Bowser lands
  */
 s32 bowser_land(void) {
+    N64_FRAME(24);
     if (o->oMoveFlags & OBJ_MOVE_LANDED) {
         o->oForwardVel = 0;
         o->oVelY = 0;
@@ -723,6 +730,7 @@ void bowser_short_second_hop(void) {
  * Makes Bowser do a big jump
  */
 void bowser_act_big_jump(void) {
+    N64_FRAME(32);
     UNUSED s32 unused;
     if (o->oSubAction == 0) {
         // Set jump animation
@@ -773,6 +781,7 @@ s16 sBowserFVelAir[] = { 50 };
  * Makes Bowser do a "quick" jump in BITDW
  */
 void bowser_act_quick_jump(void) {
+    N64_FRAME(32);
     f32 velY = sBowserVelYAir[0];
     f32 fVel = sBowserFVelAir[0];
     if (o->oSubAction == 0) {
@@ -828,11 +837,12 @@ void bowser_act_hit_edge(void) {
  * Makes Bowser do a fire split attack
  */
 void bowser_act_spit_fire_onto_floor(void) {
+    N64_FRAME(40);
     // Set fixed rand value if Mario is low health
     if (gHudDisplay.wedges < 4) {
         o->oBowserRandSplitFloor = 3;
     } else {
-        o->oBowserRandSplitFloor = random_float() * 3.0f + 1.0f;
+        o->oBowserRandSplitFloor = IDO_S16(random_float() * 3.0f + 1.0f);
     }
 
     // Play animation and split fire at a specific frame
@@ -888,6 +898,7 @@ void bowser_act_turn_from_edge(void) {
  * Makes Bowser charge (run) to Mario
  */
 void bowser_act_charge_mario(void) {
+    N64_FRAME(56);
     s32 time;
     // Reset Speed to prepare charge
     if (o->oTimer == 0) {
@@ -979,6 +990,7 @@ s32 bowser_check_hit_mine(void) {
  * Bowser's thrown act that gets called after Mario releases him
  */
 void bowser_act_thrown(void) {
+    N64_FRAME(32);
     UNUSED s32 unused;
     // Keep Bowser's timer at 0 unless he lands
     if (o->oTimer < 2)
@@ -1022,6 +1034,7 @@ void bowser_set_goal_invisible(void) {
  * Makes Bowser jump back on stage after falling
  */
 void bowser_act_jump_onto_stage(void) {
+    N64_FRAME(48);
     s32 onDynamicFloor;
     UNUSED s32 unused;
     struct Surface *floor = o->oFloor;
@@ -1140,6 +1153,7 @@ void bowser_act_dance(void) {
  * Spawns a Key in BITDW/BITFS or Grand Star in BITS
  */
 void bowser_spawn_collectable(void) {
+    N64_FRAME(24);
     if (o->oBehParams2ndByte == BOWSER_BP_BITS) {
         gSecondCameraFocus = spawn_object(o, MODEL_STAR, bhvGrandStar);
     } else {
@@ -1170,6 +1184,7 @@ void bowser_fly_back_dead(void) {
  * Plays bounce effects after landing upside down
  */
 void bowser_dead_bounce(void) {
+    N64_FRAME(24);
     o->oBowserEyesShut = TRUE; // close eyes
     bowser_bounce_effects(&o->oBowserTimer);
     if (o->oMoveFlags & OBJ_MOVE_LANDED) {
@@ -1250,6 +1265,7 @@ s16 sBowserDefeatedDialogText[3] = { DIALOG_119, DIALOG_120, DIALOG_121 };
  * Returns TRUE once done
  */
 s32 bowser_dead_default_stage_ending(void) {
+    N64_FRAME(32);
     s32 ret = FALSE;
     if (o->oBowserTimer < 2) {
         // Lower music volume
@@ -1283,6 +1299,7 @@ s32 bowser_dead_default_stage_ending(void) {
  * Returns TRUE once done
  */
 s32 bowser_dead_final_stage_ending(void) {
+    N64_FRAME(40);
     UNUSED s32 unused;
     s32 ret = FALSE;
     s32 dialogID;
@@ -1324,6 +1341,7 @@ s32 bowser_dead_final_stage_ending(void) {
  * This action is divided in subaction functions
  */
 void bowser_act_dead(void) {
+    N64_FRAME(24);
     switch (o->oSubAction) {
         case BOWSER_SUB_ACT_DEAD_FLY_BACK:
             bowser_fly_back_dead();
@@ -1553,6 +1571,7 @@ s8 sBowserHealth[] = { 1, 1, 3 };
  * Update Bowser's actions when he's hands free
  */
 void bowser_free_update(void) {
+    N64_FRAME(40);
     struct Surface *floor;
     struct Object *platform;
     UNUSED f32 floorHeight;
@@ -1619,6 +1638,7 @@ void bowser_held_update(void) {
  * Update Bowser's actions when he's thrown and dropped
  */
 void bowser_thrown_dropped_update(void) {
+    N64_FRAME(32);
     f32 swingSpd;
     // Reset grabbed status
     o->oBowserGrabbedStatus = BOWSER_GRAB_STATUS_NONE;
@@ -1652,6 +1672,7 @@ void bowser_thrown_dropped_update(void) {
  * Bowser's main loop
  */
 void bhv_bowser_loop(void) {
+    N64_FRAME(40);
     s16 angleToMario;  // AngleToMario from Bowser's perspective
     s16 angleToCentre; // AngleToCentre from Bowser's perspective
 
