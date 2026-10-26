@@ -68,6 +68,15 @@ Clone a game to branch off from the same state:
 clone = generator.copy(game)
 ```
 
+Load a Mupen64 savestate (Mupen64-rr(-lua) or Mupen64Plus `.st`, US ROM)
+into a game that is in a level (Rust only; see `docs/mupen64-st.md`):
+
+```rust
+let st = sm64_binds::mupen::MupenState::from_file("bob.st")?;
+game.warp_to_mupen_area(&st, 600)?; // if the game is in another area
+println!("{}", game.load_mupen_state(&st)?);
+```
+
 ## Building the WASM
 
 With a ROM at the repo root:

@@ -28,6 +28,9 @@ sha1 = "0.10.6"
 wasmer = { version = "=6.1.0", default-features = false }
 getrandom = { version = "0.3", features = ["wasm_js"] }
 zip = "6.0.0"
+# Mupen64 savestates (src/sm64/mupen): gzip, and LZ4 frames from rr-lua.
+flate2 = "1.1"
+lz4_flex = "0.14"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"

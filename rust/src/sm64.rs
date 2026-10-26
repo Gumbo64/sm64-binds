@@ -6,6 +6,7 @@ mod game_pad;
 mod game_state;
 mod generator;
 mod memory;
+pub mod mupen;
 #[cfg(all(
     feature = "precompiled",
     target_arch = "x86_64",
