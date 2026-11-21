@@ -95,12 +95,9 @@ def run_bench(rom_path: str, *, target: float = TARGET_SECONDS, frames: int = FR
     )
     # ------------------------------------------------------------------
     b.section("per-call overhead")
-    # Both are WASM-call-bound: the engine call into the game plus reading a
-    # fixed-size blob back out of the runtime's memory. The Python binding
-    # reads the return pointer through ``data_ptr`` rather than an export's
-    # write-back, so it is a touch slower than the Rust equivalent.
+    # WASM-call-bound: the engine call into the game plus reading a
+    # fixed-size blob back out of the runtime's memory.
     b.measure("get_game_state", lambda: game.get_game_state())
-    b.measure("rng_pad", lambda: game.rng_pad(HOLD_A))
 
     # ------------------------------------------------------------------
     b.section("save states")

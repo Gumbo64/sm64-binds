@@ -10,7 +10,6 @@ from sm64_binds import (
     GAME_STATE_SIZE,
     GamePad,
     GameState,
-    RngConfig,
     buttons,
     check_hash,
     rom_to_wasm_bytes,
@@ -243,27 +242,6 @@ def test_game_state_equality_covers_every_field():
 def test_game_state_rejects_a_short_buffer():
     with pytest.raises(struct.error):
         GameState(b"\x00" * 60)
-
-
-# ---------------------------------------------------------------
-# RngConfig
-# ---------------------------------------------------------------
-
-
-def test_rng_config_default_matches_the_wasm_defaults():
-    cfg = RngConfig.default()
-    assert cfg.window_length == 100
-    assert cfg.random_amount == 5
-    assert cfg.random_burst_length == 2
-    assert cfg.a_prob == 0.5
-    assert cfg.b_prob == 0.5
-    assert cfg.z_prob == 0.2
-
-
-def test_rng_config_repr_lists_every_field():
-    text = repr(RngConfig.default())
-    for field in RngConfig.__slots__:
-        assert field in text
 
 
 # ---------------------------------------------------------------

@@ -14,16 +14,14 @@ pub mod mupen;
     target_env = "gnu"
 ))]
 mod precompiled;
-mod rng_config;
 mod save_state;
 mod sync;
 mod util;
 mod wasm_module;
 
-pub use game_pad::{GAME_PAD_SIZE, GamePad};
+pub use game_pad::GamePad;
 pub use game_state::{GAME_STATE_SIZE, GameState};
 pub use generator::{Backend, SM64GameGenerator};
-pub use rng_config::RngConfig;
 pub use save_state::SaveState;
 
 use generator::GameSource;
@@ -54,7 +52,6 @@ pub struct SM64Game {
     build_id: BuildId,
     /// Which parts of memory are constant.
     layout: MemoryLayout,
-    using_rng: bool,
     sync: SyncState,
 }
 
@@ -67,10 +64,6 @@ struct Exports {
     memory: Memory,
     step_game: TypedFunction<(u32, i32, i32), ()>,
     get_game_state: TypedFunction<(), i32>,
-    // Optional: builds without the in-game perturbation (sm64coin branch) lack them.
-    rng_pad: Option<TypedFunction<(u32, i32, i32), i32>>,
-    set_rng_config: Option<TypedFunction<(u32, u32, u32, f32, f32, f32), ()>>,
-    set_rng_seed: Option<TypedFunction<u32, ()>>,
 }
 
 impl SM64Game {
@@ -101,9 +94,6 @@ impl SM64Game {
         }
         let step_game = exports.get_typed_function(&store, "step_game")?;
         let get_game_state = exports.get_typed_function(&store, "get_game_state")?;
-        let rng_pad = exports.get_typed_function(&store, "rng_pad").ok();
-        let set_rng_config = exports.get_typed_function(&store, "set_rng_config").ok();
-        let set_rng_seed = exports.get_typed_function(&store, "set_rng_seed").ok();
 
         let main_func: TypedFunction<(), ()> = exports.get_typed_function(&store, "main_func")?;
         main_func.call(&mut store)?;
@@ -115,14 +105,10 @@ impl SM64Game {
                 memory,
                 step_game,
                 get_game_state,
-                rng_pad,
-                set_rng_config,
-                set_rng_seed,
             },
             precompiled: source.segments.is_some(),
             build_id: source.build_id,
             layout: source.layout,
-            using_rng: false,
             sync: SyncState::new(),
         })
     }
@@ -163,50 +149,6 @@ impl SM64Game {
         let mut buffer: [u8; GAME_STATE_SIZE] = [0; GAME_STATE_SIZE];
         self.read_memory(pointer, &mut buffer)?;
         Ok(GameState::new(&buffer))
-    }
-
-    /// Reads the controller's current input, applying RNG if it is enabled.
-    pub fn rng_pad(&mut self, pad: GamePad) -> Result<GamePad, Error> {
-        let (store, exports) = self.parts_mut();
-        let f = exports.rng_pad.as_ref().ok_or_else(|| Error::msg("this game build has no rng_pad"))?;
-        let pointer = f.call(
-            store,
-            pad.button.into(),
-            pad.stick_x.into(),
-            pad.stick_y.into(),
-        )? as u32;
-
-        let mut buffer: [u8; GAME_PAD_SIZE] = [0; GAME_PAD_SIZE];
-        self.read_memory(pointer, &mut buffer)?;
-        Ok(GamePad::from_bytes(&buffer))
-    }
-
-    pub fn set_rng_config(&mut self, cfg: RngConfig) -> Result<()> {
-        self.using_rng = true;
-        let (store, exports) = self.parts_mut();
-        let f = exports.set_rng_config.as_ref().ok_or_else(|| Error::msg("this game build has no set_rng_config"))?;
-        f.call(
-            store,
-            cfg.window_length,
-            cfg.random_amount,
-            cfg.random_burst_length,
-            cfg.a_prob,
-            cfg.b_prob,
-            cfg.z_prob,
-        )?;
-        Ok(())
-    }
-
-    pub fn set_rng_seed(&mut self, seed: u32) -> Result<()> {
-        self.using_rng = true;
-        let (store, exports) = self.parts_mut();
-        let f = exports.set_rng_seed.as_ref().ok_or_else(|| Error::msg("this game build has no set_rng_seed"))?;
-        f.call(store, seed)?;
-        Ok(())
-    }
-
-    pub fn using_rng(&self) -> bool {
-        self.using_rng
     }
 
     /// Turns the display-list interpreter on or off.

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// Byte layout of the `rng_pad` WASM export, mirroring `OSContPad` in
+/// Byte layout of a pad in game memory, mirroring `OSContPad` in
 /// `sm64-port/src/pc/pc_main.c`.
 pub const GAME_PAD_SIZE: usize = 4;
 
@@ -24,7 +24,7 @@ impl GamePad {
         self == pad
     }
 
-    /// Decodes the 4 byte little endian pad written by the WASM export.
+    /// Decodes the 4 byte little endian pad as laid out in game memory.
     ///
     /// # Panics
     ///

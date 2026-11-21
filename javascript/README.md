@@ -41,35 +41,19 @@ correct sizing.
 run can be replayed or solved later:
 
 ```js
-import { sm64_record, sm64_evaluate, GameConfig, RngConfig } from "sm64-binds-frontend";
+import { sm64_record, sm64_evaluate, GameConfig } from "sm64-binds-frontend";
 
 const game_config = GameConfig.defaultConfig();
 const solution = await sm64_record(canvas, 22, game_config);
 const success = await sm64_evaluate(canvas, solution, 22);
 ```
 
-### Randomised input
-
-Pass an `RngConfig` to perturb the controller, so a replay has to match the
-seed exactly:
-
-```js
-import { RngConfig } from "sm64-binds-frontend";
-
-const rng = new RngConfig(100, 5, 2, 0.5, 0.5, 0.2);
-const game_config = new GameConfig(NaN, rng);
-```
-
-Note that the WASM RNG is active from boot with the defaults above, even
-before you construct a config.
-
 ### Controller input
 
-`rng_pad` returns what the game actually received after RNG. `GamepadButtons`
-has the N64 masks (`A_BUTTON`, `START_BUTTON`, `U_JPAD`, and so on).
+`GamepadButtons` has the N64 masks (`A_BUTTON`, `START_BUTTON`, `U_JPAD`, and so on).
 
 ```js
-const pad = engine.rng_pad(controllerPad);
+const pad = engine.get_controller_pad();
 if (pad.is_pressed(GamepadButtons.U_JPAD)) {
     // ...
 }
@@ -83,7 +67,7 @@ if (pad.is_pressed(GamepadButtons.U_JPAD)) {
 | `sm64_record` | Plays and records inputs. |
 | `sm64_evaluate` | Replays a recorded solution. |
 | `sm64_playback` | Replays with manual control. |
-| `GameConfig`, `RngConfig` | Playback and RNG tuning. |
+| `GameConfig` | Playback tuning. |
 | `GamePad`, `GameState`, `GamepadButtons` | Controller input and game state. |
 
 ## Example

@@ -1,5 +1,5 @@
 import FileUpload from "./src/components/FileUpload";
-import { GameConfig, RngConfig } from "./src/scripts/sm64/configs";
+import { GameConfig } from "./src/scripts/sm64/configs";
 import { Sm64VisualEngine, GamepadButtons, GamePad, GameState } from "./src/scripts/sm64/Sm64Game";
 import { getROM, calculateFileHash, isRomCached, storeROM, updateWASMs } from "./src/scripts/fileUpload";
 
@@ -16,7 +16,7 @@ async function sm64_test(canvas) {
     let i = 0;
     function step() {
 
-        // true controller pad, other pad can change via RNG
+        // true controller pad
         let pad = new GamePad(0,0,0);
         if ( (150 < i && i < 160) || (200 < i && i < 300) ) {
             pad.button = GamepadButtons.START_BUTTON;
@@ -94,12 +94,12 @@ async function sm64_evaluate(canvas, solution = [], seed, game_config = GameConf
     return success;
 }
 
-async function sm64_playback(canvas, inputs=[], controllable=false, seed=NaN, game_config = GameConfig.defaultConfig(), min_speed=MIN_SPEED, max_speed=MAX_SPEED, kill_signal = async () => {false}, has_won = (_state) => {false}, starting_engine=null) {
+async function sm64_playback(canvas, inputs=[], controllable=false, seed=NaN, _game_config = GameConfig.defaultConfig(), min_speed=MIN_SPEED, max_speed=MAX_SPEED, kill_signal = async () => {false}, has_won = (_state) => {false}, starting_engine=null) {
     let success = false;
     let engine;
     if (starting_engine === null) {
         canvas.id = "canvas";
-        engine = await Sm64VisualEngine.create(canvas, seed, game_config.rng_config);
+        engine = await Sm64VisualEngine.create(canvas, seed);
         canvas.id = "";
     } else {
         engine = starting_engine;
@@ -117,12 +117,6 @@ async function sm64_playback(canvas, inputs=[], controllable=false, seed=NaN, ga
         let pad = inputs[i];
         i+=1;
 
-        // assert that the playback matches the seed
-        let r_pad = engine.rng_pad(pad);
-        if (game_config.has_rng() && !r_pad.equals(pad)) {
-            throw new Error("Replay inputs do not match seed")
-        }
-        
         // playback
         engine.step_game(pad);
 
@@ -185,10 +179,8 @@ async function record_single(canvas, starting_solution = [], seed=NaN, game_conf
             }
         }
 
-        // true controller pad, other pad can change via RNG
-
+        // true controller pad
         let pad = c_pad.clone();
-        if (game_config.has_rng()) pad = engine.rng_pad(pad);
         
         engine.step_game(pad);
         solution.push(pad);
@@ -231,7 +223,7 @@ async function sm64_record(canvas, seed=NaN, game_config = GameConfig.defaultCon
     return starting_solution;
 }
 
-export { sm64_record, sm64_evaluate, sm64_playback, sm64_test, GameConfig, RngConfig, GamePad, GamepadButtons, GameState, FileUpload, getROM };
+export { sm64_record, sm64_evaluate, sm64_playback, sm64_test, GameConfig, GamePad, GamepadButtons, GameState, FileUpload, getROM };
 
 // For apps that drive the engine and ROM cache themselves (such as
 // sm64-viewer). The package's export map only exposes this file, so anything

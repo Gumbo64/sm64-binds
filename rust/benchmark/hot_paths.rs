@@ -105,14 +105,11 @@ fn main() {
 
     // ---------------------------------------------------------------
     b.section("per-call overhead");
-    // Both are WASM-call-bound: the engine call into the game plus reading a
+    // WASM-call-bound: the engine call into the game plus reading a
     // fixed-size blob back out of linear memory. `diagnostics` measures the
     // floor for this (an empty call) if the split ever needs investigating.
     b.measure("get_game_state", 1.0, "call", || {
         black_box(game.get_game_state().unwrap());
-    });
-    b.measure("rng_pad", 1.0, "call", || {
-        black_box(game.rng_pad(GamePad::default()).unwrap());
     });
 
     // ---------------------------------------------------------------

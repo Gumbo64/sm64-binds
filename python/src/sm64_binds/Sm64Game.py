@@ -13,7 +13,6 @@ __all__ = [
     "GAME_STATE_SIZE",
     "GamePad",
     "GameState",
-    "RngConfig",
     "SM64Game",
     "SM64GameGenerator",
     "check_hash",
@@ -36,8 +35,7 @@ ROM_HASH = "9bef1128717f958171a4afac3ed78ee2bb4e86ce"
 #: Where the constant data is depends on the build, so it is read from the
 #: WASM: see :func:`read_only_memory` and ``SM64GameGenerator.read_only``.
 
-#: Byte layout of the ``rng_pad`` WASM export, mirroring ``OSContPad`` in
-#: ``sm64-port/src/pc/pc_main.c``.
+#: Byte layout of ``OSContPad`` in game memory (``sm64-port/src/pc/pc_main.c``).
 _GAME_PAD_STRUCT = struct.Struct("<Hb b")
 
 #: Layout produced by the ``get_game_state`` WASM export.
@@ -147,47 +145,6 @@ class GameState:
             f"levelNum={self.levelNum}, lives={self.lives}, "
             f"coins={self.coins}, health={self.health})"
         )
-
-
-class RngConfig:
-    """Tuning for the RNG that perturbs controller inputs.
-
-    Mirrors the arguments of the ``set_rng_config`` WASM export.
-    """
-
-    __slots__ = (
-        "window_length",
-        "random_amount",
-        "random_burst_length",
-        "a_prob",
-        "b_prob",
-        "z_prob",
-    )
-
-    def __init__(
-        self,
-        window_length,
-        random_amount,
-        random_burst_length,
-        a_prob,
-        b_prob,
-        z_prob,
-    ):
-        self.window_length = window_length
-        self.random_amount = random_amount
-        self.random_burst_length = random_burst_length
-        self.a_prob = a_prob
-        self.b_prob = b_prob
-        self.z_prob = z_prob
-
-    @staticmethod
-    def default():
-        """The configuration the WASM build starts with (random_action.c)."""
-        return RngConfig(100, 5, 2, 0.5, 0.5, 0.2)
-
-    def __repr__(self):
-        fields = ", ".join(f"{name}={getattr(self, name)}" for name in self.__slots__)
-        return f"RngConfig({fields})"
 
 
 def check_hash(data: bytes) -> bool:
@@ -328,40 +285,13 @@ class SM64Game:
 
         self.instance = self.linker.instantiate(self.store, module)
 
-        self.using_rng_flag = False
-
         # Cache the exports so the hot paths don't look them up on every call.
         exports = self.instance.exports(self.store)
         self.memory = exports["memory"]
         self._step_game = exports["step_game"]
         self._get_game_state = exports["get_game_state"]
-        # The controller perturbation lives outside the game build now
-        # (sm64coin): these exports only exist in older builds.
-        self._rng_pad = exports.get("rng_pad") if hasattr(exports, "get") else None
-        self._set_rng_config = exports.get("set_rng_config") if hasattr(exports, "get") else None
-        self._set_rng_seed = exports.get("set_rng_seed") if hasattr(exports, "get") else None
 
         exports["main_func"](self.store)
-
-    # -----------------------------
-    # RNG
-    # -----------------------------
-
-    def set_rng_config(self, cfg: RngConfig):
-        self.using_rng_flag = True
-        self._set_rng_config(
-            self.store,
-            cfg.window_length,
-            cfg.random_amount,
-            cfg.random_burst_length,
-            cfg.a_prob,
-            cfg.b_prob,
-            cfg.z_prob,
-        )
-
-    def set_rng_seed(self, seed):
-        self.using_rng_flag = True
-        self._set_rng_seed(self.store, seed)
 
     # -----------------------------
     # Game stepping and state
@@ -379,15 +309,6 @@ class SM64Game:
         ptr = self._get_game_state(self.store)
         memory = self.memory.data_ptr(self.store)
         return GameState(memory[ptr : ptr + GAME_STATE_SIZE])
-
-    def rng_pad(self, pad: GamePad) -> GamePad:
-        """Reads the controller's current input, applying RNG if it is enabled."""
-        ptr = self._rng_pad(self.store, pad.button, pad.stick_x, pad.stick_y)
-        memory = self.memory.data_ptr(self.store)
-        return GamePad.from_bytes(memory[ptr : ptr + 4])
-
-    def using_rng(self):
-        return self.using_rng_flag
 
     # -----------------------------
     # Headless toggles
@@ -494,7 +415,6 @@ class SM64GameGenerator:
             copy_size = min(stop, stop_dst) - start
             if copy_size > 0:
                 ctypes.memmove(dst_ptr + start, src_ptr + start, copy_size)
-        game_to.using_rng_flag = game.using_rng_flag
         return game_to
 
     def full_copy_to(self, game: SM64Game, game_to: SM64Game):
@@ -511,5 +431,4 @@ class SM64GameGenerator:
         dst_size = game_to.memory.data_len(game_to.store)
 
         ctypes.memmove(dst_ptr, src_ptr, min(size, dst_size))
-        game_to.using_rng_flag = game.using_rng_flag
         return game_to

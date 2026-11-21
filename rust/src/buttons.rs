@@ -1,4 +1,4 @@
-//! N64 controller button masks, as reported by the WASM `rng_pad` export.
+//! N64 controller button masks, as in `OSContPad` (the bits of `GamePad::button`).
 
 pub const A_BUTTON: u16 = 0x8000;
 pub const B_BUTTON: u16 = 0x4000;

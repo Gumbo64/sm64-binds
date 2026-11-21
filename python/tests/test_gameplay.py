@@ -14,7 +14,6 @@ import pytest
 from conftest import WARMUP_FRAMES, input_script
 from sm64_binds import (
     GamePad,
-    RngConfig,
     SM64GameGenerator,
     buttons,
     check_hash,
@@ -204,107 +203,6 @@ def test_copy_is_valid_partway_through_a_run(generator):
             repr(game.get_game_state()) == repr(clone.get_game_state())
         ), f"a mid-run copy diverged at frame {frame}"
 
-
-# ---------------------------------------------------------------
-# RNG
-# ---------------------------------------------------------------
-
-
-def test_using_rng_tracks_only_what_the_caller_configured(generator):
-    game = generator.create_game()
-    # The flag is bookkeeping on the Python side; the WASM RNG is active from
-    # boot because random_action.c seeds a default config statically.
-    assert not game.using_rng()
-
-    game.set_rng_config(RngConfig.default())
-    assert game.using_rng()
-
-    seeded = generator.create_game()
-    assert not seeded.using_rng()
-    seeded.set_rng_seed(22)
-    assert seeded.using_rng()
-
-
-def test_rng_pad_is_deterministic_for_a_seed(generator):
-    a = generator.create_game()
-    b = generator.create_game()
-    a.set_rng_seed(22)
-    b.set_rng_seed(22)
-
-    pad = GamePad(buttons.A_BUTTON, 40, 40)
-    for frame in range(2000):
-        assert a.rng_pad(pad) == b.rng_pad(pad), (
-            f"rng_pad diverged at frame {frame} for the same seed"
-        )
-
-
-def test_rng_pad_perturbs_inputs_by_default(game):
-    # No set_rng_config call: the WASM default config still randomizes.
-    pad = GamePad()
-    assert any(game.rng_pad(pad) != pad for _ in range(2000))
-
-
-def test_different_seeds_produce_different_pad_sequences(generator):
-    a = generator.create_game()
-    b = generator.create_game()
-    a.set_rng_seed(1)
-    b.set_rng_seed(2)
-
-    pad = GamePad()
-    assert any(a.rng_pad(pad) != b.rng_pad(pad) for _ in range(2000))
-
-
-def test_zeroed_rng_config_leaves_the_pad_alone(generator):
-    game = generator.create_game()
-    game.set_rng_config(RngConfig(0, 0, 0, 0.0, 0.0, 0.0))
-    pad = GamePad(buttons.Z_TRIG, 40, 40)
-    for frame in range(500):
-        assert game.rng_pad(pad) == pad, f"passthrough failed at frame {frame}"
-
-
-def test_a_copy_shares_the_rng_sequence_of_its_source(generator):
-    game = generator.create_game()
-    game.set_rng_config(RngConfig.default())
-    clone = generator.copy(game)
-
-    pad = GamePad()
-    for frame in range(500):
-        assert game.rng_pad(pad) == clone.rng_pad(pad), (
-            f"a copied game must share the RNG state (frame {frame})"
-        )
-
-
-def test_rng_pad_returns_values_inside_the_stick_range(generator):
-    game = generator.create_game()
-    game.set_rng_config(RngConfig.default())
-
-    pad = GamePad()
-    allowed = buttons.A_BUTTON | buttons.B_BUTTON | buttons.Z_TRIG
-    for _ in range(2000):
-        out = game.rng_pad(pad)
-        assert -80 <= out.stick_x <= 80, f"stick_x out of range: {out.stick_x}"
-        assert -80 <= out.stick_y <= 80, f"stick_y out of range: {out.stick_y}"
-        assert out.button & ~allowed == 0, (
-            f"rng_pad set an unexpected button: 0x{out.button:04x}"
-        )
-
-
-def test_a_clone_keeps_its_own_rng_sequence(generator):
-    game = generator.create_game()
-    game.set_rng_config(RngConfig.default())
-
-    clone = generator.copy(game)
-    for _ in range(1000):
-        clone.rng_pad(GamePad())
-
-    reference = generator.create_game()
-    generator.copy_to(game, reference)
-
-    pad = GamePad()
-    for frame in range(200):
-        assert game.rng_pad(pad) == reference.rng_pad(pad), (
-            f"advancing a clone desynced the source RNG at frame {frame}"
-        )
 
 def test_full_copy_to_captures_the_whole_address_space(generator):
     """copy_to skips the constant segment; full_copy_to must not."""

@@ -1,8 +1,8 @@
-// Controller input, mirroring the WASM `rng_pad` export layout:
+// Controller input, mirroring `OSContPad` in game memory:
 //   u16 button; s8 stick_x; s8 stick_y; u8 errnum;
 // See sm64-port/include/PR/os_cont.h.
 
-/** Byte layout of the `rng_pad` export, mirroring `OSContPad`. */
+/** Byte layout of `OSContPad` in game memory. */
 export const GAME_PAD_SIZE = 4;
 
 /** N64 controller button masks. */

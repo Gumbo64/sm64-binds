@@ -13,13 +13,12 @@ async function instantiateWasmSM64(info, func) {
 }
 
 class Sm64VisualEngine {
-    constructor(game, memory, rng_config) {
+    constructor(game, memory) {
         this.game = game;
         this.memory = memory
-        this.rng_config = rng_config;
     }
 
-    static async create(canvas, seed = NaN, rng_config = null) {
+    static async create(canvas) {
         let memory = new WebAssembly.Memory({
             initial: 10000,
             maximum: 10000,
@@ -30,22 +29,9 @@ class Sm64VisualEngine {
             "wasmMemory": memory
         });
 
-        if (rng_config !== null) {
-            game._set_rng_config(
-                rng_config.window_length,
-                rng_config.random_amount,
-                rng_config.random_burst_length,
-                rng_config.A_prob,
-                rng_config.B_prob,
-                rng_config.Z_prob
-            );
-        }
-        if (!isNaN(seed)) {
-            game._set_rng_seed(seed);
-        }
         game._main_func();
 
-        return new Sm64VisualEngine(game, memory, rng_config);
+        return new Sm64VisualEngine(game, memory);
     }
 
     mem_view(pointer, length) {
@@ -58,12 +44,6 @@ class Sm64VisualEngine {
 
     step_game(pad) {
         return this.game._step_game(pad.button, pad.stick_x, pad.stick_y);
-    }
-
-    /** Reads the controller's current input, applying RNG if it is enabled. */
-    rng_pad(pad) {
-        let pointer = this.game._rng_pad(pad.button, pad.stick_x, pad.stick_y);
-        return GamePad.from_pointer(pointer, this);
     }
 
     get_controller_pad() {

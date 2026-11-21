@@ -47,32 +47,14 @@ A copy captures the two mutable regions of linear memory — the emscripten stac
 and everything after the game's constant data (`generator.read_only`, read from
 the WASM) — so a copied game continues exactly where its source was.
 
-### Randomised input
-
-`rng_pad` returns what the game actually received after RNG, which is what a
-replay has to match:
-
-```python
-from sm64_binds import RngConfig, GamePad
-
-game.set_rng_config(RngConfig(100, 5, 2, 0.5, 0.5, 0.2))
-game.set_rng_seed(22)
-
-pad = game.rng_pad(GamePad())
-```
-
-Note the WASM RNG is active from boot with those defaults, even before you call
-`set_rng_config`. Passing a zeroed `RngConfig` makes `rng_pad` a passthrough.
-
 ## API
 
 | Export | Purpose |
 | --- | --- |
 | `SM64GameGenerator` | Validates a ROM, compiles the module, creates games. |
-| `SM64Game` | `step_game`, `get_game_state`, `rng_pad`, `set_rng_config`, `set_rng_seed`. |
+| `SM64Game` | `step_game`, `get_game_state`. |
 | `GamePad` | `button`, `stick_x`, `stick_y`. |
 | `GameState` | `numStars`, `pos`, `vel`, `lakituPos`, `levelNum`, `lives`, `coins`, `health`, ... |
-| `RngConfig` | RNG tuning; `RngConfig.default()`. |
 | `buttons` | N64 button masks (`A_BUTTON`, `START_BUTTON`, `U_JPAD`, ...). |
 
 ## Licence
