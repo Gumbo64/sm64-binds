@@ -335,9 +335,11 @@ class SM64Game:
         self.memory = exports["memory"]
         self._step_game = exports["step_game"]
         self._get_game_state = exports["get_game_state"]
-        self._rng_pad = exports["rng_pad"]
-        self._set_rng_config = exports["set_rng_config"]
-        self._set_rng_seed = exports["set_rng_seed"]
+        # The controller perturbation lives outside the game build now
+        # (sm64coin): these exports only exist in older builds.
+        self._rng_pad = exports.get("rng_pad") if hasattr(exports, "get") else None
+        self._set_rng_config = exports.get("set_rng_config") if hasattr(exports, "get") else None
+        self._set_rng_seed = exports.get("set_rng_seed") if hasattr(exports, "get") else None
 
         exports["main_func"](self.store)
 
@@ -367,6 +369,11 @@ class SM64Game:
 
     def step_game(self, pad: GamePad):
         self._step_game(self.store, pad.button, pad.stick_x, pad.stick_y)
+
+    def read_memory(self, addr: int, length: int) -> bytes:
+        """Reads ``length`` bytes of linear memory at ``addr``."""
+        memory = self.memory.data_ptr(self.store)
+        return bytes(memory[addr : addr + length])
 
     def get_game_state(self) -> GameState:
         ptr = self._get_game_state(self.store)

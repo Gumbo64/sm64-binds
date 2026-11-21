@@ -508,7 +508,7 @@ endif
 ifeq ($(TARGET_WEB),1)
 
   PLATFORM_CFLAGS  := -DTARGET_WEB -fPIC
-  PLATFORM_LDFLAGS := -lm -no-pie -sALLOW_MEMORY_GROWTH=1 -gsource-map --source-map-base http://localhost:3000/ -sEXPORTED_FUNCTIONS=_main_func,_step_game,_set_rng_config,_set_rng_seed,_rng_pad,_get_controller_pad,_get_game_state,_get_mario_state,_set_audio_enabled
+  PLATFORM_LDFLAGS := -lm -no-pie -sALLOW_MEMORY_GROWTH=1 -Wl,-Map=$(BUILD_DIR)/sm64.map -gsource-map --source-map-base http://localhost:3000/ -sEXPORTED_FUNCTIONS=_main_func,_step_game,_get_controller_pad,_get_game_state,_get_mario_state,_set_audio_enabled
   ifeq ($(HEADLESS_VERSION), 1)
     PLATFORM_LDFLAGS += -sPURE_WASI=1 -sINITIAL_HEAP=3MB -Wl,-Map=$(BUILD_DIR)/sm64.map
   else

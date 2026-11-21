@@ -256,17 +256,7 @@ int main() {
 #include "game/level_update.h"
 #include "game/camera.h"
 
-#include "random_action.h"
-#include "controller/controller_recorded_tas.h"
 
-void update_seed() {
-    rng_update((uint32_t)gMarioState->pos[0]);
-    rng_update((uint32_t)gMarioState->pos[1]);
-    rng_update((uint32_t)gMarioState->pos[2]);
-    rng_update((uint32_t)gMarioState->vel[0]);
-    rng_update((uint32_t)gMarioState->vel[1]);
-    rng_update((uint32_t)gMarioState->vel[2]);
-}
 
 // #include "controller/controller.h"
 
@@ -274,7 +264,6 @@ void update_seed() {
 void step_game(int button, int stick_x, int stick_y) {
     set_tas_controller(button, stick_x, stick_y);
     produce_one_frame();
-    update_seed();
 }
 
 void set_audio_enabled(int t) {

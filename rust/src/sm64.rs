@@ -67,9 +67,10 @@ struct Exports {
     memory: Memory,
     step_game: TypedFunction<(u32, i32, i32), ()>,
     get_game_state: TypedFunction<(), i32>,
-    rng_pad: TypedFunction<(u32, i32, i32), i32>,
-    set_rng_config: TypedFunction<(u32, u32, u32, f32, f32, f32), ()>,
-    set_rng_seed: TypedFunction<u32, ()>,
+    // Optional: builds without the in-game perturbation (sm64coin branch) lack them.
+    rng_pad: Option<TypedFunction<(u32, i32, i32), i32>>,
+    set_rng_config: Option<TypedFunction<(u32, u32, u32, f32, f32, f32), ()>>,
+    set_rng_seed: Option<TypedFunction<u32, ()>>,
 }
 
 impl SM64Game {
@@ -100,9 +101,9 @@ impl SM64Game {
         }
         let step_game = exports.get_typed_function(&store, "step_game")?;
         let get_game_state = exports.get_typed_function(&store, "get_game_state")?;
-        let rng_pad = exports.get_typed_function(&store, "rng_pad")?;
-        let set_rng_config = exports.get_typed_function(&store, "set_rng_config")?;
-        let set_rng_seed = exports.get_typed_function(&store, "set_rng_seed")?;
+        let rng_pad = exports.get_typed_function(&store, "rng_pad").ok();
+        let set_rng_config = exports.get_typed_function(&store, "set_rng_config").ok();
+        let set_rng_seed = exports.get_typed_function(&store, "set_rng_seed").ok();
 
         let main_func: TypedFunction<(), ()> = exports.get_typed_function(&store, "main_func")?;
         main_func.call(&mut store)?;
@@ -167,7 +168,8 @@ impl SM64Game {
     /// Reads the controller's current input, applying RNG if it is enabled.
     pub fn rng_pad(&mut self, pad: GamePad) -> Result<GamePad, Error> {
         let (store, exports) = self.parts_mut();
-        let pointer = exports.rng_pad.call(
+        let f = exports.rng_pad.as_ref().ok_or_else(|| Error::msg("this game build has no rng_pad"))?;
+        let pointer = f.call(
             store,
             pad.button.into(),
             pad.stick_x.into(),
@@ -182,7 +184,8 @@ impl SM64Game {
     pub fn set_rng_config(&mut self, cfg: RngConfig) -> Result<()> {
         self.using_rng = true;
         let (store, exports) = self.parts_mut();
-        exports.set_rng_config.call(
+        let f = exports.set_rng_config.as_ref().ok_or_else(|| Error::msg("this game build has no set_rng_config"))?;
+        f.call(
             store,
             cfg.window_length,
             cfg.random_amount,
@@ -197,7 +200,8 @@ impl SM64Game {
     pub fn set_rng_seed(&mut self, seed: u32) -> Result<()> {
         self.using_rng = true;
         let (store, exports) = self.parts_mut();
-        exports.set_rng_seed.call(store, seed)?;
+        let f = exports.set_rng_seed.as_ref().ok_or_else(|| Error::msg("this game build has no set_rng_seed"))?;
+        f.call(store, seed)?;
         Ok(())
     }
 
