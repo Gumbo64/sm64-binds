@@ -307,17 +307,30 @@ impl Portable {
                 self.translated(target, b, chunk_addrs, &mut bad),
             ));
         }
-        // The headless build draws into an arena of its own: its display list
-        // pool is marked, which a state from the other build lacks.
-        if target == Build::Headless
-            && let Some(i) = VARS
-                .iter()
-                .position(|v| v.0.ends_with(":gGfxAllocOnlyPool"))
-            && let Some((_, d)) = out.iter().find(|p| p.0 == VARS[i].1)
-        {
+        // The display list pools start empty (their blocks are not state), and the
+        // headless build draws into an arena of its own: its pools are marked.
+        for name in [":gGfxAllocOnlyPool"] {
+            let Some(i) = VARS.iter().position(|v| v.0.ends_with(name)) else {
+                continue;
+            };
+            let at = if target == Build::Headless {
+                VARS[i].1
+            } else {
+                VARS[i].2
+            };
+            let Some((_, d)) = out.iter().find(|p| p.0 == at) else {
+                continue;
+            };
             let p = u32::from_le_bytes(d[..4].try_into().unwrap());
-            if p != 0 {
-                out.push((p + 12, 1u32.to_le_bytes().to_vec()));
+            let inside = chunk_addrs
+                .iter()
+                .zip(&self.chunks)
+                .any(|(&a, c)| p >= a && p + 16 <= a + c.data.len() as u32);
+            if p != 0 && inside {
+                out.push((p, vec![0; 12]));
+                if target == Build::Headless {
+                    out.push((p + 12, 1u32.to_le_bytes().to_vec()));
+                }
             }
         }
         Ok((out, bad))

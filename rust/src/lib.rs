@@ -1,7 +1,8 @@
 mod sm64;
 
 pub use sm64::{
-    Backend, FreezeMode, GamePad, GameState, PortableLoadReport, SM64Game, SM64GameGenerator, SaveState,
+    Backend, FreezeMode, GamePad, GameState, PortableLoadReport, SM64Game, SM64GameGenerator,
+    SaveState,
 };
 pub mod buttons;
 

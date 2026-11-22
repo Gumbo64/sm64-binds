@@ -109,10 +109,21 @@ fn unb64(s: &str) -> Vec<u8> {
     out
 }
 
-fn record(g: &mut SM64Game, pads: &[GamePad], frame: usize, k: usize) -> String {
+fn record(
+    g: &mut SM64Game,
+    pads: &[GamePad],
+    frame: usize,
+    k: usize,
+) -> Result<String, (String, String)> {
     let mut out = format!("{{\"frame\": {frame}, \"frames\": [");
     for i in 0..k {
-        g.step_game(pads[frame + i]).unwrap();
+        if let Err(e) = g.step_game(pads[frame + i]) {
+            out.push_str("]}");
+            return Err((
+                format!("the game crashed {} frames after the state: {e:?}", i + 1),
+                out,
+            ));
+        }
         let d = g.export_portable().map(|p| p.digest()).unwrap_or_default();
         let bytes: Vec<u8> = d.iter().flat_map(|x| x.to_le_bytes()).collect();
         let gs = game_state(g);
@@ -122,7 +133,7 @@ fn record(g: &mut SM64Game, pads: &[GamePad], frame: usize, k: usize) -> String 
         write!(out, "{{\"gs\": {:?}, \"d\": \"{}\"}}", gs, b64(&bytes)).unwrap();
     }
     out.push_str("]}");
-    out
+    Ok(out)
 }
 
 type Recording = (Vec<Vec<f64>>, Vec<Vec<u64>>);
@@ -174,7 +185,12 @@ const GS_NAMES: [&str; 18] = [
 /// The first frame where two recordings differ, described; variables named in
 /// `ignore` are not compared. `natural` collects the variables that differ
 /// (for working out which only differ between the builds).
-fn first_difference(a: &str, b: &str, ignore: &BTreeSet<&'static str>, natural: &mut BTreeSet<&'static str>) -> Option<String> {
+fn first_difference(
+    a: &str,
+    b: &str,
+    ignore: &BTreeSet<&'static str>,
+    natural: &mut BTreeSet<&'static str>,
+) -> Option<String> {
     let (ga, da) = read_recording(a)?;
     let (gb, db) = read_recording(b)?;
     if ga.is_empty() || gb.is_empty() {
@@ -182,8 +198,21 @@ fn first_difference(a: &str, b: &str, ignore: &BTreeSet<&'static str>, natural: 
     }
     let mut first = None;
     for i in 0..ga.len().min(gb.len()) {
-        let gd: Vec<String> = (0..ga[i].len().min(gb[i].len())).filter(|&j| ga[i][j] != gb[i][j]).map(|j| format!("{}: {} vs {}", GS_NAMES.get(j).unwrap_or(&"coins"), ga[i][j], gb[i][j])).collect();
-        let all: Vec<&'static str> = (0..da[i].len().min(db[i].len())).filter(|&j| da[i][j] != db[i][j]).map(Portable::var_name).collect();
+        let gd: Vec<String> = (0..ga[i].len().min(gb[i].len()))
+            .filter(|&j| ga[i][j] != gb[i][j])
+            .map(|j| {
+                format!(
+                    "{}: {} vs {}",
+                    GS_NAMES.get(j).unwrap_or(&"coins"),
+                    ga[i][j],
+                    gb[i][j]
+                )
+            })
+            .collect();
+        let all: Vec<&'static str> = (0..da[i].len().min(db[i].len()))
+            .filter(|&j| da[i][j] != db[i][j])
+            .map(Portable::var_name)
+            .collect();
         natural.extend(all.iter().copied());
         let vd: Vec<&&str> = all.iter().filter(|n| !ignore.contains(*n)).collect();
         if first.is_none() && (!gd.is_empty() || !vd.is_empty()) {
@@ -192,7 +221,17 @@ fn first_difference(a: &str, b: &str, ignore: &BTreeSet<&'static str>, natural: 
                 write!(s, "GameState {}; ", gd.join(", ")).unwrap();
             }
             if !vd.is_empty() {
-                write!(s, "{} variables differ: {}", vd.len(), vd.iter().take(6).map(|n| **n).collect::<Vec<_>>().join(", ")).unwrap();
+                write!(
+                    s,
+                    "{} variables differ: {}",
+                    vd.len(),
+                    vd.iter()
+                        .take(6)
+                        .map(|n| **n)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+                .unwrap();
             }
             first = Some(s);
         }
@@ -270,7 +309,11 @@ fn main() {
                     }
                 }
                 // the recording continues the replay
-                std::fs::write(format!("{dir}/h_{f}.json"), record(&mut game, &p, f, k)).unwrap();
+                std::fs::write(
+                    format!("{dir}/h_{f}.json"),
+                    record(&mut game, &p, f, k).map_err(|e| e.0).unwrap(),
+                )
+                .unwrap();
                 at += k;
                 println!("h_{f}: recorded");
             }
@@ -293,6 +336,14 @@ fn main() {
                 let frame: usize = frame.parse().unwrap();
                 let st = Portable::from_bytes(&std::fs::read(&f).unwrap()).unwrap();
                 let mut game = g.create_game().unwrap();
+                for pad in p.iter().take(
+                    std::env::var("PRE")
+                        .ok()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0),
+                ) {
+                    game.step_game(*pad).unwrap();
+                }
                 match game.load_portable(&st) {
                     Ok(r) => println!("hv_{frame}: loaded ({r:?})"),
                     Err(e) => {
@@ -300,13 +351,25 @@ fn main() {
                         continue;
                     }
                 }
-                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    record(&mut game, &p, frame, k)
-                })) {
+                match record(&mut game, &p, frame, k) {
                     Ok(json) => std::fs::write(format!("{dir}/hv_{frame}.json"), json).unwrap(),
-                    Err(_) => println!("hv_{frame}: the loaded game crashed"),
+                    Err((e, partial)) => {
+                        println!("hv_{frame}: {e}");
+                        std::fs::write(format!("{dir}/hv_{frame}.json"), partial).unwrap();
+                    }
                 }
             }
+        }
+        "export-dump" => {
+            // a portable state from a dump of the rendering build's linear memory (to test the translation without a browser)
+            let mem = std::fs::read(&a[2]).unwrap();
+            std::fs::write(
+                &a[3],
+                sm64_binds::portable::export(&mem, Build::Visual)
+                    .unwrap()
+                    .to_bytes(),
+            )
+            .unwrap();
         }
         "compare" => {
             let dir = &a[2];
@@ -323,19 +386,44 @@ fn main() {
             let mut natural = BTreeSet::new();
             let none = BTreeSet::new();
             for f in &frames {
-                first_difference(&format!("{dir}/h_{f}.json"), &format!("{dir}/v_{f}.json"), &none, &mut natural);
+                first_difference(
+                    &format!("{dir}/h_{f}.json"),
+                    &format!("{dir}/v_{f}.json"),
+                    &none,
+                    &mut natural,
+                );
             }
-            println!("Variables that differ between the builds' own runs (render state), left out: {natural:?}\n");
-            let show = |r: Option<String>, exists: bool| if !exists { "missing".to_string() } else { r.map(|d| format!("DIFFERS at {d}")).unwrap_or_else(|| "identical".into()) };
-            println!("| checkpoint | builds from boot (headless vs rendering) | headless -> rendering (rendering run vs the loaded one) | rendering -> headless (headless run vs the loaded one) |");
+            println!(
+                "Variables that differ between the builds' own runs (render state), left out: {natural:?}\n"
+            );
+            let show = |r: Option<String>, exists: bool| {
+                if !exists {
+                    "missing".to_string()
+                } else {
+                    r.map(|d| format!("DIFFERS at {d}"))
+                        .unwrap_or_else(|| "identical".into())
+                }
+            };
+            println!(
+                "| checkpoint | builds from boot (headless vs rendering) | headless -> rendering (rendering run vs the loaded one) | rendering -> headless (headless run vs the loaded one) |"
+            );
             println!("|---|---|---|---|");
             let mut sink = BTreeSet::new();
             for f in frames {
                 let p = |n: &str| format!("{dir}/{n}_{f}.json");
                 let ex = |n: &str| std::path::Path::new(&p(n)).exists();
-                let boot = show(first_difference(&p("h"), &p("v"), &natural, &mut sink), ex("v"));
-                let h2v = show(first_difference(&p("v"), &p("vh"), &natural, &mut sink), ex("vh") && ex("v"));
-                let v2h = show(first_difference(&p("h"), &p("hv"), &natural, &mut sink), ex("hv"));
+                let boot = show(
+                    first_difference(&p("h"), &p("v"), &natural, &mut sink),
+                    ex("v"),
+                );
+                let h2v = show(
+                    first_difference(&p("v"), &p("vh"), &natural, &mut sink),
+                    ex("vh") && ex("v"),
+                );
+                let v2h = show(
+                    first_difference(&p("h"), &p("hv"), &natural, &mut sink),
+                    ex("hv"),
+                );
                 println!("| {f} | {boot} | {h2v} | {v2h} |");
             }
         }

@@ -177,6 +177,20 @@ fn is_render_list(pointee: u16) -> bool {
     POINTEES[pointee as usize] == "DisplayListNode"
 }
 
+/// Whether a layout is nothing but `uintptr_t` words.
+fn only_words(layout: u16) -> bool {
+    static W: OnceLock<Vec<bool>> = OnceLock::new();
+    W.get_or_init(|| {
+        LAYOUTS
+            .iter()
+            .map(|items| !items.is_empty() && items.iter().all(|i| matches!(i.1, K::Word)))
+            .collect()
+    })
+    .get(layout as usize)
+    .copied()
+    .unwrap_or(false)
+}
+
 fn named_by(name: &str) -> Option<(u32, u16)> {
     NAMED
         .binary_search_by(|(m, _, _)| m.cmp(&name))
@@ -191,6 +205,8 @@ fn object_layout() -> Option<u16> {
 
 /// `struct Object`'s first rawData slot, from include/object_fields.h.
 const OBJ_RAW: u32 = 0x88;
+/// `struct Object::bhvStack` (uintptr_t[8]).
+const OBJ_BHV_STACK: u32 = 0x1D4;
 
 fn pool_layout() -> Option<u16> {
     named_by("AllocOnlyPool").map(|x| x.1)
@@ -287,7 +303,7 @@ struct Walk<'a> {
     seen: HashSet<(u32, u16)>,
     queue: Vec<usize>,
     /// Pointers in this address range are not followed (the display list pool).
-    skip: (u32, u32),
+    skip: Vec<(u32, u32)>,
     found_by: Vec<(Slot, u32)>,
     bad_nodes: Vec<(u32, u16)>,
 }
@@ -403,6 +419,28 @@ impl<'a> Walk<'a> {
             slot,
             off: roff,
         } = self.regions[ri];
+        // A main pool block that holds an allocation pool (its release handler
+        // says so): the pool sits right after the header, reached by no pointer.
+        if let (Slot::Chunk(_), Some(pl)) = (slot, pool_layout())
+            && Some(layout) == named_by("MainPoolBlock").map(|x| x.1)
+            && let Some(h) = rd(self.mem, addr + 8)
+            && FNS.iter().any(|f| {
+                f.2 == "alloc_only_pool_release_handler"
+                    && h == if self.build == Build::Headless {
+                        f.0
+                    } else {
+                        f.1
+                    } as u32
+            })
+            && roff + 12 + 12
+                <= self.chunks[match slot {
+                    Slot::Chunk(c) => c,
+                    _ => 0,
+                }]
+                .len
+        {
+            self.push_region(addr + 12, pl, slot, roff + 12);
+        }
         let obj = object_layout();
         let mut found: Vec<(u32, K, u16, u32)> = Vec::new();
         rleaves(layout, addr, count, &mut |a, k, l, o| {
@@ -411,7 +449,7 @@ impl<'a> Walk<'a> {
             }
         });
         for (a, k, l, o) in found {
-            if a >= self.skip.0 && a < self.skip.1 {
+            if self.skip.iter().any(|&(lo, hi)| a >= lo && a < hi) {
                 continue;
             }
             let Some(v) = rd(self.mem, a) else { continue };
@@ -469,9 +507,16 @@ impl<'a> Walk<'a> {
     }
 
     fn rodata_slot(&self, obj: Option<u16>, layout: u16, off: u32) -> bool {
+        // arrays of uintptr_t (the segment table, the level script and geo layout
+        // stacks) hold addresses of scripts and assets
+        if only_words(layout) {
+            return true;
+        }
         Some(layout) == obj
-            && (OBJ_RAW..OBJ_RAW + 4 * 128).contains(&off)
-            && (POINTER_SLOTS >> ((off - OBJ_RAW) / 4)) & 1 != 0
+            && (((OBJ_RAW..OBJ_RAW + 4 * 128).contains(&off)
+                && (POINTER_SLOTS >> ((off - OBJ_RAW) / 4)) & 1 != 0)
+                // bhvStack: addresses inside behavior scripts
+                || (OBJ_BHV_STACK..OBJ_BHV_STACK + 32).contains(&off))
     }
 }
 
@@ -480,6 +525,18 @@ impl<'a> Walk<'a> {
 fn var_addr(build: Build, i: usize) -> (u32, u32, u16) {
     let v = &VARS[i];
     (if build == Build::Headless { v.1 } else { v.2 }, v.3, v.4)
+}
+
+/// The pools the render walk draws into (`gGfxAllocOnlyPool`, `gDisplayListHeap`):
+/// not state, rebuilt every frame. Their addresses in `mem`.
+pub fn draw_pools(mem: &[u8], build: Build) -> Vec<u32> {
+    [":gGfxAllocOnlyPool"]
+        .iter()
+        .filter_map(|n| {
+            let i = VARS.iter().position(|v| v.0.ends_with(n))?;
+            rd(mem, var_addr(build, i).0).filter(|&p| p != 0)
+        })
+        .collect()
 }
 
 /// Why a state cannot be made portable, if it cannot: goddard (the intro's
@@ -536,17 +593,13 @@ pub fn walk_unchecked(mem: &[u8], build: Build) -> Result<Walked, String> {
         regions: Vec::new(),
         seen: HashSet::new(),
         queue: Vec::new(),
-        skip: (0, 0),
+        skip: draw_pools(mem, build)
+            .iter()
+            .map(|&p| (p, p + 16))
+            .collect(),
         found_by: Vec::new(),
         bad_nodes: Vec::new(),
     };
-    if let Some(i) = VARS
-        .iter()
-        .position(|v| v.0.ends_with(":gGfxAllocOnlyPool"))
-        && let Some(p) = rd(mem, var_addr(build, i).0)
-    {
-        w.skip = (p, p + 16);
-    }
     for i in 0..VARS.len() {
         let (addr, size, layout) = var_addr(build, i);
         if addr as usize + size as usize > mem.len() {
@@ -653,7 +706,7 @@ pub fn walk_unchecked(mem: &[u8], build: Build) -> Result<Walked, String> {
             items.push((a, k, l, o))
         });
         for (a, k, l, o) in items {
-            if a >= w.skip.0 && a < w.skip.1 {
+            if w.skip.iter().any(|&(lo, hi)| a >= lo && a < hi) {
                 // the display list pool (zeroed below)
                 continue;
             }
@@ -730,14 +783,13 @@ pub fn walk_unchecked(mem: &[u8], build: Build) -> Result<Walked, String> {
     }
     // The display list pool is rebuilt every frame; its blocks are not state
     // (and live in different memory in the two builds).
-    if let Some(i) = VARS
-        .iter()
-        .position(|v| v.0.ends_with(":gGfxAllocOnlyPool"))
-        && let Some(p) = rd(mem, var_addr(build, i).0)
-        && let Some(ci) = w.chunk_of(p)
-    {
+    for p in draw_pools(mem, build) {
+        let Some(ci) = w.chunk_of(p) else { continue };
+        let Some(&bi) = w.reached.get(&ci) else {
+            continue;
+        };
         let off = (p - w.chunks[ci].user) as usize;
-        let buf = &mut out.chunks[w.reached[&ci]];
+        let buf = &mut out.chunks[bi];
         if buf.data.len() >= off + 16 {
             buf.data[off..off + 16].copy_from_slice(&[0; 16]);
             buf.relocs
@@ -791,21 +843,13 @@ pub fn game_blocks(mem: &[u8], build: Build) -> Result<Vec<(u32, u32)>, String> 
 pub fn display_list_blocks(mem: &[u8], build: Build) -> Result<Vec<u32>, String> {
     let chunks = heap_chunks(mem, build)?;
     let mut out = Vec::new();
-    let Some(i) = VARS
-        .iter()
-        .position(|v| v.0.ends_with(":gGfxAllocOnlyPool"))
-    else {
-        return Ok(out);
-    };
-    let (a, _, _) = var_addr(build, i);
-    let Some(pool) = rd(mem, a) else {
-        return Ok(out);
-    };
     let is_block = |b: u32| chunks.binary_search_by(|c| c.user.cmp(&b)).is_ok();
-    let mut b = rd(mem, pool).unwrap_or(0);
-    while b != 0 && is_block(b) && out.len() < 100_000 {
-        out.push(b);
-        b = rd(mem, b).unwrap_or(0);
+    for pool in draw_pools(mem, build) {
+        let mut b = rd(mem, pool).unwrap_or(0);
+        while b != 0 && is_block(b) && out.len() < 100_000 {
+            out.push(b);
+            b = rd(mem, b).unwrap_or(0);
+        }
     }
     Ok(out)
 }

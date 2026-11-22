@@ -53,6 +53,8 @@ export async function wasmCodeId(wasm) {
 
 const RAW_MAGIC = "SM64VISU";
 const RAW_VERSION = 1;
+const DELTA_VERSION = 2; // only the 4 KiB pages that differ from a base snapshot
+const PAGE = 4096;
 const RAW_HEADER = 44;
 
 class Sm64VisualEngine {
@@ -162,19 +164,71 @@ class Sm64VisualEngine {
         return out;
     }
 
-    /** Loads a snapshot made by [`save_state`] of this build. */
-    load_state(bytes) {
+    /**
+     * Like [`save_state`], but a delta against `base` (a full snapshot from
+     * `save_state()`): only the 4 KiB pages that changed are kept, so a trail of
+     * snapshots of a game that changes little between them costs little (a few
+     * hundred KB each rather than 13 MB). Load it with `load_state(delta, base)`;
+     * `base` has to be kept as long as its deltas are.
+     */
+    save_state_delta(base) {
+        const full = this.save_state();
+        const body = RAW_HEADER;
+        if (full.length !== base.length) return full; // the heap grew: keep it whole
+        const pages = [];
+        for (let o = body; o < full.length; o += PAGE) {
+            const e = Math.min(o + PAGE, full.length);
+            let same = true;
+            for (let k = o; k < e; k += 4) {
+                if (full[k] !== base[k] || full[k + 1] !== base[k + 1] || full[k + 2] !== base[k + 2] || full[k + 3] !== base[k + 3]) {
+                    same = false;
+                    break;
+                }
+            }
+            if (!same) pages.push(o);
+        }
+        const out = new Uint8Array(RAW_HEADER + 4 + pages.length * (4 + PAGE));
+        out.set(full.subarray(0, RAW_HEADER), 0);
+        const dv = new DataView(out.buffer);
+        dv.setUint32(8, DELTA_VERSION, true);
+        dv.setUint32(RAW_HEADER, pages.length, true);
+        let w = RAW_HEADER + 4;
+        for (const o of pages) {
+            dv.setUint32(w, (o - body) / PAGE, true);
+            out.set(full.subarray(o, Math.min(o + PAGE, full.length)), w + 4);
+            w += 4 + PAGE;
+        }
+        return out;
+    }
+
+    /** Loads a snapshot made by [`save_state`] of this build (or by [`save_state_delta`], with its `base`). */
+    load_state(bytes, base = null) {
         const t = this._translator();
         const c = t.constants(BUILD_VISUAL);
         const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         if (bytes.length < RAW_HEADER || String.fromCharCode(...bytes.subarray(0, 8)) !== RAW_MAGIC) {
             throw new Error("not a rendering build save state");
         }
-        if (dv.getUint32(8, true) !== RAW_VERSION) throw new Error("unsupported save state version");
+        const version = dv.getUint32(8, true);
+        if (version === DELTA_VERSION) {
+            if (!base) throw new Error("a delta save state needs its base snapshot");
+            const full = base.slice();
+            const n = dv.getUint32(RAW_HEADER, true);
+            let r = RAW_HEADER + 4;
+            for (let k = 0; k < n; k++) {
+                const o = RAW_HEADER + dv.getUint32(r, true) * PAGE;
+                full.set(bytes.subarray(r + 4, r + 4 + Math.min(PAGE, full.length - o)), o);
+                r += 4 + PAGE;
+            }
+            bytes = full;
+        } else if (version !== RAW_VERSION) {
+            throw new Error("unsupported save state version");
+        }
+        const dv2 = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         const id = Array.from(bytes.subarray(12, 32), (b) => b.toString(16).padStart(2, "0")).join("");
         if (id !== this.codeId) throw new Error(`save state is from build ${id}, this game is build ${this.codeId}`);
-        const stackLen = dv.getUint32(32, true);
-        const heapLen = dv.getUint32(36, true);
+        const stackLen = dv2.getUint32(32, true);
+        const heapLen = dv2.getUint32(36, true);
         if (bytes.length !== RAW_HEADER + stackLen + heapLen) throw new Error("save state is truncated");
         const mem = new Uint8Array(this.memory.buffer);
         mem.set(bytes.subarray(RAW_HEADER, RAW_HEADER + stackLen), 0);

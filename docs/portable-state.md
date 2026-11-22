@@ -174,3 +174,30 @@ cd ../../rust && ./target/release/examples/portable_check load ../baserom.us.z64
 cd ../javascript/e2e && env -u DISPLAY node portable_check.mjs load ../../baserom.us.z64 ../../tas/tasvideos-7310M-120star.m64 $DIR 600
 cd ../../rust && ./target/release/examples/portable_check compare $DIR 600
 ```
+
+### Results
+
+K = 600 frames after each checkpoint. "identical" means every compared variable and the
+`GameState` match on every one of those frames. Checkpoints 39000 (the intro's Mario head is
+on screen; refused by design) and 50000 and later were not run: the run was stopped early.
+
+| checkpoint | headless -> rendering | rendering -> headless |
+|---|---|---|
+| 250 | identical | identical |
+| 1000 | not run | identical |
+| 1900 | not run | identical |
+| 2600 | identical | identical |
+| 3700, 5100, 6300 | not run | identical |
+| 7000 | not run | differs at +210: `mario_misc:gBodyStates` only |
+| 9500 | not run | identical |
+| 12000 | identical | identical |
+| 14000, 17000 | not run | identical |
+| 22000 | not run | differs at +8: `mario_misc:gBodyStates` only |
+| 30000 | identical | identical |
+| 35000, 41000 | not run | identical |
+
+Both builds also agree from boot at every checkpoint above. Known remaining difference:
+`gBodyStates` (Mario's body-state record, written while the render walk runs) diverges at 7000
+and 22000 when the state comes from the rendering build; `GameState` stays identical in
+those runs. The rendering build's `save_state`/`load_state`/delta were not exercised in
+Chromium by this run (modes `snapshot` and `rewind` of `portable_check.mjs` exist).

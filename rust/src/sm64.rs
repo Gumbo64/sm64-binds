@@ -8,6 +8,7 @@ mod generator;
 mod memory;
 pub mod mupen;
 pub mod portable;
+mod portable_game;
 #[cfg(all(
     feature = "precompiled",
     target_arch = "x86_64",
@@ -15,7 +16,6 @@ pub mod portable;
     target_env = "gnu"
 ))]
 mod precompiled;
-mod portable_game;
 mod save_state;
 mod sync;
 mod util;
