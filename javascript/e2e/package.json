@@ -1,0 +1,7 @@
+{
+  "name": "sm64-binds-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Runs the rendering build in headless Chromium for the portable state checks. npm install, then see portable_check.mjs.",
+  "dependencies": { "playwright": "^1.48.2", "vite": "^7.1.7" }
+}

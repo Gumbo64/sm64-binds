@@ -37,3 +37,9 @@ node_modules/
 *.m64
 # Core dumps
 core.*
+
+# javascript/e2e: browser checks of portable states
+javascript/e2e/node_modules/
+javascript/e2e/public/rom.z64
+javascript/e2e/package-lock.json
+javascript/e2e/node_modules

@@ -64,6 +64,15 @@ sm64-build: copy-rom
 # 	just call it a png because webpack freaks out if it sees .xor
 	cp $(WASM_ZIP_XOR)/sm64.us.wasm.zip.xor $(JS_PKG)/sm64.us.wasm.zip.xor.png
 
+# Portable save states: the tables (from the two builds' linker maps, WASMs and
+# the DWARF of the sources) and the translator WASM for the browser. Run both
+# after `make sm64-build` changes the game; see docs/portable-state.md.
+portable:
+	@echo "$(BLUE)\nPORTABLE SAVE STATE TABLES$(RESET)"
+	@JOBS=$(JOBS) $(PYTHON) maketools/gen_portable_tables.py
+	@echo "$(BLUE)\nPORTABLE SAVE STATE TRANSLATOR (WASM)$(RESET)"
+	@$(PYTHON) maketools/portable_wasm.py
+
 # Copy the ROM into the SM64PC directory
 copy-rom:
 	@echo "Copying $(ROM_FILE) to $(SM64PC)..."
@@ -153,4 +162,4 @@ clean:
 	$(MAKE) -C $(SM64PC) clean
 	rm -rf $(WASM)
 
-.PHONY: all sm64-build copy-rom clean test test-maketools test-python test-rust test-javascript lint bench bench-python versions check-artifacts bump
+.PHONY: all sm64-build portable copy-rom clean test test-maketools test-python test-rust test-javascript lint bench bench-python versions check-artifacts bump

@@ -7,6 +7,7 @@ mod game_state;
 mod generator;
 mod memory;
 pub mod mupen;
+pub mod portable;
 #[cfg(all(
     feature = "precompiled",
     target_arch = "x86_64",
@@ -14,6 +15,7 @@ pub mod mupen;
     target_env = "gnu"
 ))]
 mod precompiled;
+mod portable_game;
 mod save_state;
 mod sync;
 mod util;
@@ -22,6 +24,7 @@ mod wasm_module;
 pub use game_pad::GamePad;
 pub use game_state::{GAME_STATE_SIZE, GameState};
 pub use generator::{Backend, SM64GameGenerator};
+pub use portable_game::PortableLoadReport;
 pub use save_state::SaveState;
 
 use generator::GameSource;

@@ -1,0 +1,20 @@
+[package]
+name = "sm64-portable-wasm"
+version = "2.0.1"
+edition = "2024"
+description = "The portable save state translator (src/sm64/portable) as a WASM module, for the browser"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+codegen-units = 1
+strip = true
+
+[workspace]
