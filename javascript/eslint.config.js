@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import globals from "globals";
 import react from "eslint-plugin-react-refresh";
+import hooks from "eslint-plugin-react-hooks";
 
 export default [
     js.configs.recommended,
@@ -21,7 +22,7 @@ export default [
                 "warn",
                 {
                     argsIgnorePattern: "^_",
-                    varsIgnorePattern: "^(React|Loading|.*\\.jsx)$",
+                    varsIgnorePattern: "^(React|Loading|.*\\.jsx|[A-Z]\\w*)$",
                 },
             ],
         },
@@ -33,9 +34,11 @@ export default [
         languageOptions: {
             parserOptions: { ecmaFeatures: { jsx: true } },
         },
-        plugins: { "react-refresh": react },
+        plugins: { "react-refresh": react, "react-hooks": hooks },
         rules: {
             "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+            "react-hooks/rules-of-hooks": "error",
+            "react-hooks/exhaustive-deps": "warn",
         },
     },
     {

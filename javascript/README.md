@@ -97,3 +97,36 @@ full snapshot kept every few hundred frames, or `export_portable_state` for
 storable ones), restore the nearest earlier one and step forward. Audio is not
 part of a state (call `set_audio_enabled(0)` while seeking). Code:
 `src/scripts/sm64/portable.js` (translator), `Sm64Game.js` (engine methods).
+
+## Replay player (`sm64-binds-frontend/replay`)
+
+A React replay player for any movie of controller pads (`{ button, stick_x, stick_y }`
+frames): real-time play at 0.25x to max speed, frame steps, seeking both ways (a
+`Trail` of engine save states: portable states, or `save_state_delta` snapshots where
+the translator is unavailable, filled by a background pass), a timeline with annotated
+regions and star/area events, HUD, controller display, render-resolution options and
+MP4 export (WebCodecs + `mp4-muxer`, loaded when the export dialog first opens).
+
+```jsx
+import { Viewer, parseReplay } from 'sm64-binds-frontend/replay';
+import 'sm64-binds-frontend/replay.css';   // scoped under .sm64-replay
+
+const { pads } = parseReplay(await (await fetch('run.m64')).arrayBuffer());
+<Viewer replay={{ pads, regions: [] }} onClose={() => {}} />
+```
+
+React and ReactDOM are peer dependencies (bring your own, one copy; with a bundler's
+`dedupe` when the package is linked). The game ROM must already be loaded
+(`FileUpload`, `getROM`) before a `Viewer` mounts. Loading the replay file, its
+annotations and the ROM is the app's job; nothing here fetches.
+
+| Export | Purpose |
+| --- | --- |
+| `Viewer` | The whole UI. Props: `replay` (`{ pads, regions?, name?, ... }`), `initial` (`{ frame, speed, playing }`), `onRewind(frame, speed, playing)` (called when a backwards seek has no state to load: the app restarts the emulator), `onClose`, `backLabel`, `makePlayer(replay, onChange)` (return a `Player` subclass), `topbarExtra(view)`, `panelExtra(view)`, `regionLink(region)`, `milestones` (sorted frames for the previous/next buttons). |
+| `Player` | Drives the engine: `attach(container)`, `play/pause/toggle`, `setSpeed`, `step`, `seek(frame)` (false if it cannot), `dispose`. Calls `onChange(view)` with `frame`, `total`, `playing`, `speed`, `seeking`, `state`, `pad`, `events`. Override `saveState()` / `loadState(state, frame)` / `stepGame(pad)` to play differently. |
+| `Trail` | Save states by frame (`add`, `nearest`, `due`), thinned when full. |
+| `SPEEDS`, `FPS`, `formatTime` | Playback constants. |
+| `parseReplay`, `hasMupenHeader` | Raw 4-bytes-per-frame or Mupen `.m64` bytes to `{ pads, header, trailing }`. |
+| `normalizeRegions`, `regionAt` | Region lists `{ from, to?, label?, note?, color? }`. |
+| `RESOLUTIONS`, `loadResolution`, `saveResolution` | Render size options (persisted in localStorage). |
+| `BUTTONS`, `courseName` | Display constants. |

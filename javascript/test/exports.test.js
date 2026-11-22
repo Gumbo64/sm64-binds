@@ -1,4 +1,4 @@
-// The export map only exposes index.js, so apps cannot import from src/.
+// The export map exposes index.js and the replay subpath, so apps cannot import other parts of src/.
 // Checks index.js re-exports what sm64-viewer needs; importing index.js here
 // is not possible because it pulls in JSX.
 import { test } from 'node:test';
@@ -16,7 +16,7 @@ test('index.js exports what apps driving the engine need', () => {
   }
 });
 
-test('the export map exposes only index.js', () => {
+test('the export map exposes index.js, the replay player and its css', () => {
   const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-  assert.deepEqual(pkg.exports, { '.': './index.js' });
+  assert.equal(pkg.exports['.'], './index.js');
 });

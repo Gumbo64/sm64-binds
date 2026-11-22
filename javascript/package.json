@@ -1,6 +1,6 @@
 {
   "name": "sm64-binds-frontend",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Mario 64 using WASM. Requires a US .z64 version ROM to work (8.00MB)",
   "homepage": "https://github.com/Gumbo64/sm64-binds#readme",
   "bugs": {
@@ -15,7 +15,10 @@
   "type": "module",
   "main": "index.js",
   "exports": {
-    ".": "./index.js"
+    ".": "./index.js",
+    "./replay": "./src/replay/index.js",
+    "./replay.css": "./src/replay/replay.css",
+    "./package.json": "./package.json"
   },
   "scripts": {
     "test": "node --test test/*.test.js",
@@ -28,8 +31,7 @@
   ],
   "dependencies": {
     "jszip": "^3.10.1",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
+    "mp4-muxer": "^5.2.2",
     "react-router": "^7.9.4"
   },
   "devDependencies": {
@@ -41,6 +43,12 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",
     "globals": "^16.4.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
     "vite": "^7.1.7"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
   }
 }

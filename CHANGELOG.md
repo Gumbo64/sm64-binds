@@ -3,6 +3,20 @@
 All three packages (Rust `sm64-binds`, Python `sm64-binds`, JavaScript
 `sm64-binds-frontend`) are released together at the same version.
 
+## 2.2.0
+
+### Added
+
+- **Replay player** for the JavaScript package, as a subpath export: `sm64-binds-frontend/replay`
+  (React `Viewer`, `Player`, `Trail`, `parseReplay`, `normalizeRegions`, ...) and
+  `sm64-binds-frontend/replay.css`. Real-time play, speeds, frame steps, seeking both ways
+  through a trail of engine save states (portable states, or `save_state_delta` snapshots when
+  the translator is unavailable), timeline with regions and events, HUD, input display,
+  resolution options, MP4 export. Moved here from sm64-viewer, which (and SM64Coin's web app)
+  now import it from this package. See the README's "Replay player" section.
+- `react` and `react-dom` are now peer dependencies of the JavaScript package (they were
+  dependencies); `mp4-muxer` is a new dependency (loaded only by the export dialog).
+
 ## 2.1.1
 
 - Release fix: Cargo.lock pins wasm-bindgen 0.2.108 again (0.2.129 broke wasmer 6.1.0's JS backend, so 2.1.0's release build failed and it was never published). Otherwise identical to 2.1.0.
