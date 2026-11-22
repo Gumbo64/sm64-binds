@@ -3,7 +3,7 @@
 All three packages (Rust `sm64-binds`, Python `sm64-binds`, JavaScript
 `sm64-binds-frontend`) are released together at the same version.
 
-## 3.0.0
+## 2.1.0
 
 **Breaking:** the in-game controller perturbation is gone from the game and the
 bindings. Perturbation lives with whoever needs it (SM64Coin runs its own, outside
