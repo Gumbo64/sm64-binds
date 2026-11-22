@@ -3,6 +3,10 @@
 All three packages (Rust `sm64-binds`, Python `sm64-binds`, JavaScript
 `sm64-binds-frontend`) are released together at the same version.
 
+## 2.1.1
+
+- Release fix: Cargo.lock pins wasm-bindgen 0.2.108 again (0.2.129 broke wasmer 6.1.0's JS backend, so 2.1.0's release build failed and it was never published). Otherwise identical to 2.1.0.
+
 ## 2.1.0
 
 **Breaking:** the in-game controller perturbation is gone from the game and the
