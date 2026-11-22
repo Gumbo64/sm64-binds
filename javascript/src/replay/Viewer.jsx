@@ -18,6 +18,7 @@ const speedLabel = (s) => (s === Infinity ? 'max' : `${s}×`);
  * rewind; `onRewind(frame, speed, playing)` is called to go backwards.
  *
  * Also used by other apps (the SM64Coin block page) through sm64-binds-frontend/replay:
+ * `playerOptions` (Player's third argument: `headless`, `headlessThreshold`, `makeHeadlessWorker`),
  * `makePlayer(replay, onChange)` makes the Player (a subclass: another way to
  * play the frames), `topbarExtra(view)` / `panelExtra(view)` add to the top
  * bar and replace the regions list in the side panel, `regionLink(region)`
@@ -26,7 +27,7 @@ const speedLabel = (s) => (s === Infinity ? 'max' : `${s}×`);
  */
 export default function Viewer({
   replay, initial, onRewind, onClose, backLabel = '← Replays',
-  makePlayer, topbarExtra, panelExtra, regionLink, milestones,
+  makePlayer, playerOptions, topbarExtra, panelExtra, regionLink, milestones,
 }) {
   const container = useRef(null);
   const stage = useRef(null);
@@ -43,7 +44,7 @@ export default function Viewer({
   const exportJob = useRef(initial?.exportJob ?? null);
 
   useEffect(() => {
-    const p = makePlayer ? makePlayer(replay, setView) : new Player(replay.pads, setView);
+    const p = makePlayer ? makePlayer(replay, setView) : new Player(replay.pads, setView, playerOptions);
     player.current = p;
     p.setSpeed(initial?.speed ?? 1);
     p.attach(container.current)

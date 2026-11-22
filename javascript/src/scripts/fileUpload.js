@@ -27,6 +27,7 @@ async function calculateFileHash(arrayBuffer) {
 async function storeROM(romArrayBuffer) {
     const romBuffer = new Uint8Array(romArrayBuffer);
     await storeFile("ROM", romBuffer);
+    await deleteFile("sm64_headless.us.wasm"); // decrypted with the old ROM; headlessWasm.js makes it again when needed
     await updateWASMs();
 }
 
@@ -79,6 +80,15 @@ async function storeFile(filename, file) {
         request.onerror = () => {
             reject(new Error(`Error saving '${filename}' to IndexedDB`));
         };
+    });
+}
+
+async function deleteFile(filename) {
+    const db = await openDatabase();
+    const request = db.transaction('files', 'readwrite').objectStore('files').delete(filename);
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(new Error(`Error deleting '${filename}' from IndexedDB`));
     });
 }
 
@@ -136,4 +146,4 @@ async function openDatabase() {
 }
 
 
-export {calculateFileHash, storeROM, updateWASMs, isRomCached, getROM, getSM64WASM};
+export {calculateFileHash, storeROM, updateWASMs, isRomCached, getROM, getSM64WASM, getFile, storeFile, unzipBytes};

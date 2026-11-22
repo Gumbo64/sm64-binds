@@ -167,3 +167,35 @@ export function portableInfo(bytes) {
         size: bytes.length,
     };
 }
+
+const LEB_DATA_SECTIONS = new Set([11, 12]);
+
+/** The SHA-1 (hex) of a WASM's code: the module without its data sections,
+ *  which is how the build is identified in save states (the same as the Rust
+ *  crate's build id). */
+export async function wasmCodeId(wasm) {
+    const b = new Uint8Array(wasm);
+    const parts = [b.subarray(0, 8)];
+    let at = 8;
+    while (at < b.length) {
+        const id = b[at];
+        let p = at + 1;
+        let size = 0;
+        for (let shift = 0; ; shift += 7) {
+            const byte = b[p++];
+            size += (byte & 0x7f) * 2 ** shift;
+            if (byte < 0x80) break;
+        }
+        const end = p + size;
+        if (!LEB_DATA_SECTIONS.has(id)) parts.push(b.subarray(at, end));
+        at = end;
+    }
+    const all = new Uint8Array(parts.reduce((n, x) => n + x.length, 0));
+    let o = 0;
+    for (const x of parts) {
+        all.set(x, o);
+        o += x.length;
+    }
+    const h = new Uint8Array(await crypto.subtle.digest("SHA-1", all));
+    return Array.from(h, (x) => x.toString(16).padStart(2, "0")).join("");
+}

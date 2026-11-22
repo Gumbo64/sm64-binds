@@ -29,6 +29,11 @@ PAIRS = [
         "javascript/src/scripts/sm64/pkg/sm64.us.wasm.zip.xor.png",
     ),
     (
+        "WASM_ZIP_XOR/sm64_headless.us.wasm.zip.xor",
+        # The headless game for the browser (the replay player's worker).
+        "javascript/src/scripts/sm64/pkg/sm64_headless.us.wasm.zip.xor.png",
+    ),
+    (
         "WASM_JS/sm64.us.js",
         "javascript/src/scripts/sm64/pkg/sm64.us.js",
     ),

@@ -3,6 +3,32 @@
 All three packages (Rust `sm64-binds`, Python `sm64-binds`, JavaScript
 `sm64-binds-frontend`) are released together at the same version.
 
+## 2.3.0
+
+### Added
+
+- **Headless catch-up for the replay player.** The `Player` fast-forwards (the viewer opening
+  a replay at a frame, long seeks in either direction) with the headless build of the game in
+  a Web Worker and loads the resulting portable state into the rendering engine, instead of
+  stepping the rendering build with its draws muted. The worker also fills the trail and
+  collects the star/area events. Measured on the 120-star TAS (Chromium, software GL, cold page
+  including the worker and the headless game's decode): frame 10k in 0.6 s instead of 3.1 s, 50k in
+  1.5 s instead of 13.9 s, 100k in 2.6 s instead of 24 s; the landed game equals the stepped one
+  (position, action, stars, events) at every frame checked. Short seeks keep using the trail; any failure falls back to the old
+  way with a console message. New: `Sm64HeadlessEngine` (the headless game in JavaScript: a
+  worker or Node), `HeadlessClient`, `headless.worker.js`, the headless payload
+  `sm64_headless.us.wasm.zip.xor.png` (lazy: only the worker fetches it, cached in IndexedDB),
+  `Player` options (`headless`, `headlessThreshold`, `makeHeadlessWorker`), `Viewer`'s
+  `playerOptions`, and the `headlessLimit()` / `workerTrail` hooks for subclasses.
+- `wasmCodeId` moved to `portable.js` (still re-exported from `Sm64Game.js`); `storeROM` also
+  drops the cached headless WASM.
+- Known limit, not new: a portable state is only checked for a few hundred frames after it. In
+  the 120-star TAS, a game landed at frame 3000 (by the worker, or by the trail's states) drifts
+  from the continuous run around frame 23000 (`gBodyStates` is the first variable to differ);
+  landings at 1000, 70000 and 100000 stay exact for 30000 frames. The worker itself is always the
+  continuous run from power-on, so landing is the only translation involved.
+- The game WASM itself is unchanged (headless sha1 `a6a197b5ec48fa11725d009eed4af37fbacd00c0`).
+
 ## 2.2.0
 
 ### Added

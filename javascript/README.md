@@ -120,9 +120,53 @@ React and ReactDOM are peer dependencies (bring your own, one copy; with a bundl
 (`FileUpload`, `getROM`) before a `Viewer` mounts. Loading the replay file, its
 annotations and the ROM is the app's job; nothing here fetches.
 
+### Headless catch-up
+
+Fast-forwarding a long replay by stepping the rendering build (even with the draws
+skipped) costs its full frame time on the main thread. Since 2.3.0 the `Player`
+catches up with the **headless** build of the game instead, in a Web Worker (no canvas,
+GL or audio; the same WASM the Rust and Python packages run, a few times faster), and
+loads the result into the rendering engine as a portable state:
+
+- *Initial catch-up* (`Viewer` opening at `initial.frame`) and *long seeks* (those that
+  would save more than 600 frames of stepping over the nearest trail state or the current
+  position, in either direction) go through the worker: it steps the pads to the frame
+  before the target, posts a portable state (a transferable `ArrayBuffer`), the engine
+  loads it and plays the last frame itself, so the target frame is drawn as usual.
+  Short seeks keep using the trail.
+- The worker also fills the **trail** in the background (and as a by-product of catch-ups)
+  and returns the star/area **events** on the way, so the timeline is complete after a jump.
+- It is lazy: the worker, its ~6 MB payload (`sm64_headless.us.wasm.zip.xor.png`, XORed with
+  the ROM like the rendering build's) and its decode only happen when a replay of 1500+
+  frames is attached or a long seek needs it; the decoded game is cached in IndexedDB next
+  to the rendering one (and dropped when `storeROM` stores another ROM).
+- If the worker, the headless WASM or the state translation fails, the seek is done the old
+  way and the console says `replay: the headless catch-up ...`.
+
+`new Player(pads, onChange, options)` / `<Viewer playerOptions={...}>`: `headless`
+(default `true`), `headlessThreshold` (600), `makeHeadlessWorker` (default
+`() => new Worker(new URL('./headless.worker.js', import.meta.url), { type: 'module' })`;
+pass your own if your bundler does not understand that). Subclasses that keep other
+kinds of states or that play some frames differently (SM64Coin's perturbed block):
+set `this.workerTrail = false` (the worker's portable states then stay out of the trail)
+and override `headlessLimit()` to return the last frame the worker may reach: it replays
+the movie's pads as they are, so frames after the limit are played by the engine. After a
+catch-up `player.lastHeadless` says what it did (`steps`, `workerMs`, `totalMs`, and the
+game's position and action at the landing, for checking against the engine).
+
+The worker's game is always the continuous run of the movie from power-on (exact), and
+a landing is the only translation: the engine first returns to its power-on snapshot, then loads
+the portable state. Portable states are validated for a few hundred frames after a checkpoint
+(`docs/portable-state.md`); over longer stretches a landed game can drift from the continuous
+run (the 120-star TAS landed at frame 3000 drifts around frame 23000), as the trail's states can.
+
+Lower level: `Sm64HeadlessEngine` (`src/scripts/sm64/Sm64Headless.js`: the headless build
+in JavaScript, in a worker or in Node; `step_game`, `export_portable_state`,
+`load_portable_state`, `restart`), `HeadlessClient` (the page's side of the worker).
+
 | Export | Purpose |
 | --- | --- |
-| `Viewer` | The whole UI. Props: `replay` (`{ pads, regions?, name?, ... }`), `initial` (`{ frame, speed, playing }`), `onRewind(frame, speed, playing)` (called when a backwards seek has no state to load: the app restarts the emulator), `onClose`, `backLabel`, `makePlayer(replay, onChange)` (return a `Player` subclass), `topbarExtra(view)`, `panelExtra(view)`, `regionLink(region)`, `milestones` (sorted frames for the previous/next buttons). |
+| `Viewer` | The whole UI. Props: `replay` (`{ pads, regions?, name?, ... }`), `initial` (`{ frame, speed, playing }`), `onRewind(frame, speed, playing)` (called when a backwards seek has no state to load: the app restarts the emulator), `onClose`, `backLabel`, `playerOptions` (`Player`'s third argument), `makePlayer(replay, onChange)` (return a `Player` subclass), `topbarExtra(view)`, `panelExtra(view)`, `regionLink(region)`, `milestones` (sorted frames for the previous/next buttons). |
 | `Player` | Drives the engine: `attach(container)`, `play/pause/toggle`, `setSpeed`, `step`, `seek(frame)` (false if it cannot), `dispose`. Calls `onChange(view)` with `frame`, `total`, `playing`, `speed`, `seeking`, `state`, `pad`, `events`. Override `saveState()` / `loadState(state, frame)` / `stepGame(pad)` to play differently. |
 | `Trail` | Save states by frame (`add`, `nearest`, `due`), thinned when full. |
 | `SPEEDS`, `FPS`, `formatTime` | Playback constants. |

@@ -11,6 +11,7 @@
 export { default as Viewer } from './Viewer.jsx';
 export { Player, SPEEDS } from './player.js';
 export { Trail } from './trail.js';
+export { HeadlessClient, headlessSupported } from './headless.js';
 export { parseReplay, hasMupenHeader, formatTime, FPS } from './m64.js';
 export { normalizeRegions, regionAt } from './regions.js';
 export { RESOLUTIONS, loadResolution, saveResolution } from './resolution.js';

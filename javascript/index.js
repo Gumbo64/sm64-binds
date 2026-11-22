@@ -228,4 +228,5 @@ export { sm64_record, sm64_evaluate, sm64_playback, sm64_test, GameConfig, GameP
 // For apps that drive the engine and ROM cache themselves (such as
 // sm64-viewer). The package's export map only exposes this file, so anything
 // an app needs from src/ has to be re-exported here.
+export { Sm64HeadlessEngine } from "./src/scripts/sm64/Sm64Headless";
 export { Sm64VisualEngine, calculateFileHash, isRomCached, storeROM, updateWASMs };

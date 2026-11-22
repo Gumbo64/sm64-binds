@@ -7,6 +7,7 @@
 import { FPS } from './m64.js';
 import { ResolutionControl, loadResolution } from './resolution.js';
 import { Trail } from './trail.js';
+import { HeadlessClient, headlessSupported } from './headless.js';
 
 export const SPEEDS = [0.25, 0.5, 1, 2, 4, 8, 16, Infinity];
 
@@ -18,6 +19,12 @@ const BUDGET_MS = 14;
 const SEEK_SLICE_MS = 40;
 // While playing, the background trail pass gets one hop this often.
 const HOP_GAP_MS = 700;
+// A seek goes through the headless worker when that saves more than this many
+// frames of stepping the rendering build (see Player's `headless` option).
+const HEADLESS_THRESHOLD = 600;
+// Replays at least this long start the worker as soon as they are attached,
+// to fill the trail; shorter ones start it only when a long seek needs it.
+const HEADLESS_FILL_MIN = 1500;
 
 // A message channel yields to the page without the 4 ms clamp of setTimeout
 // and without waiting for an animation frame (which a busy page delays).
@@ -50,9 +57,30 @@ function muteDrawing(canvas) {
 }
 
 export class Player {
-  constructor(pads, onChange) {
+  /**
+   * `options.headless` (default true): catch up and fill the trail with the
+   * headless game in a Web Worker (see headless.js) instead of stepping the
+   * rendering build; `headlessThreshold`: how many frames a seek has to save
+   * before the worker is used; `makeHeadlessWorker`: how to create the worker
+   * when the bundler does not understand `new Worker(new URL(...))`.
+   */
+  constructor(pads, onChange, options = {}) {
     this.pads = pads;
     this.onChange = onChange;
+    this.options = { headless: true, headlessThreshold: HEADLESS_THRESHOLD, makeHeadlessWorker: null, ...options };
+    this.headless = null; // HeadlessClient, made when first wanted
+    this.headlessReady = false;
+    this.headlessFailed = !this.options.headless || !headlessSupported(this.options.makeHeadlessWorker);
+    this.headlessBusy = false; // a worker catch-up is under way
+    this.headlessToken = 0; // bumped by every seek: a catch-up that finds it changed has been replaced
+    this.headlessProgress = null; // the frame the worker has got to (shown while catching up)
+    this.headlessErrors = 0;
+    this.pristine = null; // the engine's own snapshot at power-on
+    this.workerTrail = true; // the worker's states may go into the trail (a subclass with other states says false)
+    this.fillRunning = false;
+    this.fillDone = false;
+    this.evThrough = 0; // `events` is complete up to this frame
+    this.lastHeadless = null; // what the last catch-up did ({from, to, steps, ms, workerMs, ...}), for measuring
     this.engine = null;
     this.canvas = null;
     this.resolution = null;
@@ -105,6 +133,19 @@ export class Player {
     this.state = this.engine.get_game_state();
     const s0 = this.saveState(); // the start, if it can be saved (the trail's first state)
     if (s0) this.trail.add(0, s0);
+    if (!this.headlessFailed && !this.engine.portable_supported) {
+      console.info('replay: portable states are unavailable here, so the headless catch-up is off');
+      this.headlessFailed = true;
+    }
+    if (!this.headlessFailed && typeof this.engine.save_state === 'function') {
+      // The engine as it is at power-on: each landing starts from it (see landHeadless).
+      try {
+        this.pristine = this.engine.save_state();
+      } catch {
+        this.pristine = null;
+      }
+    }
+    if (!this.headlessFailed && this.workerTrail && this.pads.length >= HEADLESS_FILL_MIN) this.ensureHeadless();
     this.raf = requestAnimationFrame(this.tick);
     this.emit();
   }
@@ -119,6 +160,8 @@ export class Player {
     cancelAnimationFrame(this.raf);
     this.raf = 0;
     this.setAudio(false);
+    this.headless?.terminate();
+    this.headless = null;
   }
 
   setAudio(on) {
@@ -196,6 +239,22 @@ export class Player {
    */
   seek(target) {
     target = Math.max(0, Math.min(this.pads.length, Math.round(target)));
+    this.headlessToken += 1; // a catch-up under way is replaced by this seek
+    if (this.headlessBusy) {
+      this.headless?.stop();
+      this.headlessBusy = false;
+      this.headlessProgress = null;
+    }
+    const plan = this.planHeadless(target);
+    if (plan) {
+      this.headlessSeek(target, plan, this.headlessToken);
+      return true;
+    }
+    return this.legacySeek(target);
+  }
+
+  /** The seek without the worker: from the nearest state, stepping the rendering build. */
+  legacySeek(target) {
     // Backwards, or forwards past a state ahead of here: start from the nearest state.
     const ahead = this.trail.nearest(target - 1);
     if (target < this.frame || (ahead && ahead.frame > this.frame)) {
@@ -208,6 +267,194 @@ export class Player {
       this.runSeek();
     }
     return true;
+  }
+
+  // --- the headless catch-up ---
+  //
+  // Stepping the rendering build to a far frame costs its full frame time
+  // even with the drawing muted. The headless build (a Web Worker, no canvas,
+  // GL or audio) steps the same pads several times faster, off the main
+  // thread, and its state at the target frame is loaded into the rendering
+  // engine as a portable state (docs/portable-state.md), which then plays the
+  // last frame(s) itself. The worker fills the trail's gaps afterwards
+  // (a pass of its own) and hands back the events on the way. Short seeks keep using the trail; if the worker or
+  // the translation fails, the seek is done the old way (and the console says so).
+
+  /** The last frame the worker may take the game to (frames after it are played here, e.g. through a perturbation). */
+  headlessLimit() {
+    return this.pads.length;
+  }
+
+  /** Starts the worker (once). Resolves with whether it came up. */
+  ensureHeadless() {
+    if (this.headlessFailed) return Promise.resolve(false);
+    if (!this.headless) {
+      this.headless = new HeadlessClient(this.pads, this.options.makeHeadlessWorker);
+      this.headless.start().then(
+        () => {
+          this.headlessReady = true;
+          this.dirty = true;
+        },
+        (e) => this.failHeadless(e),
+      );
+    }
+    return this.headless.ready.then(() => true, () => false);
+  }
+
+  failHeadless(e) {
+    if (this.headlessFailed) return;
+    this.headlessFailed = true;
+    this.headlessReady = false;
+    console.warn('replay: the headless catch-up is unavailable, stepping the rendering build instead:', e);
+    this.headless?.terminate();
+    this.headless = null;
+  }
+
+  /**
+   * Whether (and how) a seek to `target` goes through the worker: it lands the
+   * game at frame `wt` (the frame before the target, so that the target is drawn
+   * by the engine itself; at most headlessLimit()), when that saves more than
+   * `headlessThreshold` frames over the nearest state of the trail or the
+   * game's own position. Returns {wt, maxStart} or null.
+   */
+  planHeadless(target) {
+    if (this.headlessFailed || !this.engine?.portable_supported) return null;
+    const wt = Math.min(target - 1, this.headlessLimit());
+    if (wt <= 0 || target === this.frame) return null;
+    // The worker must start at or before this for the events to stay complete.
+    const maxStart = this.trackEvents ? this.evThrough : Infinity;
+    let best = this.trail.nearest(target - 1)?.frame ?? -1;
+    if (target >= this.frame && this.frame <= target - 1) best = Math.max(best, this.frame);
+    if (wt - best <= this.options.headlessThreshold) return null;
+    return { wt, maxStart };
+  }
+
+  /** Adds states the worker took to the trail (when this player's trail takes portable states). */
+  addWorkerStates(states) {
+    if (!this.workerTrail || !states?.length) return;
+    for (const [f, st] of states) if (!this.trail.has(f)) this.trail.add(f, st);
+  }
+
+  async headlessSeek(target, plan, token) {
+    const t0 = performance.now();
+    const from = this.frame;
+    this.seekTarget = target === this.frame ? null : target;
+    this.headlessBusy = true;
+    this.setAudio(false);
+    this.dirty = true;
+    this.emit(); // the playhead jumps to the target at once
+    const stale = () => token !== this.headlessToken || this.dead;
+    let res;
+    let landing = false;
+    try {
+      if (!(await this.ensureHeadless())) throw new Error('the headless worker did not start');
+      res = await this.headless.run(
+        {
+          type: 'goto',
+          target: plan.wt,
+          maxStart: plan.maxStart,
+          every: 0, // taking states on the way costs about as much as the stepping: the fill pass (below) takes them
+          land: true,
+          events: this.trackEvents,
+        },
+        (m) => {
+          if (stale()) return;
+          this.headlessProgress = m.frame;
+          this.addWorkerStates(m.states);
+          this.dirty = true;
+          this.emit();
+        },
+      );
+      if (stale() || res.cancelled) return; // a newer seek took over
+      const t1 = performance.now();
+      this.addWorkerStates(res.states);
+      landing = true;
+      this.landHeadless(res);
+      landing = false;
+      this.lastHeadless = {
+        from,
+        to: target,
+        landed: res.frame,
+        start: res.start,
+        steps: res.steps,
+        workerMs: res.ms,
+        landMs: performance.now() - t1,
+        totalMs: performance.now() - t0,
+        game: res.game,
+      };
+    } catch (e) {
+      if (stale()) return;
+      this.headlessErrors += 1;
+      console.warn('replay: the headless catch-up failed, stepping the rendering build instead:', e);
+      if (this.headlessErrors >= 3 || !this.headlessReady) this.failHeadless(e);
+      this.headlessBusy = false;
+      this.headlessProgress = null;
+      if (landing) this.rewindTo(target); // the engine may be half loaded: a state of the trail first
+      if (!this.legacySeek(target)) this.seekTarget = null;
+      this.emit();
+      return;
+    }
+    this.headlessBusy = false;
+    this.headlessProgress = null;
+    if (this.workerTrail && !this.fillRunning) this.runFill(); // the trail's gaps, in the background
+    if (this.frame >= target) {
+      this.seekTarget = null;
+      this.lastTime = null;
+      this.debt = 0;
+      this.dirty = true;
+      this.emit();
+    } else {
+      this.runSeek(); // the frames after the landing are played here
+    }
+  }
+
+  /** Loads the worker's state into the rendering engine, as if the game had been played to it. */
+  landHeadless(res) {
+    // A portable state from the other build loads into the engine as it is at power-on
+    // (what the translation was validated against), not over a game that has been loaded
+    // and played: that can corrupt the heap.
+    if (this.pristine) this.engine.load_state(this.pristine);
+    this.engine.load_portable_state(res.state);
+    this.frame = res.frame;
+    this.state = this.engine.get_game_state();
+    if (this.trackEvents) {
+      this.events = this.events.filter((e) => e.frame <= res.start).concat(res.events);
+      this.evThrough = res.frame;
+    } else {
+      this.events = this.events.filter((e) => e.frame <= res.frame);
+      this.evThrough = Math.min(this.evThrough, res.frame);
+    }
+    this.rendered = false;
+    this.dirty = true;
+    if (this.workerTrail && !this.trail.has(res.frame)) this.trail.add(res.frame, res.state);
+  }
+
+  /** One pass of the worker over the replay, filling the trail with its states. */
+  async runFill() {
+    const { every } = this.trail;
+    let f = every;
+    while (f < this.pads.length && (this.trail.has(f) || this.trailSkipped.has(f))) f += every;
+    if (f >= this.pads.length) {
+      this.fillDone = true;
+      return;
+    }
+    this.fillRunning = true;
+    try {
+      const res = await this.headless.run(
+        { type: 'fill', target: this.pads.length, every, skip: [...this.trail.states.keys()], land: false, events: false },
+        (m) => this.addWorkerStates(m.states),
+      );
+      if (res.cancelled) return;
+      this.addWorkerStates(res.states);
+      // Whatever the worker could not take a state at (the intro) is not tried again.
+      for (let g = every; g < this.pads.length; g += every) if (!this.trail.has(g)) this.trailSkipped.add(g);
+      this.fillDone = true;
+    } catch (e) {
+      console.warn('replay: the headless trail fill failed:', e);
+      this.fillDone = true;
+    } finally {
+      this.fillRunning = false;
+    }
   }
 
   /** Fast-forwards to the seek target without drawing, in slices that yield to the page. */
@@ -263,7 +510,7 @@ export class Player {
     if (!base || f - base.frame > every * 4) { this.trailSkipped.add(f); return true; }
     const cur = this.saveState();
     if (!cur) return true; // can't put the game back here: try later
-    const keep = { frame: this.frame, state: this.state, events: this.events.slice() };
+    const keep = { frame: this.frame, state: this.state, events: this.events.slice(), evThrough: this.evThrough };
     const unmute = muteDrawing(this.canvas);
     this.hopping = true;
     try {
@@ -280,6 +527,7 @@ export class Player {
       this.loadState(cur, keep.frame);
       this.state = keep.state;
       this.events = keep.events;
+      this.evThrough = keep.evThrough;
       this.rendered = false;
     }
     return true;
@@ -317,6 +565,7 @@ export class Player {
     this.frame = frame;
     this.state = this.engine.get_game_state();
     this.events = this.events.filter((e) => e.frame <= frame);
+    this.evThrough = Math.min(this.evThrough, frame);
     this.rendered = false;
     this.dirty = true;
   }
@@ -351,6 +600,7 @@ export class Player {
     const prev = this.state;
     const s = this.engine.get_game_state();
     this.state = s;
+    if (this.evThrough === this.frame - 1) this.evThrough = this.frame;
     if (prev) {
       if (s.numStars > prev.numStars) {
         this.events.push({ frame: this.frame, kind: 'star', label: `Star ${s.numStars}` });
@@ -400,7 +650,13 @@ export class Player {
     // Background: fill the trail (paused: at once; playing: now and then).
     if (!this.seeking && !this.exporting && !this.dead && time - this.lastHop > (this.playing ? HOP_GAP_MS : 0)) {
       this.lastHop = time;
-      this.hopTrail();
+      if (this.workerTrail && !this.headlessFailed && this.options.headless) {
+        // The worker fills the trail (off this thread); until it is up, the hops do.
+        if (this.headlessReady) {
+          if (!this.fillRunning && !this.fillDone) this.runFill();
+        } else if (!this.headless) this.hopTrail();
+        else if (this.pads.length < HEADLESS_FILL_MIN) this.hopTrail();
+      } else this.hopTrail();
     }
     if (this.dirty) {
       this.dirty = false;
@@ -411,7 +667,7 @@ export class Player {
 
   emit() {
     this.onChange?.({
-      frame: this.frame,
+      frame: this.headlessProgress ?? this.frame,
       total: this.pads.length,
       playing: this.playing,
       speed: this.speed,

@@ -63,6 +63,7 @@ sm64-build: copy-rom
 
 # 	just call it a png because webpack freaks out if it sees .xor
 	cp $(WASM_ZIP_XOR)/sm64.us.wasm.zip.xor $(JS_PKG)/sm64.us.wasm.zip.xor.png
+	cp $(WASM_ZIP_XOR)/sm64_headless.us.wasm.zip.xor $(JS_PKG)/sm64_headless.us.wasm.zip.xor.png
 
 # Portable save states: the tables (from the two builds' linker maps, WASMs and
 # the DWARF of the sources) and the translator WASM for the browser. Run both
