@@ -3,6 +3,45 @@
 All three packages (Rust `sm64-binds`, Python `sm64-binds`, JavaScript
 `sm64-binds-frontend`) are released together at the same version.
 
+## 2.3.1
+
+### Fixed
+
+- **Loading a headless portable state into the rendering build now renders and plays like the
+  original.** The replay player (landing by the headless worker) and any other
+  headless -> rendering load showed, depending on the frame: a black screen (the rendering
+  build's renderer state, `src/pc/gfx`, is now kept across loads instead of restored from a
+  boot snapshot), Mario drawn twice or invisible or at a wrong translation (stale
+  `AllocOnlyPool` / `MemoryPool` pointers into reused memory were typed as pools and their
+  fix-up wrote into graph nodes), corrupted object values such as signs, Boo timers, yaws and
+  `oBehParams` (an object's `rawData` words are translated only in the slots its behavior uses as
+  pointers, `BEHAVIOR_POINTER_SLOTS`), and a crash or extra surface nodes after a level change
+  (stale `SpawnInfo` / `Object` / `Surface` pointers into terrain copies were typed and the
+  exporter rewrote collision data; they now have to be plausible first). On an SM64Coin chain
+  (107,931 frames) loads are pixel-identical to the played frames 60 frames on at 7 of 8
+  checkpoints headless -> rendering and 8 of 8 rendering -> rendering and rendering -> headless;
+  at frame 105000 Mario's standing body is still mis-transformed after a headless load (game
+  state is identical).
+
+### Changed
+
+- **Portable format version 2.** A typed pointer or an object pointer slot that points into a
+  freed `malloc` chunk (a stale `sObjFloor`, floors in `gObjectPool`) gets a **ghost**: a raw copy
+  of the freed bytes appended to the blocks, so the loaded game reads what the original reads.
+  Loads allocate ghosts and never free them (a few hundred bytes; `ghost_bytes` /
+  `ghostBytes` in the load report). Version 1 states are still read. `gMatStackFixed` is zeroed
+  so both builds export the same blocks. See `docs/portable-state.md`.
+- The JavaScript translator (`pkg/portable_wasm.js`) is rebuilt from the Rust one.
+
+### Added
+
+- Tooling for checking translations: `portable_check` modes `quick`, `loadshot`, `step`, `ghost`,
+  and the examples `portable_fuzz` (differential fuzz of loads against played games),
+  `portable_raw2p`, `portable_diff`, `portable_obj`, `portable_slots`, `portable_probe`,
+  `portable_unreached`, `portable_unresolved`; `maketools/gen_portable_tables.py` generates the
+  behavior pointer slots.
+- The game WASM itself is unchanged (headless sha1 `a6a197b5ec48fa11725d009eed4af37fbacd00c0`).
+
 ## 2.3.0
 
 ### Added
