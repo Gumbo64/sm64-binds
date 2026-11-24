@@ -137,3 +137,84 @@ fn loading_twice_reuses_the_blocks_it_made() {
     assert_eq!(report.reused, report.blocks, "{report:?}");
     assert_eq!(game.with_memory(|m| m.len()), size);
 }
+
+fn word(game: &SM64Game, addr: u32) -> u32 {
+    let mut b = [0u8; 4];
+    game.read_memory(addr, &mut b).unwrap();
+    u32::from_le_bytes(b)
+}
+
+fn bytes(game: &SM64Game, addr: u32, n: usize) -> Vec<u8> {
+    let mut b = vec![0u8; n];
+    game.read_memory(addr, &mut b).unwrap();
+    b
+}
+
+/// A pointer into freed memory (an object's floor after the surface was freed) keeps
+/// reading what the original game reads there: a ghost, a raw copy of the memory around
+/// it, is allocated and never freed, and the pointer points into it.
+#[test]
+fn stale_pointers_keep_reading_what_the_original_reads() {
+    let (generator, pads) = setup_or_skip!();
+    // Frame 41000 has a stale `sObjFloor`.
+    let frame = 41000;
+    let mut original = generator.create_game().unwrap();
+    play(&mut original, &pads, frame);
+    let state = original.export_portable().unwrap();
+    assert!(
+        state.ghosts > 0 && !state.ghost_refs.is_empty(),
+        "no stale pointer to test"
+    );
+    assert!(state.ghost_bytes() < 4096, "ghosts are windows, not whole chunks");
+    let state = Portable::from_bytes(&state.to_bytes()).unwrap();
+    assert!(state.ghosts > 0);
+    let slot = (0..Portable::VAR_COUNT)
+        .find(|&i| Portable::var_name(i).ends_with(":sObjFloor"))
+        .map(|i| Portable::var_at(i, sm64_binds::portable::Build::Headless).0)
+        .unwrap();
+
+    // Into a fresh game and into one that has played.
+    for pre in [0, 5000] {
+        let mut original = generator.create_game().unwrap();
+        play(&mut original, &pads, frame);
+        let mut loaded = generator.create_game().unwrap();
+        play(&mut loaded, &pads, pre);
+        let report = loaded.load_portable(&state).unwrap();
+        assert_eq!(report.untranslated, 0);
+        assert_eq!(report.ghost_bytes, state.ghost_bytes());
+        for i in 0..200 {
+            let (po, pl) = (word(&original, slot), word(&loaded, slot));
+            if po != 0 {
+                assert_ne!(pl, 0);
+                assert_eq!(
+                    bytes(&original, po, 0x30),
+                    bytes(&loaded, pl, 0x30),
+                    "{i} frames after the load"
+                );
+            }
+            let pad = pads[frame + i];
+            original.step_game(pad).unwrap();
+            loaded.step_game(pad).unwrap();
+        }
+    }
+}
+
+/// States of format version 1 (no ghosts) are still read.
+#[test]
+fn version_1_states_load() {
+    let (generator, pads) = setup_or_skip!();
+    let mut game = generator.create_game().unwrap();
+    play(&mut game, &pads, 12000);
+    let state = game.export_portable().unwrap();
+    assert_eq!(state.ghosts, 0);
+    let mut v1 = state.to_bytes();
+    assert_eq!(&v1[8..12], &2u32.to_le_bytes());
+    v1[8..12].copy_from_slice(&1u32.to_le_bytes());
+    v1.drain(48..52);
+    let old = Portable::from_bytes(&v1).unwrap();
+    assert_eq!(old.ghosts, 0);
+    assert_eq!(old.chunks.len(), state.chunks.len());
+    let mut other = generator.create_game().unwrap();
+    play(&mut other, &pads, 60);
+    other.load_portable(&old).unwrap();
+}

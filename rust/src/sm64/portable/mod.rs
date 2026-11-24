@@ -18,11 +18,12 @@ mod walk;
 
 use tables::{POINTEES, VARS};
 pub use walk::{
-    Buf, Build, Walked, display_list_blocks, game_blocks, heap_chunks, unsupported, walk,
+    Buf, Build, Walked, display_list_blocks, game_blocks, heap_all, heap_chunks, unsupported, walk,
 };
 
 const MAGIC: &[u8; 8] = b"SM64PORT";
-const VERSION: u32 = 1;
+/// Version 2 adds ghosts (the last `ghosts` blocks); version 1 states have none.
+const VERSION: u32 = 2;
 
 /// The game's state, translated to build-neutral form by [`export`].
 #[derive(Debug, Clone)]
@@ -32,6 +33,12 @@ pub struct Portable {
     pub vars: Vec<Buf>,
     pub chunks: Vec<Buf>,
     pub chunk_bases: Vec<u32>,
+    /// How many of the last `chunks` are ghosts: raw copies of freed memory that
+    /// stale pointers point into. They are allocated and written on a load and
+    /// never freed; no type walk touches them.
+    pub ghosts: usize,
+    /// The stale pointers translated into ghosts (variable or block, offset, original value).
+    pub ghost_refs: Vec<(String, u32, u32)>,
     /// Pointers that had no translation and were set to null.
     pub unresolved: Vec<(String, u32, u32)>,
     pub unresolved_count: u32,
@@ -63,6 +70,8 @@ pub fn export(mem: &[u8], build: Build) -> Result<Portable, String> {
         vars: w.vars,
         chunks: w.chunks,
         chunk_bases: w.chunk_bases,
+        ghosts: w.ghosts,
+        ghost_refs: w.ghost_refs,
         unresolved: w.unresolved,
         unresolved_count: w.unresolved_count,
         found_by: w.found_by,
@@ -115,13 +124,14 @@ impl Portable {
     ///
     /// ```text
     ///   0   8  magic "SM64PORT"
-    ///   8   4  format version (little endian), currently 1
+    ///   8   4  format version (little endian), currently 2
     ///  12   4  source build: 0 headless, 1 visual
     ///  16  20  source build id (SHA-1 of the source WASM's code)
     ///  36   4  tables id (which variables, in which order)
     ///  40   4  number of variables
-    ///  44   4  number of malloc blocks
-    ///  48   -  the variables, then the blocks; each is
+    ///  44   4  number of malloc blocks (the ghosts included)
+    ///  48   4  how many of the last blocks are ghosts (version 2; version 1 has no such field)
+    ///  52   -  the variables, then the blocks; each is
     ///             u32 length, u32 number of relocations, the bytes,
     ///             then the relocations as u32 (offset << 1 | 1 for a
     ///             function pointer, 0 for a pointer)
@@ -138,6 +148,7 @@ impl Portable {
         out.extend_from_slice(&tables_id().to_le_bytes());
         out.extend_from_slice(&(self.vars.len() as u32).to_le_bytes());
         out.extend_from_slice(&(self.chunks.len() as u32).to_le_bytes());
+        out.extend_from_slice(&(self.ghosts as u32).to_le_bytes());
         for b in self.vars.iter().chain(&self.chunks) {
             put_buf(&mut out, b);
         }
@@ -150,9 +161,9 @@ impl Portable {
         }
         let mut r = Reader(bytes, 8);
         let version = r.u32()?;
-        if version != VERSION {
+        if version != VERSION && version != 1 {
             return Err(format!(
-                "portable state format version {version}, expected {VERSION}"
+                "portable state format version {version}, expected 1 or {VERSION}"
             ));
         }
         let source = match r.u32()? {
@@ -172,6 +183,10 @@ impl Portable {
                 VARS.len()
             ));
         }
+        let ghosts = if version >= 2 { r.u32()? as usize } else { 0 };
+        if ghosts > nc {
+            return Err("portable state has more ghosts than blocks".into());
+        }
         let vars = (0..nv).map(|_| r.buf()).collect::<Result<Vec<_>, _>>()?;
         let chunks = (0..nc).map(|_| r.buf()).collect::<Result<Vec<_>, _>>()?;
         let mut chunk_bases = Vec::new();
@@ -185,10 +200,20 @@ impl Portable {
             vars,
             chunks,
             chunk_bases,
+            ghosts,
+            ghost_refs: Vec::new(),
             unresolved: Vec::new(),
             unresolved_count: 0,
             found_by: Vec::new(),
         })
+    }
+
+    /// The bytes of the ghosts: what a load leaks.
+    pub fn ghost_bytes(&self) -> usize {
+        self.chunks[self.chunks.len() - self.ghosts..]
+            .iter()
+            .map(|c| c.data.len())
+            .sum()
     }
 
     /// The malloc sizes to allocate in the target, one per block, in order.
@@ -204,7 +229,8 @@ impl Portable {
     pub fn place(&self, old: &[(u32, u32)]) -> Vec<u32> {
         let mut free: Vec<(u32, u32)> = old.iter().map(|&(a, l)| (l, a)).collect();
         free.sort_unstable();
-        let mut order: Vec<usize> = (0..self.chunks.len()).collect();
+        // Ghosts are always allocated: the game never frees them.
+        let mut order: Vec<usize> = (0..self.chunks.len() - self.ghosts).collect();
         order.sort_by_key(|&i| std::cmp::Reverse(self.chunks[i].data.len()));
         let mut addrs = vec![0; self.chunks.len()];
         for i in order {

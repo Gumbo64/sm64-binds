@@ -62,6 +62,18 @@ fn rd(mem: &[u8], a: u32) -> Option<u32> {
 /// Every malloc block in use, found by walking dlmalloc's chunks from the
 /// start of its heap to its top.
 pub fn heap_chunks(mem: &[u8], build: Build) -> Result<Vec<Chunk>, String> {
+    Ok(heap_all(mem, build)?
+        .into_iter()
+        .filter(|c| c.2)
+        .map(|c| Chunk {
+            user: c.0 + 8,
+            len: c.1 - 4,
+        })
+        .collect())
+}
+
+/// Every dlmalloc chunk, in use or free: (chunk address, size, in use).
+pub fn heap_all(mem: &[u8], build: Build) -> Result<Vec<(u32, u32, bool)>, String> {
     let gm = GM[build.index()];
     let (Some(least), Some(top)) = (rd(mem, gm + 16), rd(mem, gm + 24)) else {
         return Err("memory too short for the allocator state".into());
@@ -76,12 +88,7 @@ pub fn heap_chunks(mem: &[u8], build: Build) -> Result<Vec<Chunk>, String> {
         }
         let next = c + size;
         let next_head = rd(mem, next + 4).ok_or("chunk past the end of memory")?;
-        if next_head & 1 != 0 {
-            out.push(Chunk {
-                user: c + 8,
-                len: size - 4,
-            });
-        }
+        out.push((c, size, next_head & 1 != 0));
         c = next;
     }
     if c != top {
@@ -279,6 +286,11 @@ pub struct Buf {
 
 #[derive(Debug, Clone, Default)]
 pub struct Walked {
+    /// How many of the last `chunks` are ghosts (raw copies of freed memory
+    /// that stale pointers read; see `docs/portable-state.md`).
+    pub ghosts: usize,
+    /// The stale pointers made ghost-relative: (variable or block, offset, value).
+    pub ghost_refs: Vec<(String, u32, u32)>,
     /// One per entry of `VARS` (even ones that could not be read: empty).
     pub vars: Vec<Buf>,
     /// The malloc blocks reached, in the order they were found. Block `i` is
@@ -301,6 +313,10 @@ struct Walk<'a> {
     build: Build,
     mem: &'a [u8],
     chunks: Vec<Chunk>,
+    /// Every chunk of the heap (address, size, in use), by address.
+    all: Vec<(u32, u32, bool)>,
+    /// `gMatStackFixed`'s variable index: render walk pointers, not state.
+    mat_fixed: Option<usize>,
     order: Vec<usize>,
     reached: HashMap<usize, usize>,
     regions: Vec<Region>,
@@ -346,6 +362,18 @@ impl<'a> Walk<'a> {
             Tgt::Global(g) if g >= DATA_START || rodata_ok => Tgt::Global(g),
             _ => Tgt::Null,
         }
+    }
+
+    /// Variables that only hold render walk state (not game state).
+    fn render_only(&self, slot: Slot) -> bool {
+        matches!(slot, Slot::Var(i) if VARS[i].0.ends_with(":gDisplayListHeap"))
+    }
+
+    /// The free chunk (address, size) holding `v`, if `v` is in one.
+    fn free_chunk_of(&self, v: u32) -> Option<(u32, u32)> {
+        let i = self.all.partition_point(|c| c.0 <= v);
+        let &(c, size, in_use) = self.all.get(i.checked_sub(1)?)?;
+        (!in_use && v >= c + 8 && v < c + size).then_some((c, size))
     }
 
     fn reach(&mut self, ci: usize, by: (Slot, u32)) -> usize {
@@ -448,6 +476,9 @@ impl<'a> Walk<'a> {
             slot,
             off: roff,
         } = self.regions[ri];
+        if self.mat_fixed.is_some_and(|m| slot == Slot::Var(m)) {
+            return;
+        }
         // A main pool block that holds an allocation pool (its release handler
         // says so): the pool sits right after the header, reached by no pointer.
         if let (Slot::Chunk(_), Some(pl)) = (slot, pool_layout())
@@ -635,11 +666,14 @@ pub fn walk(mem: &[u8], build: Build) -> Result<Walked, String> {
 /// are, to reuse them.
 #[allow(clippy::needless_range_loop)]
 pub fn walk_unchecked(mem: &[u8], build: Build) -> Result<Walked, String> {
+    let all = heap_all(mem, build)?;
     let chunks = heap_chunks(mem, build)?;
     let mut w = Walk {
         build,
         mem,
         chunks,
+        all,
+        mat_fixed: VARS.iter().position(|v| v.0.ends_with(":gMatStackFixed")),
         order: Vec::new(),
         reached: HashMap::new(),
         regions: Vec::new(),
@@ -752,7 +786,96 @@ pub fn walk_unchecked(mem: &[u8], build: Build) -> Result<Walked, String> {
         .collect();
     let obj = object_layout();
     let pool = pool_layout();
+    if let Some(m) = w.mat_fixed {
+        // Render walk matrices: pointers into per-frame memory, not state.
+        out.vars[m].data.fill(0);
+    }
+
+    // Stale pointers: into freed heap memory. The original game reads what is
+    // left there; the memory is not state, so a ghost (a raw copy of the bytes
+    // around the target, never interpreted) keeps them reading the same.
+    let mut stale: Vec<(Slot, u32, u32, u32)> = Vec::new(); // (slot, offset in it, value, window)
     for r in &regions {
+        if w.mat_fixed.is_some_and(|m| r.slot == Slot::Var(m)) {
+            continue;
+        }
+        let mut items: Vec<(u32, K, u16, u32)> = Vec::new();
+        rleaves(r.layout, r.addr, r.count, &mut |a, k, l, o| {
+            items.push((a, k, l, o))
+        });
+        for (a, k, l, o) in items {
+            if w.skip.iter().any(|&(lo, hi)| a >= lo && a < hi) {
+                continue;
+            }
+            let Some(v) = rd(mem, a) else { continue };
+            if w.render_only(r.slot) {
+                continue;
+            }
+            let window = match k {
+                // A struct we know, at an aligned address (a typed region over reused
+                // memory holds numbers that look like pointers).
+                K::Ptr(pid) if !is_render_list(pid) && v % 4 == 0 => {
+                    pointee(pid).map(|p| p.0.max(0x40))
+                }
+                // Only an object's pointer slots: other words may be numbers.
+                K::Word if Some(l) == obj && !w.numeric_slot(obj, l, a, o) && v % 4 == 0 => {
+                    Some(0x40)
+                }
+                _ => None,
+            };
+            if let Some(win) = window
+                && matches!(w.classify(v), Tgt::Unresolved)
+                && w.free_chunk_of(v).is_some()
+            {
+                stale.push((r.slot, a - r.addr + r.off, v, win));
+            }
+        }
+    }
+    let mut windows: Vec<(u32, u32)> = Vec::new();
+    for &(_, _, v, win) in &stale {
+        let (c, size) = w.free_chunk_of(v).unwrap();
+        let start = (v & !7).max(c + 8);
+        let end = ((start + win + 7) & !7).min(c + size).max(start);
+        windows.push((start, end));
+    }
+    windows.sort_unstable();
+    let mut ghosts: Vec<(u32, u32)> = Vec::new();
+    for (s0, e0) in windows {
+        match ghosts.last_mut() {
+            Some(g) if s0 <= g.1 => g.1 = g.1.max(e0),
+            _ => ghosts.push((s0, e0)),
+        }
+    }
+    let ghost_first = out.chunks.len();
+    let mut ghost_bases = Vec::new();
+    for &(s0, e0) in &ghosts {
+        ghost_bases.push(base);
+        out.chunk_addrs.push(s0);
+        out.chunk_lens.push(e0 - s0);
+        out.chunk_bases.push(base);
+        out.chunks.push(Buf {
+            data: mem[s0 as usize..e0 as usize].to_vec(),
+            relocs: Vec::new(),
+        });
+        base += (e0 - s0 + 15) & !15;
+    }
+    out.ghosts = ghosts.len();
+    let mut ghost_val: HashMap<(Slot, u32), u32> = HashMap::new();
+    for &(slot, off, v, _) in &stale {
+        let gi = ghosts.partition_point(|g| g.0 <= v) - 1;
+        ghost_val.insert((slot, off), HEAP_BASE + ghost_bases[gi] + (v - ghosts[gi].0));
+        let what = match slot {
+            Slot::Var(i) => VARS[i].0.to_string(),
+            Slot::Chunk(c) => format!("block@{:#x}", w.chunks[c].user),
+        };
+        out.ghost_refs.push((what, off, v));
+    }
+    let _ = ghost_first;
+
+    for r in &regions {
+        if w.mat_fixed.is_some_and(|m| r.slot == Slot::Var(m)) {
+            continue;
+        }
         let mut items: Vec<(u32, K, u16, u32)> = Vec::new();
         rleaves(r.layout, r.addr, r.count, &mut |a, k, l, o| {
             items.push((a, k, l, o))
@@ -774,7 +897,11 @@ pub fn walk_unchecked(mem: &[u8], build: Build) -> Result<Walked, String> {
                 buf.data[off..off + 4].copy_from_slice(&[0; 4]);
                 continue;
             }
+            let ghost = ghost_val
+                .get(&(r.slot, a - r.addr + r.off))
+                .map(|&g| (g, 0u8));
             let canon: Option<(u32, u8)> = match k {
+                _ if ghost.is_some() => ghost,
                 K::Ptr(_) => match w.classify(v) {
                     Tgt::Null => None,
                     Tgt::Heap(ci, off) => w

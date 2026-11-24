@@ -149,8 +149,9 @@ export class PortableTranslator {
             patches.push({ addr: x.p_patch_addr(i), bytes: this._mem().slice(p, p + x.p_patch_len(i)) });
         }
         const untranslated = x.p_untranslated();
+        const ghostBytes = x.p_ghost_bytes();
         x.p_clear();
-        return { patches, stale, untranslated, allocated: need };
+        return { patches, stale, untranslated, allocated: need, ghostBytes };
     }
 }
 
@@ -167,6 +168,7 @@ export function portableInfo(bytes) {
         buildId: Array.from(bytes.subarray(16, 36), (b) => b.toString(16).padStart(2, "0")).join(""),
         variables: dv.getUint32(40, true),
         blocks: dv.getUint32(44, true),
+        ghosts: dv.getUint32(8, true) >= 2 ? dv.getUint32(48, true) : 0,
         size: bytes.length,
     };
 }

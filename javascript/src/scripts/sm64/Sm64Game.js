@@ -251,7 +251,7 @@ class Sm64VisualEngine {
         // The pool the display lists came from lost its list of blocks.
         for (const a of r.stale) exports.free(a);
         this._reset_renderer_caches();
-        return { source: info.source, allocated: r.allocated, untranslated: r.untranslated };
+        return { source: info.source, allocated: r.allocated, untranslated: r.untranslated, ghostBytes: r.ghostBytes };
     }
 
     // The renderer caches GL textures by the address of the texture's data. A

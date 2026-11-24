@@ -65,18 +65,19 @@ Each variable and block is stored with its bytes and a list of the words that ar
 function pointers ("relocations"), so loading needs no type information: it allocates (or
 reuses) blocks in the target, translates every relocation and writes the bytes.
 
-### Format ("SM64PORT", version 1)
+### Format ("SM64PORT", version 2)
 
 ```text
   0   8  magic "SM64PORT"
-  8   4  format version (little endian) = 1
+  8   4  format version (little endian) = 2 (version 1, without the ghost count, is still read)
  12   4  source build: 0 headless, 1 rendering
  16  20  source build id: SHA-1 of the source WASM's code (the module without data sections)
  36   4  tables id: a hash of the variables, in order (a state is only loaded with the
         tables that wrote it)
  40   4  number of variables
- 44   4  number of blocks
- 48   -  the variables, then the blocks; each is
+ 44   4  number of blocks (the ghosts included)
+ 48   4  how many of the last blocks are ghosts (version 2)
+ 52   -  the variables, then the blocks; each is
          u32 length, u32 number of relocations, the bytes,
          then the relocations, u32 each: (offset << 1) | 1 for a function pointer, 0 for a pointer
 ```
@@ -91,7 +92,10 @@ build's own snapshot is about 13 MB.
   of the sources (which bytes are 1, 2, 4, 8-byte values, pointers, function pointers or
   union words), plus the moving textures and paintings the game edits in `levels/`. Excluded:
   build specific state (libc, dlmalloc, SDL, GL, `src/pc`), the display list pool and what
-  points into it, matrices of the render walk that the next frame rebuilds, audio (`src/audio`)
+  points into it, matrices of the render walk that the next frame rebuilds (`gMatStackFixed`, the
+  pointers into the display lists the walk made, is zeroed: the rendering build keeps them set at
+  the end of a frame, the headless one does not, and they would add display list blocks to the
+  rendering build's export; the `gMatStack` values themselves are state), audio (`src/audio`)
   and goddard (`src/goddard`). Audio and goddard are not transferred: the target keeps its own.
   `.data` that holds pointers is only included if it ever changes while playing a
   120 star movie (`maketools/portable_data_changed.txt`): the rest are tables the linker
@@ -126,14 +130,42 @@ relocation is translated, then:
 - **Audio.** Sequence players and the audio heap are not transferred, so the music after a
   load restarts according to the target's state; the game does not read it back.
 - **Display lists, textures, matrices of the render walk:** rebuilt by the next frame.
-- **Stale pointers** (an object slot's `respawnInfo` after the object died) are kept as they
-  are: the memory they point to has been reused; the game never follows them.
+- **Stale pointers** (an object slot's `respawnInfo` after the object died) into memory that
+  was reused for a block we reach are translated like any other. Typed pointers into freed heap
+  memory are ghosts (next section).
 - A state is only valid for the builds the tables were made for (`tables.rs` records both
   builds' ids; regenerate with `maketools/gen_portable_tables.py` and
   `maketools/portable_wasm.py` after a rebuild). `Sm64VisualEngine` checks the build id
   of the WASM it runs.
 - The tables read the rendering build's map: it is written by `make sm64-build`
   (`-Wl,-Map`). The headless WASM is not changed by any of this.
+
+### Ghosts: stale pointers into freed memory
+
+A pointer can outlive what it points to: an object's floor (`sObjFloor`, a `Surface *`) after
+the surface pool was freed. A raw replay keeps reading the old bytes (freed memory is untouched
+until `malloc` reuses it), and the game may dereference such a pointer at any time. The freed
+memory is not state, so a loaded game would have other bytes there.
+
+When the export finds a typed pointer (to a struct we know, 4-aligned) or an object's pointer
+slot whose value is inside a *free* dlmalloc chunk (not in any block in use, so not reached),
+it records a **ghost**: a raw copy of the bytes at the target (the pointee's size, at least 0x40
+bytes, 8-aligned, clipped to the free chunk; overlapping windows are merged), with no type
+walking, since stale data must not be interpreted. Ghosts are appended to the block list (the
+header says how many of the last blocks are ghosts) and the pointers are translated into them
+like pointers into any block. A load allocates every ghost with the target's `malloc`, never
+reuses a game block for one and **never frees it**: a deliberate leak of a few hundred bytes
+(`PortableLoadReport::ghost_bytes`, `ghostBytes` in JavaScript). The rendering target restores
+its boot snapshot before each load, so the leak does not add up there. `gDisplayListHeap` is
+not ghosted (display lists are rebuilt).
+
+Limits: a ghost is a snapshot. The original game may later reuse the freed memory for a new
+allocation, which the stale pointer then sees, and a ghost does not mimic that. A stale pointer
+into a block that is in use at the export (memory reused by something else) is not a ghost: it
+reads the loaded copy of that block, and the game's later frees and allocations place memory
+differently in the two heaps. Measured on a 107,931 frame chain (`portable_check ghost`): an
+export has 0 to 6 stale pointers (`sObjFloor`, floors in `gObjectPool`), 0 to 384 ghost bytes,
+and the pointees read identically for 600 frames after the load at every checkpoint.
 
 ## 4. The rendering build's own snapshots
 

@@ -359,6 +359,79 @@ fn main() {
                 }
             });
         }
+        // portable_check ghost <rom> <movie.m64> <frame> <n>: the headless game replayed to <frame>
+        // and a fresh one that loaded its portable state both play n frames; every stale pointer the
+        // export turned into a ghost must read the same 0x30 bytes in both, on every frame.
+        "ghost" => {
+            let g = SM64GameGenerator::from_file(&a[2]).unwrap();
+            let p = pads(&a[3]);
+            let frame: usize = a[4].parse().unwrap();
+            let n: usize = a[5].parse().unwrap();
+            let mut orig = g.create_game().unwrap();
+            for pad in &p[..frame] {
+                orig.step_game(*pad).unwrap();
+            }
+            let st = orig.export_portable().unwrap();
+            if let Ok(v) = std::env::var("WHERE") {
+                let v = u32::from_str_radix(&v, 16).unwrap();
+                orig.with_memory(|m| {
+                    for c in sm64_binds::portable::heap_all(m, Build::Headless).unwrap() {
+                        if v >= c.0 && v < c.0 + c.1 + 16 {
+                            println!("{v:#x} is in chunk {c:x?}");
+                        }
+                    }
+                });
+            }
+            let mut loaded = g.create_game().unwrap();
+            // PRE=<n>: the target has played n frames of the movie before the load
+            let pre: usize = std::env::var("PRE").ok().and_then(|s| s.parse().ok()).unwrap_or(0);
+            for pad in &p[..pre] {
+                loaded.step_game(*pad).unwrap();
+            }
+            let r = loaded.load_portable(&st).unwrap();
+            let mut refs = Vec::new();
+            for (what, off, v) in &st.ghost_refs {
+                println!("  stale pointer {what}+{off:#x} = {v:#x}");
+                if let Some(i) = (0..Portable::VAR_COUNT).find(|&i| Portable::var_name(i) == what) {
+                    refs.push((Portable::var_at(i, Build::Headless).0 + off, what.clone()));
+                }
+            }
+            println!(
+                "frame {frame}: {} stale pointers ({} in variables), {} ghosts, {} ghost bytes; report {r:?}",
+                st.ghost_refs.len(),
+                refs.len(),
+                st.ghosts,
+                st.ghost_bytes()
+            );
+            let mario = orig.call_export_u32("get_mario_state").unwrap();
+            refs.push((mario + 0x68, "gMarioStates[0].floor".to_string()));
+            let read = |g: &SM64Game, a: u32, n: usize| {
+                let mut b = vec![0u8; n];
+                g.read_memory(a, &mut b).unwrap();
+                b
+            };
+            let mut bad = 0;
+            let mut first = None;
+            for i in 0..n {
+                orig.step_game(p[frame + i]).unwrap();
+                loaded.step_game(p[frame + i]).unwrap();
+                for (slot, what) in &refs {
+                    let po = u32::from_le_bytes(read(&orig, *slot, 4).try_into().unwrap());
+                    let pl = u32::from_le_bytes(read(&loaded, *slot, 4).try_into().unwrap());
+                    if po == 0 || pl == 0 {
+                        continue;
+                    }
+                    if read(&orig, po, 0x30) != read(&loaded, pl, 0x30) {
+                        bad += 1;
+                        first.get_or_insert((i + 1, what.clone()));
+                    }
+                }
+            }
+            println!("  {n} frames: {bad} mismatching reads (first: {first:?})");
+            if bad > 0 {
+                std::process::exit(1);
+            }
+        }
         "load" => {
             let g = SM64GameGenerator::from_file(&a[2]).unwrap();
             let p = pads(&a[3]);

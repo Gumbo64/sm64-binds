@@ -18,6 +18,9 @@ pub struct PortableLoadReport {
     /// Pointers the state had that this build has no equivalent of (set to
     /// null): zero for states from a build of the same sources.
     pub untranslated: u32,
+    /// Bytes of ghosts (copies of freed memory that stale pointers read) allocated and
+    /// never freed by this load.
+    pub ghost_bytes: usize,
 }
 
 impl SM64Game {
@@ -98,6 +101,7 @@ impl SM64Game {
             reused,
             bytes,
             untranslated: bad,
+            ghost_bytes: state.ghost_bytes(),
         })
     }
 }

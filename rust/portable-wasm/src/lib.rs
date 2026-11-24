@@ -23,6 +23,7 @@ struct State {
     stale: Vec<u32>,
     patches: Vec<Patch>,
     bad: u32,
+    ghost_bytes: usize,
 }
 
 static mut STATE: Option<State> = None;
@@ -168,8 +169,15 @@ pub extern "C" fn p_load_begin(
     s.addrs = p.place(&old);
     s.need = (0..s.addrs.len()).filter(|&i| s.addrs[i] == 0).collect();
     s.stale = portable::display_list_blocks(m, t).unwrap_or_default();
+    s.ghost_bytes = p.ghost_bytes();
     s.state = Some(p);
     s.need.len() as i32
+}
+
+/// How many bytes of ghosts the state being loaded has (allocated, never freed).
+#[unsafe(no_mangle)]
+pub extern "C" fn p_ghost_bytes() -> usize {
+    st().ghost_bytes
 }
 
 #[unsafe(no_mangle)]
