@@ -12,7 +12,12 @@ fn main() {
         let mut game = g.create_game().unwrap();
         for i in 0..f.min(n) {
             let o = 0x400 + 4 * i;
-            game.step_game(GamePad::new(u16::from_be_bytes([b[o], b[o + 1]]), b[o + 2] as i8, b[o + 3] as i8)).unwrap();
+            game.step_game(GamePad::new(
+                u16::from_be_bytes([b[o], b[o + 1]]),
+                b[o + 2] as i8,
+                b[o + 3] as i8,
+            ))
+            .unwrap();
         }
         game.export_portable().unwrap()
     } else {
@@ -24,7 +29,11 @@ fn main() {
         mem[ds..].copy_from_slice(&b[44 + u(32)..]);
         export(&mem, Build::Visual).unwrap()
     };
-    println!("unresolved {} ({} blocks)", p.unresolved_count, p.chunks.len());
+    println!(
+        "unresolved {} ({} blocks)",
+        p.unresolved_count,
+        p.chunks.len()
+    );
     for u in p.unresolved.iter().take(20) {
         println!("  {} +{:#x} = {:#x}", u.0, u.1, u.2);
     }

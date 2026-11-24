@@ -450,10 +450,14 @@ impl<'a> Walk<'a> {
             // The pointers next to it are null or point to something.
             "SpawnInfo" => {
                 let ok = |v: Option<u32>| {
-                    v.is_some_and(|v| matches!(self.classify(v), Tgt::Null | Tgt::Heap(..) | Tgt::Global(_)))
+                    v.is_some_and(|v| {
+                        matches!(self.classify(v), Tgt::Null | Tgt::Heap(..) | Tgt::Global(_))
+                    })
                 };
                 rd(self.mem, addr + 0x14).is_some_and(|b| match self.classify(b) {
-                    Tgt::Global(g) => BEHAVIOR_POINTER_SLOTS.binary_search_by_key(&g, |x| x.0).is_ok(),
+                    Tgt::Global(g) => BEHAVIOR_POINTER_SLOTS
+                        .binary_search_by_key(&g, |x| x.0)
+                        .is_ok(),
                     _ => false,
                 }) && ok(rd(self.mem, addr + 0x18))
                     && ok(rd(self.mem, addr + 0x1c))
@@ -463,9 +467,11 @@ impl<'a> Walk<'a> {
             // (sMemPoolForGoddard after the intro) points into memory reused for something
             // else, such as graph nodes, which the pool's layout would then mangle.
             "AllocOnlyPool" => {
-                let (Some(last), Some(size), Some(next)) =
-                    (rd(self.mem, addr), rd(self.mem, addr + 4), rd(self.mem, addr + 8))
-                else {
+                let (Some(last), Some(size), Some(next)) = (
+                    rd(self.mem, addr),
+                    rd(self.mem, addr + 4),
+                    rd(self.mem, addr + 8),
+                ) else {
                     return false;
                 };
                 next <= size
@@ -604,7 +610,11 @@ impl<'a> Walk<'a> {
     /// pointer (`POINTER_SLOTS`) if its behavior is not known.
     fn object_pointer_slots(&self, obj: u32) -> u128 {
         let bhv = rd(self.mem, obj + OBJ_BEHAVIOR).and_then(|b| to_canonical_global(self.build, b));
-        match bhv.and_then(|b| BEHAVIOR_POINTER_SLOTS.binary_search_by_key(&b, |x| x.0).ok()) {
+        match bhv.and_then(|b| {
+            BEHAVIOR_POINTER_SLOTS
+                .binary_search_by_key(&b, |x| x.0)
+                .ok()
+        }) {
             Some(i) => COMMON_POINTER_SLOTS | BEHAVIOR_POINTER_SLOTS[i].1,
             None => POINTER_SLOTS,
         }
@@ -895,7 +905,10 @@ pub fn walk_unchecked(mem: &[u8], build: Build) -> Result<Walked, String> {
     let mut ghost_val: HashMap<(Slot, u32), u32> = HashMap::new();
     for &(slot, off, v, _) in &stale {
         let gi = ghosts.partition_point(|g| g.0 <= v) - 1;
-        ghost_val.insert((slot, off), HEAP_BASE + ghost_bases[gi] + (v - ghosts[gi].0));
+        ghost_val.insert(
+            (slot, off),
+            HEAP_BASE + ghost_bases[gi] + (v - ghosts[gi].0),
+        );
         let what = match slot {
             Slot::Var(i) => VARS[i].0.to_string(),
             Slot::Chunk(c) => format!("block@{:#x}", w.chunks[c].user),

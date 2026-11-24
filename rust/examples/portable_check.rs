@@ -384,7 +384,10 @@ fn main() {
             }
             let mut loaded = g.create_game().unwrap();
             // PRE=<n>: the target has played n frames of the movie before the load
-            let pre: usize = std::env::var("PRE").ok().and_then(|s| s.parse().ok()).unwrap_or(0);
+            let pre: usize = std::env::var("PRE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
             for pad in &p[..pre] {
                 loaded.step_game(*pad).unwrap();
             }

@@ -10,7 +10,10 @@ const HEAP: u32 = 0x4000_0000;
 
 fn block(p: &Portable, v: u32) -> Option<(usize, u32)> {
     let rel = v.checked_sub(HEAP)?;
-    let i = p.chunk_bases.partition_point(|&b| b <= rel).checked_sub(1)?;
+    let i = p
+        .chunk_bases
+        .partition_point(|&b| b <= rel)
+        .checked_sub(1)?;
     Some((i, rel - p.chunk_bases[i]))
 }
 
@@ -27,13 +30,26 @@ fn main() {
     let (a, b) = (load(&args[1]), load(&args[2]));
     let max: usize = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(40);
     let (da, db) = (a.digest(), b.digest());
-    let names: Vec<_> = (0..da.len().min(db.len())).filter(|&i| da[i] != db[i]).map(Portable::var_name).collect();
-    println!("digest: {} of {} variables differ: {}", names.len(), da.len(), names.join(", "));
+    let names: Vec<_> = (0..da.len().min(db.len()))
+        .filter(|&i| da[i] != db[i])
+        .map(Portable::var_name)
+        .collect();
+    println!(
+        "digest: {} of {} variables differ: {}",
+        names.len(),
+        da.len(),
+        names.join(", ")
+    );
 
     // The variables' plain words (not pointers): the game's values.
     for i in 0..a.vars.len().min(b.vars.len()) {
         let (x, y) = (&a.vars[i], &b.vars[i]);
-        let r: std::collections::HashSet<u32> = x.relocs.iter().chain(y.relocs.iter()).map(|r| r.0).collect();
+        let r: std::collections::HashSet<u32> = x
+            .relocs
+            .iter()
+            .chain(y.relocs.iter())
+            .map(|r| r.0)
+            .collect();
         let mut w = Vec::new();
         for o in (0..x.data.len().min(y.data.len())).step_by(4) {
             if !r.contains(&(o as u32)) && word(x, o) != word(y, o) {
@@ -41,7 +57,12 @@ fn main() {
             }
         }
         if !w.is_empty() {
-            println!("value {}: {} words: {}", Portable::var_name(i), w.len(), w.iter().take(12).cloned().collect::<Vec<_>>().join(", "));
+            println!(
+                "value {}: {} words: {}",
+                Portable::var_name(i),
+                w.len(),
+                w.iter().take(12).cloned().collect::<Vec<_>>().join(", ")
+            );
         }
     }
     // What each pointer of the variables points to: the 48 bytes there (pointer words
@@ -50,7 +71,19 @@ fn main() {
         let (i, o) = block(p, v)?;
         let c = &p.chunks[i];
         let r: std::collections::HashSet<u32> = c.relocs.iter().map(|r| r.0).collect();
-        Some((0..12).map(|k| o as usize + 4 * k).filter(|&q| q + 4 <= c.data.len()).map(|q| if r.contains(&(q as u32)) { None } else { Some(word(c, q)) }).collect())
+        Some(
+            (0..12)
+                .map(|k| o as usize + 4 * k)
+                .filter(|&q| q + 4 <= c.data.len())
+                .map(|q| {
+                    if r.contains(&(q as u32)) {
+                        None
+                    } else {
+                        Some(word(c, q))
+                    }
+                })
+                .collect(),
+        )
     };
     let mut bad = 0;
     for i in 0..a.vars.len().min(b.vars.len()) {
@@ -81,13 +114,25 @@ fn main() {
     println!("{bad} pointers of the variables differ");
     // BLOCK_OF=<variable suffix>: compare the whole block the variable's first word points to.
     if let Ok(vn) = std::env::var("BLOCK_OF") {
-        let i = (0..Portable::VAR_COUNT).find(|&i| Portable::var_name(i).ends_with(&vn)).unwrap();
+        let i = (0..Portable::VAR_COUNT)
+            .find(|&i| Portable::var_name(i).ends_with(&vn))
+            .unwrap();
         let (pa, pb) = (word(&a.vars[i], 0), word(&b.vars[i], 0));
         let ((ia, oa), (ib, ob)) = (block(&a, pa).unwrap(), block(&b, pb).unwrap());
         let (x, y) = (&a.chunks[ia], &b.chunks[ib]);
-        println!("{vn}: block {ia}+{oa:#x} ({} bytes) vs block {ib}+{ob:#x} ({} bytes)", x.data.len(), y.data.len());
+        println!(
+            "{vn}: block {ia}+{oa:#x} ({} bytes) vs block {ib}+{ob:#x} ({} bytes)",
+            x.data.len(),
+            y.data.len()
+        );
         let n = (x.data.len() - oa as usize).min(y.data.len() - ob as usize);
-        let (rx, ry): (std::collections::HashSet<u32>, std::collections::HashSet<u32>) = (x.relocs.iter().map(|r| r.0).collect(), y.relocs.iter().map(|r| r.0).collect());
+        let (rx, ry): (
+            std::collections::HashSet<u32>,
+            std::collections::HashSet<u32>,
+        ) = (
+            x.relocs.iter().map(|r| r.0).collect(),
+            y.relocs.iter().map(|r| r.0).collect(),
+        );
         let mut d = 0;
         for k in (0..n).step_by(4) {
             let (qa, qb) = (oa as usize + k, ob as usize + k);
@@ -95,15 +140,30 @@ fn main() {
             let (pa, pb) = (rx.contains(&(qa as u32)), ry.contains(&(qb as u32)));
             if pa != pb || (!pa && wa != wb) {
                 d += 1;
-                if d <= 12 { println!("  +{k:#x}: {wa:#x}{} vs {wb:#x}{}", if pa {" ptr"} else {""}, if pb {" ptr"} else {""}); }
+                if d <= 12 {
+                    println!(
+                        "  +{k:#x}: {wa:#x}{} vs {wb:#x}{}",
+                        if pa { " ptr" } else { "" },
+                        if pb { " ptr" } else { "" }
+                    );
+                }
             }
         }
         println!("  {d} words differ of {}", n / 4);
         let show = |p: &Portable, c: &sm64_binds::portable::Buf, o: u32| {
-            let mut v: Vec<String> = c.relocs.iter().filter(|r| r.0 >= o).take(8).map(|r| {
-                let w = word(c, r.0 as usize);
-                match block(p, w) { Some((bi, bo)) => format!("+{:#x}->block{bi}+{bo:#x}", r.0 - o), None => format!("+{:#x}->{w:#x}", r.0 - o) }
-            }).collect();
+            let mut v: Vec<String> = c
+                .relocs
+                .iter()
+                .filter(|r| r.0 >= o)
+                .take(8)
+                .map(|r| {
+                    let w = word(c, r.0 as usize);
+                    match block(p, w) {
+                        Some((bi, bo)) => format!("+{:#x}->block{bi}+{bo:#x}", r.0 - o),
+                        None => format!("+{:#x}->{w:#x}", r.0 - o),
+                    }
+                })
+                .collect();
             v.truncate(8);
             v.join(" ")
         };
@@ -140,15 +200,23 @@ fn main() {
             match (block(&a, wx), block(&b, wy)) {
                 (Some((ia, oa)), Some((ib, ob))) if kx == Some(&0) && ky == Some(&0) => {
                     if oa != ob {
-                        msgs.push(format!("+{o:#x}: ptr block{ia}+{oa:#x} vs block{ib}+{ob:#x}"));
+                        msgs.push(format!(
+                            "+{o:#x}: ptr block{ia}+{oa:#x} vs block{ib}+{ob:#x}"
+                        ));
                     } else if let Some(&p) = pair.get(&ia) {
                         if p != ib {
-                            msgs.push(format!("+{o:#x}: ptr block{ia} (paired with {p}) vs block{ib}"));
+                            msgs.push(format!(
+                                "+{o:#x}: ptr block{ia} (paired with {p}) vs block{ib}"
+                            ));
                         }
                     } else {
                         pair.insert(ia, ib);
                         if seen.insert(ia) {
-                            queue.push_back((format!("block{ia}<{name}+{o:#x}"), &a.chunks[ia], &b.chunks[ib]));
+                            queue.push_back((
+                                format!("block{ia}<{name}+{o:#x}"),
+                                &a.chunks[ia],
+                                &b.chunks[ib],
+                            ));
                         }
                     }
                 }
@@ -163,8 +231,17 @@ fn main() {
             out.insert(name, msgs);
         }
     }
-    println!("{} of {} blocks paired; {} items differ", pair.len(), a.chunks.len(), out.len());
+    println!(
+        "{} of {} blocks paired; {} items differ",
+        pair.len(),
+        a.chunks.len(),
+        out.len()
+    );
     for (k, v) in out.iter().take(max) {
-        println!("  {k}: {} words: {}", v.len(), v.iter().take(6).cloned().collect::<Vec<_>>().join(", "));
+        println!(
+            "  {k}: {} words: {}",
+            v.len(),
+            v.iter().take(6).cloned().collect::<Vec<_>>().join(", ")
+        );
     }
 }

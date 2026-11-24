@@ -165,7 +165,10 @@ fn stale_pointers_keep_reading_what_the_original_reads() {
         state.ghosts > 0 && !state.ghost_refs.is_empty(),
         "no stale pointer to test"
     );
-    assert!(state.ghost_bytes() < 4096, "ghosts are windows, not whole chunks");
+    assert!(
+        state.ghost_bytes() < 4096,
+        "ghosts are windows, not whole chunks"
+    );
     let state = Portable::from_bytes(&state.to_bytes()).unwrap();
     assert!(state.ghosts > 0);
     let slot = (0..Portable::VAR_COUNT)

@@ -17,10 +17,18 @@ fn main() {
         if addr >= ca && addr < ca + cl {
             let off = addr - ca;
             let buf = &w.chunks[i];
-            let v = u32::from_le_bytes(buf.data[off as usize..off as usize + 4].try_into().unwrap());
+            let v =
+                u32::from_le_bytes(buf.data[off as usize..off as usize + 4].try_into().unwrap());
             let r = buf.relocs.iter().find(|r| r.0 == off);
-            println!("in block {i} @{ca:#x}+{off:#x} (found by {:?}): exported {v:#x}, reloc {r:?}", w.found_by.get(i));
-            let near: Vec<_> = buf.relocs.iter().filter(|r| r.0 + 0x40 >= off && r.0 <= off + 0x40).collect();
+            println!(
+                "in block {i} @{ca:#x}+{off:#x} (found by {:?}): exported {v:#x}, reloc {r:?}",
+                w.found_by.get(i)
+            );
+            let near: Vec<_> = buf
+                .relocs
+                .iter()
+                .filter(|r| r.0 + 0x40 >= off && r.0 <= off + 0x40)
+                .collect();
             println!("relocs nearby: {near:?}");
         }
     }
