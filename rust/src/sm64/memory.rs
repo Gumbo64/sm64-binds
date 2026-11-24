@@ -69,8 +69,17 @@ impl SM64Game {
         self.layout.read_only_start..self.layout.read_only_end
     }
 
+    /// Linear memory's size in bytes.
+    pub(super) fn mem_len(&self) -> usize {
+        self.exports.memory.view(&self.store).data_size() as usize
+    }
+
     /// Linear memory's address and size, valid until it grows or the game is
-    /// next used mutably.
+    /// next used mutably. Native only: on the JS backend (wasm32) the game's
+    /// memory is another WebAssembly instance's, which this module can't point
+    /// into; the callers there go through [`SM64Game::with_memory`],
+    /// [`SM64Game::with_memory_mut`] and [`SM64Game::read_memory`] instead.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn mem(&self) -> (*mut u8, usize) {
         let view = self.exports.memory.view(&self.store);
         (view.data_ptr(), view.data_size() as usize)
@@ -78,21 +87,75 @@ impl SM64Game {
 
     /// Like [`SM64Game::mem`], for writing through: counts as a change to the
     /// game's memory.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn mem_mut(&mut self) -> (*mut u8, usize) {
         self.sync.touch();
         self.mem()
     }
 
-    /// Calls `f` with all of linear memory, without copying it.
+    /// Calls `f` with all of linear memory (natively without copying it; on
+    /// the JS backend with a copy).
     pub fn with_memory<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
-        let (ptr, len) = self.mem();
-        // SAFETY: valid for `len` bytes while `self` is borrowed, which
-        // outlasts the call; nothing can change it meanwhile.
-        f(unsafe { std::slice::from_raw_parts(ptr, len) })
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (ptr, len) = self.mem();
+            // SAFETY: valid for `len` bytes while `self` is borrowed, which
+            // outlasts the call; nothing can change it meanwhile.
+            f(unsafe { std::slice::from_raw_parts(ptr, len) })
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let copy = self.exports.memory.view(&self.store).copy_to_vec().expect("reading the game's memory");
+            f(&copy)
+        }
+    }
+
+    /// Calls `f` with all of linear memory to change it (counts as a change to
+    /// the game's memory; on the JS backend a copy that is written back).
+    pub(super) fn with_memory_mut<R>(&mut self, f: impl FnOnce(&mut [u8]) -> R) -> R {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (ptr, len) = self.mem_mut();
+            // SAFETY: as in `with_memory`, and `self` is borrowed mutably.
+            f(unsafe { std::slice::from_raw_parts_mut(ptr, len) })
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.sync.touch();
+            let view = self.exports.memory.view(&self.store);
+            let mut copy = view.copy_to_vec().expect("reading the game's memory");
+            let r = f(&mut copy);
+            view.write(0, &copy).expect("writing the game's memory");
+            r
+        }
+    }
+
+    /// Writes `bytes` to linear memory at `addr` (counts as a change).
+    pub(super) fn write_bytes(&mut self, addr: usize, bytes: &[u8]) -> Result<(), Error> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (ptr, len) = self.mem_mut();
+            let end = addr.checked_add(bytes.len()).filter(|&e| e <= len).ok_or_else(|| Error::msg("write out of bounds"))?;
+            let _ = end;
+            // SAFETY: bounds checked above; `bytes` is a separate allocation.
+            unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr.add(addr), bytes.len()) };
+            Ok(())
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.sync.touch();
+            self.exports.memory.view(&self.store).write(addr as u64, bytes).map_err(|e| Error::msg(format!("write of {} bytes at {addr:#x}: {e}", bytes.len())))
+        }
     }
 
     /// Copies `buf.len()` bytes of linear memory starting at `addr` into `buf`.
     pub fn read_memory(&self, addr: u32, buf: &mut [u8]) -> Result<()> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            // Only the bytes asked for (per frame, this is the hot path).
+            return self.exports.memory.view(&self.store).read(addr as u64, buf).map_err(|_| Error::msg(format!("read of {} bytes at {addr:#x} out of bounds", buf.len())));
+        }
+        #[allow(unreachable_code)]
         self.with_memory(|memory| {
             let source = (addr as usize)
                 .checked_add(buf.len())
@@ -114,7 +177,7 @@ impl SM64Game {
     }
 
     fn expand_memory_to(&mut self, total_bytes: u64) -> Result<(), Error> {
-        if self.mem().1 as u64 >= total_bytes {
+        if self.mem_len() as u64 >= total_bytes {
             return Ok(());
         }
         let (store, exports) = self.parts_mut();
@@ -122,7 +185,7 @@ impl SM64Game {
 
         // grow_at_least rounds up to a page, but a runtime may refuse growth
         // entirely; re-check so no caller writes out of bounds.
-        let actual = self.mem().1 as u64;
+        let actual = self.mem_len() as u64;
         if actual < total_bytes {
             return Err(Error::msg(format!(
                 "could not grow linear memory to {total_bytes} bytes (got {actual})"
@@ -151,20 +214,11 @@ impl SM64Game {
         let heap = bytes.len().saturating_sub(stack_len);
         self.expand_memory(heap)?;
 
-        let (ptr, _) = self.mem_mut();
-
-        // SAFETY: `expand_memory` verified linear memory reaches
-        // `read_only_end + heap`, which is past `stack <= read_only_start`.
-        // `bytes` is a separate allocation, so neither copy can overlap.
-        unsafe {
-            std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, stack);
-            if heap > 0 {
-                std::ptr::copy_nonoverlapping(
-                    bytes.as_ptr().add(stack_len),
-                    ptr.add(self.layout.read_only_end),
-                    heap,
-                );
-            }
+        // `expand_memory` verified linear memory reaches `read_only_end + heap`,
+        // which is past `stack <= read_only_start`.
+        self.write_bytes(0, &bytes[..stack])?;
+        if heap > 0 {
+            self.write_bytes(self.layout.read_only_end, &bytes[stack_len..stack_len + heap])?;
         }
         Ok(())
     }
@@ -182,6 +236,24 @@ impl SM64Game {
                 "copy_from: the source game is a different build of the game",
             ));
         }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let src_size = source.mem_len();
+            self.expand_memory(src_size.saturating_sub(self.layout.read_only_end))?;
+            let dst_size = self.mem_len();
+            for (start, end) in self.layout.mutable_ranges() {
+                let len = end.min(src_size).min(dst_size).saturating_sub(start);
+                if len == 0 {
+                    continue;
+                }
+                let mut buf = vec![0u8; len];
+                source.read_memory(start as u32, &mut buf)?;
+                self.write_bytes(start, &buf)?;
+            }
+            return Ok(());
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
         let (src_ptr, src_size) = source.mem();
 
         // This game has to be at least as large as the source's mutable
@@ -208,5 +280,6 @@ impl SM64Game {
             }
         }
         Ok(())
+        }
     }
 }

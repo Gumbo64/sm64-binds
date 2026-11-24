@@ -70,6 +70,15 @@ impl SM64Game {
                 "sync_from: the base game is a different build of the game",
             ));
         }
+        // The JS backend (wasm32) has no page tracking: a full copy, the same result.
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.copy_from(base)?;
+            self.sync.synced_with = Some(base.sync.version());
+            return Ok(());
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
         let (base_ptr, base_len) = base.mem();
         let base_ptr = base_ptr as *const u8;
         let (ptr, len) = self.mem_mut();
@@ -153,6 +162,7 @@ impl SM64Game {
             }
         }
         Ok(())
+        }
     }
 
     /// Whether [`SM64Game::sync_from`] is tracking written pages, rather
@@ -164,6 +174,9 @@ impl SM64Game {
     /// Marks every page clean, starting a tracker if needed. Called right
     /// after a full copy, when this game matches its base.
     fn reset_tracking(&mut self) {
+        // The JS backend (wasm32) has no page tracking.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
         let (ptr, len) = self.mem();
         let sync = &mut self.sync;
         if let Some(tracker) = &mut sync.tracker
@@ -178,6 +191,7 @@ impl SM64Game {
         if !sync.tracking_unavailable {
             sync.tracker = DirtyTracker::new(ptr, len);
             sync.tracking_unavailable = sync.tracker.is_none();
+        }
         }
     }
 }

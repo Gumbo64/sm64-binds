@@ -73,26 +73,21 @@ impl SM64Game {
             );
         }
         let [gen_at, count_at] = Portable::geo_cache();
-        let (ptr, size) = self.mem_mut();
-        let mut bytes = 0;
-        for (a, data) in &patches {
-            let end = *a as usize + data.len();
-            if end > size {
-                return Err(Error::msg(format!("patch at {a:#x} is outside memory")));
+        let bytes = self.with_memory_mut(|mem| -> Result<usize, Error> {
+            let mut bytes = 0;
+            for (a, data) in &patches {
+                let a = *a as usize;
+                let dst = mem.get_mut(a..a + data.len()).ok_or_else(|| Error::msg(format!("patch at {a:#x} is outside memory")))?;
+                dst.copy_from_slice(data);
+                bytes += data.len();
             }
-            // SAFETY: in bounds, and `data` is a separate allocation.
-            unsafe {
-                std::ptr::copy_nonoverlapping(data.as_ptr(), ptr.add(*a as usize), data.len())
-            };
-            bytes += data.len();
-        }
-        // The render walk's cache holds nodes of the old state: invalidate it.
-        // SAFETY: the cache's two words are inside the headless build's memory.
-        unsafe {
-            let gen_p = ptr.add(gen_at as usize) as *mut u32;
-            gen_p.write_unaligned(gen_p.read_unaligned().wrapping_add(1));
-            (ptr.add(count_at as usize) as *mut u32).write_unaligned(0);
-        }
+            // The render walk's cache holds nodes of the old state: invalidate it.
+            let (g, c) = (gen_at as usize, count_at as usize);
+            let gen_v = u32::from_le_bytes(mem[g..g + 4].try_into().unwrap()).wrapping_add(1);
+            mem[g..g + 4].copy_from_slice(&gen_v.to_le_bytes());
+            mem[c..c + 4].copy_from_slice(&0u32.to_le_bytes());
+            Ok(bytes)
+        })?;
         Ok(PortableLoadReport {
             blocks: addrs.len(),
             reused,

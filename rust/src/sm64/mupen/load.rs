@@ -444,17 +444,15 @@ impl SM64Game {
             .collect();
 
         // Everything was computed from the snapshot; now write.
-        let (ptr, len) = self.mem_mut();
-        // SAFETY: linear memory is `len` bytes at `ptr` while self is
-        // borrowed mutably; nothing else touches it meanwhile.
-        let mem = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
-        for (addr, bytes) in &writes {
-            let a = *addr as usize;
-            if let Some(dst) = mem.get_mut(a..a + bytes.len()) {
-                dst.copy_from_slice(bytes);
+        self.with_memory_mut(|mem| {
+            for (addr, bytes) in &writes {
+                let a = *addr as usize;
+                if let Some(dst) = mem.get_mut(a..a + bytes.len()) {
+                    dst.copy_from_slice(bytes);
+                }
             }
-        }
-        fix_mario_animation(st, mem, &mut report);
+            fix_mario_animation(st, mem, &mut report);
+        });
         Ok(report)
     }
 }
@@ -553,15 +551,12 @@ impl SM64Game {
             // leaves for sWarpDest's level (play_mode_change_level).
             ("sCurrPlayMode", 4i16.to_le_bytes().to_vec()),
         ];
-        {
-            let (ptr, len) = self.mem_mut();
-            // SAFETY: as in load_mupen_state.
-            let mem = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
+        self.with_memory_mut(|mem| {
             for (name, bytes) in writes {
                 let v = var(name).unwrap();
                 mem[v.port as usize..v.port as usize + bytes.len()].copy_from_slice(&bytes);
             }
-        }
+        });
         for frame in 1..=max_frames {
             self.step_game(crate::GamePad::default())?;
             let (l, a, mode, action) = here(self);
