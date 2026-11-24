@@ -428,6 +428,14 @@ impl<'a> Walk<'a> {
                         Tgt::Unresolved => false,
                     }
             }
+            // `gEffectsMemoryPool` (system malloc): an allocation pool first. A stale pointer
+            // to a freed pool (the level's pools are released, their memory reused) points
+            // at something else, graph nodes say, whose words the pool's layout would turn
+            // into pointers (a padding word of a graph node became a pointer).
+            "MemoryPool" => rd(self.mem, addr).is_some_and(|p| match self.classify(p) {
+                Tgt::Heap(..) => self.plausible("AllocOnlyPool", p),
+                _ => false,
+            }),
             _ => true,
         }
     }
