@@ -358,7 +358,7 @@ try {
         const rec = (first, depth) => {
           if (!first || depth > 30 || out.length > 3000) return;
           let x = first, n = 0;
-          do { const par = m.getUint32(x + 0xc, true); const ty = m.getInt16(x, true) & 0xffff; const dl = [0x19, 0x17, 0x1b, 0x15, 0x16, 0x1a, 0x1c, 0x12a, 0x10c, 0x12e].includes(ty) ? m.getUint32(x + 0x14, true).toString(16) : ''; out.push(`${depth}:${ty.toString(16)} parent ${par ? m.getInt16(par, true).toString(16) : 'null'} dl ${dl} f${m.getInt16(x + 2, true).toString(16)}${ty === 0x10c ? ' sel ' + m.getInt16(x + 0x1a, true) + '/' + m.getInt16(x + 0x18, true) : ''}`); rec(m.getUint32(x + 0x10, true), depth + 1); x = m.getUint32(x + 8, true); n++; } while (x && x !== first && n < 60);
+          do { const par = m.getUint32(x + 0xc, true); const ty = m.getInt16(x, true) & 0xffff; const dl = [0x19, 0x17, 0x1b, 0x15, 0x16, 0x1a, 0x1c, 0x12a, 0x10c, 0x12e].includes(ty) ? m.getUint32(x + 0x14, true).toString(16) : ''; const tr = [0x19, 0x16, 0x15, 0x12e].includes(ty) ? ' t' + [0, 1, 2].map((k) => m.getInt16(x + (ty === 0x12e ? 0x20 : 0x18) + 2 * k, true)).join('/') : ty === 0x1c ? ' s' + m.getFloat32(x + 0x18, true).toFixed(3) : ty === 0x17 ? ' r' + [0, 1, 2].map((k) => m.getInt16(x + 0x18 + 2 * k, true)).join('/') : ''; out.push(`${depth}:${ty.toString(16)}${tr} parent ${par ? m.getInt16(par, true).toString(16) : 'null'} dl ${dl} f${m.getInt16(x + 2, true).toString(16)}${ty === 0x10c ? ' sel ' + m.getInt16(x + 0x1a, true) + '/' + m.getInt16(x + 0x18, true) : ''}`); rec(m.getUint32(x + 0x10, true), depth + 1); x = m.getUint32(x + 8, true); n++; } while (x && x !== first && n < 60);
           if (x !== first) out.push(`${depth}:RING-NOT-CLOSED`);
         };
         rec(m.getUint32(obj + 0x14, true), 0);
@@ -398,6 +398,19 @@ try {
         };
         console.log('animg raw', JSON.stringify(await run(() => a.evaluate(() => window.vRestore()))));
         console.log('animg loaded', JSON.stringify(await run(() => a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, process.env.TREEFILE || `own_${f}.p`)).toString('base64')))));
+      }
+      if (process.env.ROOTX) {
+        const at = Number(process.env.ROOTX);
+        const probe = () => a.evaluate(() => {
+          const m = new DataView(window.engine.memory.buffer); const mario = m.getUint32(0xb20448, true);
+          const cur = m.getUint32(mario + 0x3c, true), frame = m.getInt16(mario + 0x40, true);
+          const idx = m.getUint32(cur + 0x10, true), val = m.getUint32(cur + 0xc, true);
+          const attr = Array.from({ length: 12 }, (_, i) => m.getUint16(idx + 2 * i, true));
+          const pick = (k) => { const c = attr[2 * k], o = attr[2 * k + 1]; return m.getInt16(val + 2 * (o + (frame < c ? frame : c - 1)), true); };
+          return { frame, cur: cur.toString(16), idxOff: idx - cur, valOff: val - cur, attr, tx: pick(0), ty: pick(1), tz: pick(2), rx: pick(3), len: m.getUint32(cur + 0x14, true) };
+        });
+        await a.evaluate(() => window.vRestore()); await play(a, f, f + at); console.log('rootx raw', JSON.stringify(await probe()));
+        await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, process.env.TREEFILE || `own_${f}.p`)).toString('base64')); await play(a, f, f + at); console.log('rootx loaded', JSON.stringify(await probe()));
       }
       if (process.env.DLAT) {
         const at = Number(process.env.DLAT);
