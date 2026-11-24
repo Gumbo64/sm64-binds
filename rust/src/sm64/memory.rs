@@ -99,6 +99,14 @@ impl SM64Game {
         self.mem()
     }
 
+    /// The game's linear memory as a JavaScript byte array (JS backend).
+    #[cfg(target_arch = "wasm32")]
+    fn js_bytes(&self) -> js_sys::Uint8Array {
+        use wasmer::js::AsJs;
+        let memory: js_sys::WebAssembly::Memory = self.exports.memory.as_jsvalue(&self.store).into();
+        js_sys::Uint8Array::new(&memory.buffer())
+    }
+
     /// Calls `f` with all of linear memory (natively without copying it; on
     /// the JS backend with a copy).
     pub fn with_memory<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
@@ -252,9 +260,11 @@ impl SM64Game {
                 if len == 0 {
                     continue;
                 }
-                let mut buf = vec![0u8; len];
-                source.read_memory(start as u32, &mut buf)?;
-                self.write_bytes(start, &buf)?;
+                // Straight from one game's memory to the other's in JavaScript (one copy; reading
+                // into a buffer of this module's memory and writing it back was three passes).
+                self.sync.touch();
+                let (dst, src) = (self.js_bytes(), source.js_bytes());
+                dst.set(&src.subarray(start as u32, (start + len) as u32), start as u32);
             }
             return Ok(());
         }
