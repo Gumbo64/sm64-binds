@@ -69,6 +69,12 @@ impl SM64Game {
         self.layout.read_only_start..self.layout.read_only_end
     }
 
+    /// Linear memory's size in bytes (public: callers that read single fields
+    /// with [`SM64Game::read_memory`] bound-check with it).
+    pub fn memory_len(&self) -> usize {
+        self.mem_len()
+    }
+
     /// Linear memory's size in bytes.
     pub(super) fn mem_len(&self) -> usize {
         self.exports.memory.view(&self.store).data_size() as usize
