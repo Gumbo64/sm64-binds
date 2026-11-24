@@ -107,11 +107,11 @@ fn gen_pads(seed: u64, style: u64, n: usize) -> Vec<GamePad> {
                         A_BTN, B_BTN, Z_BTN, L_BTN, R_BTN, C_BTNS[0], C_BTNS[1], C_BTNS[2],
                         C_BTNS[3],
                     ] {
-                        if r.next() % 4 == 0 {
+                        if r.next().is_multiple_of(4) {
                             b |= m;
                         }
                     }
-                    if r.next() % 40 == 0 {
+                    if r.next().is_multiple_of(40) {
                         b |= START;
                     }
                     let (x, y) = stick(&mut r);
@@ -119,27 +119,27 @@ fn gen_pads(seed: u64, style: u64, n: usize) -> Vec<GamePad> {
                 }
                 1 => {
                     left = r.range(1, 30);
-                    if r.next() % 8 == 0 {
+                    if r.next().is_multiple_of(8) {
                         dir = r.range(-128, 127);
                     }
                     let a = ((dir as f64) * std::f64::consts::PI / 128.0).sin();
                     let c = ((dir as f64) * std::f64::consts::PI / 128.0).cos();
-                    let mag = if r.next() % 6 == 0 {
+                    let mag = if r.next().is_multiple_of(6) {
                         r.range(20, 60)
                     } else {
                         80
                     } as f64;
                     let mut b = 0;
-                    if r.next() % 3 == 0 {
+                    if r.next().is_multiple_of(3) {
                         b |= A_BTN;
                     }
-                    if r.next() % 12 == 0 {
+                    if r.next().is_multiple_of(12) {
                         b |= B_BTN;
                     }
-                    if r.next() % 20 == 0 {
+                    if r.next().is_multiple_of(20) {
                         b |= Z_BTN;
                     }
-                    if r.next() % 15 == 0 {
+                    if r.next().is_multiple_of(15) {
                         b |= C_BTNS[r.range(0, 3) as usize];
                     }
                     cur = GamePad::new(b, (a * mag) as i8, (c * mag) as i8);
@@ -148,7 +148,7 @@ fn gen_pads(seed: u64, style: u64, n: usize) -> Vec<GamePad> {
                     left = r.range(1, 4);
                     let mut b = 0;
                     for &m in &[A_BTN, B_BTN, Z_BTN] {
-                        if r.next() % 2 == 0 {
+                        if r.next().is_multiple_of(2) {
                             b |= m;
                         }
                     }
@@ -157,9 +157,9 @@ fn gen_pads(seed: u64, style: u64, n: usize) -> Vec<GamePad> {
                 }
                 3 => {
                     left = r.range(20, 200);
-                    cur = if r.next() % 5 == 0 {
+                    cur = if r.next().is_multiple_of(5) {
                         GamePad::new(
-                            if r.next() % 2 == 0 { A_BTN } else { 0 },
+                            if r.next().is_multiple_of(2) { A_BTN } else { 0 },
                             0,
                             r.range(-80, 80) as i8,
                         )
@@ -173,7 +173,7 @@ fn gen_pads(seed: u64, style: u64, n: usize) -> Vec<GamePad> {
                     for &m in &[
                         A_BTN, B_BTN, Z_BTN, R_BTN, C_BTNS[0], C_BTNS[1], C_BTNS[2], C_BTNS[3],
                     ] {
-                        if r.next() % 5 == 0 {
+                        if r.next().is_multiple_of(5) {
                             b |= m;
                         }
                     }
@@ -234,13 +234,6 @@ const GS_NAMES: [&str; 18] = [
 ];
 
 const HEAP_BASE: u32 = 0x4000_0000;
-
-fn word(d: &[u8], i: usize) -> u32 {
-    let mut w = [0u8; 4];
-    let e = (i * 4 + 4).min(d.len());
-    w[..e - i * 4].copy_from_slice(&d[i * 4..e]);
-    u32::from_le_bytes(w)
-}
 
 fn decode(p: &Portable, v: u32) -> Option<(usize, u32)> {
     if v < HEAP_BASE {
@@ -461,14 +454,12 @@ fn run_pair(
         .unwrap_or(1);
     let mut o = Outcome::default();
     // frame 0: right after the load, before any step
-    if exact {
-        if let (Ok(pa), Ok(pb)) = (a.export_portable(), b.export_portable()) {
-            record_export_diff(&mut o, 0, &pa, &pb, detail);
-            // what already differs right after the load is state the load does not carry
-            // (render caches, matrices): not compared afterwards
-            if let Some((_, n)) = o.digest.take() {
-                o.natural = n;
-            }
+    if exact && let (Ok(pa), Ok(pb)) = (a.export_portable(), b.export_portable()) {
+        record_export_diff(&mut o, 0, &pa, &pb, detail);
+        // what already differs right after the load is state the load does not carry
+        // (render caches, matrices): not compared afterwards
+        if let Some((_, n)) = o.digest.take() {
+            o.natural = n;
         }
     }
     for (i, pad) in pads.iter().enumerate() {
@@ -664,11 +655,10 @@ fn main() {
                     };
                     let st = Portable::from_bytes(&st.to_bytes()).unwrap();
                     let mut variants: Vec<(&'static str, Portable)> = vec![("B", st)];
-                    if let Some(d) = &b2dir {
-                        if let Ok(bytes) = std::fs::read(format!("{d}/own_{f}.p")) {
+                    if let Some(d) = &b2dir
+                        && let Ok(bytes) = std::fs::read(format!("{d}/own_{f}.p")) {
                             variants.push(("B2", Portable::from_bytes(&bytes).unwrap()));
                         }
-                    }
                     for (which, st) in variants {
                         let mut gb = gen_.create_game().unwrap();
                         match gb.load_portable(&st) {

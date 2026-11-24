@@ -77,10 +77,11 @@ fn main() {
                 continue;
             }
             let v = u32::from_le_bytes(buf.data[o..o + 4].try_into().unwrap());
-            if let Some((blk, off)) = inside(v) {
-                if v % 4 == 0 && v >= 0xc50000 {
-                    here.push(format!("+{o:#x}={v:#x}(blk {blk:#x}+{off:#x})"));
-                }
+            if let Some((blk, off)) = inside(v)
+                && v % 4 == 0
+                && v >= 0xc50000
+            {
+                here.push(format!("+{o:#x}={v:#x}(blk {blk:#x}+{off:#x})"));
             }
         }
         if !here.is_empty() {

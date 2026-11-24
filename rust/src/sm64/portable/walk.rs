@@ -497,11 +497,8 @@ impl<'a> Walk<'a> {
             // A surface's `object` is null or a pool object. A stale floor pointer into reused
             // memory (a level's collision data was freed, a later level's data sits there)
             // reads other numbers there.
-            "Surface" => rd(self.mem, addr + 0x2c).is_some_and(|o| match self.classify(o) {
-                Tgt::Null => true,
-                Tgt::Global(_) => true,
-                _ => false,
-            }),
+            "Surface" => rd(self.mem, addr + 0x2c)
+                .is_some_and(|o| matches!(self.classify(o), Tgt::Null | Tgt::Global(_))),
             _ => true,
         }
     }
