@@ -7,7 +7,7 @@ All three packages (Rust `sm64-binds`, Python `sm64-binds`, JavaScript
 
 - **Fixed:** loading a portable state across builds (headless → rendering) now renders and plays
   like the original: no more black screen, missing/doubled Mario, corrupted object values, or crash
-  after a level change. Checked pixel-identical at 167 checkpoints and by a differential fuzz.
+  after a level change. Checked at 167 checkpoints and by a differential fuzz.
 - **Changed:** portable format v2 (copies memory that stale pointers still read; v1 still loads).
 - **Added:** `portable_check quick` and `portable_fuzz` for checking translations.
 - The game WASM is unchanged.
