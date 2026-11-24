@@ -332,6 +332,33 @@ fn main() {
             }
             std::fs::write(&a[7], game.export_portable().unwrap().to_bytes()).unwrap();
         }
+        // portable_check probe <rom> <movie.m64> <frame> <hex addr>...: the headless game at
+        // <frame>, each address: its word, and what the export makes of it.
+        "probe" => {
+            let g = SM64GameGenerator::from_file(&a[2]).unwrap();
+            let p = pads(&a[3]);
+            let frame: usize = a[4].parse().unwrap();
+            let mut game = g.create_game().unwrap();
+            for pad in &p[..frame] {
+                game.step_game(*pad).unwrap();
+            }
+            game.with_memory(|mem| {
+                let w = sm64_binds::portable::walk(mem, Build::Headless).unwrap();
+                for h in &a[5..] {
+                    let addr = u32::from_str_radix(h.trim_start_matches("0x"), 16).unwrap();
+                    let rd = |x: u32| u32::from_le_bytes(mem[x as usize..x as usize + 4].try_into().unwrap());
+                    let words: Vec<String> = (0..8).map(|k| format!("{:08x}", rd(addr + 4 * k))).collect();
+                    println!("{addr:#x}: {}", words.join(" "));
+                    for (i, (&ca, &cl)) in w.chunk_addrs.iter().zip(&w.chunk_lens).enumerate() {
+                        if addr >= ca && addr < ca + cl {
+                            let off = addr - ca;
+                            let near: Vec<_> = w.chunks[i].relocs.iter().filter(|r| r.0 + 0x10 >= off && r.0 < off + 0x30).collect();
+                            println!("  block {i} @{ca:#x}+{off:#x} len {cl:#x} found by {:?}; relocs near {near:?}", w.found_by.get(i));
+                        }
+                    }
+                }
+            });
+        }
         "load" => {
             let g = SM64GameGenerator::from_file(&a[2]).unwrap();
             let p = pads(&a[3]);

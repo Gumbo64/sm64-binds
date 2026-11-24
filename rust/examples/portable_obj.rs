@@ -3,6 +3,14 @@ use sm64_binds::portable::Portable;
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let p = Portable::from_bytes(&std::fs::read(&a[1]).unwrap()).unwrap();
+    if let Ok(vn) = std::env::var("VAR") {
+        let i = (0..Portable::VAR_COUNT).find(|&i| Portable::var_name(i).ends_with(&vn)).unwrap();
+        let v = &p.vars[i];
+        for o in (0..v.data.len().min(0x100)).step_by(4) {
+            println!("{o:#05x}: {:#010x}", u32::from_le_bytes(v.data[o..o + 4].try_into().unwrap()));
+        }
+        return;
+    }
     let slot: u32 = a[2].parse().unwrap();
     let i = (0..Portable::VAR_COUNT).find(|&i| Portable::var_name(i).ends_with(":gObjectPool")).unwrap();
     let v = &p.vars[i];

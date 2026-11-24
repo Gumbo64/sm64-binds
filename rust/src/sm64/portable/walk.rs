@@ -411,6 +411,23 @@ impl<'a> Walk<'a> {
             // The behavior script is always set, and in constant data.
             "SpawnInfo" => rd(self.mem, addr + 0x14)
                 .is_some_and(|b| matches!(self.classify(b), Tgt::Global(_))),
+            // A pool's last block comes from malloc (or, headless, the draw arena: a global),
+            // and it has used no more of it than it has. A stale pointer to a freed pool
+            // (sMemPoolForGoddard after the intro) points into memory reused for something
+            // else, such as graph nodes, which the pool's layout would then mangle.
+            "AllocOnlyPool" => {
+                let (Some(last), Some(size), Some(next)) =
+                    (rd(self.mem, addr), rd(self.mem, addr + 4), rd(self.mem, addr + 8))
+                else {
+                    return false;
+                };
+                next <= size
+                    && match self.classify(last) {
+                        Tgt::Null | Tgt::Global(_) => true,
+                        Tgt::Heap(ci, off) => off == 0 && self.chunks[ci].len >= size,
+                        Tgt::Unresolved => false,
+                    }
+            }
             _ => true,
         }
     }

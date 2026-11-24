@@ -18,6 +18,7 @@
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import fs from 'fs';
+import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -202,6 +203,8 @@ try {
       await play(a, at, f);
       await mute(a, false);
       await a.evaluate(() => window.vSnapshot());
+      fs.writeFileSync(path.join(dir, `boot.bin`), Buffer.from(await a.evaluate(() => btoa(Array.from(window.engine._bootState, (c) => String.fromCharCode(c)).join(''))), 'base64'));
+      fs.writeFileSync(path.join(dir, `raw_${f}.bin`), Buffer.from(await a.evaluate(() => btoa(Array.from(window.__snap, (c) => String.fromCharCode(c)).join(''))), 'base64'));
       fs.writeFileSync(path.join(dir, `own_${f}.p`), Buffer.from(await a.evaluate(() => window.vExport()), 'base64'));
       await play(a, f, f + K);
       at = f + K;
@@ -221,8 +224,10 @@ try {
         return Array.from(new Uint8Array(window.engine.memory.buffer, c.dataStart, 0xc60000 - c.dataStart));
       });
       await a.evaluate(() => window.vRestore());
+      await play(a, f, f + Number(process.env.STATICS_AT || 0));
       const m1 = await statics();
-      await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, `own_${f}.p`)).toString('base64'));
+      await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, process.env.TREEFILE || `own_${f}.p`)).toString('base64'));
+      await play(a, f, f + Number(process.env.STATICS_AT || 0));
       const m2 = await statics();
       const base = await a.evaluate(() => window.engine.translator.constants(1).dataStart);
       const ranges = [];
@@ -231,24 +236,233 @@ try {
       // Mario as the renderer sees him: his object, then his model's graph nodes (depth first),
       // each word with, if it points into memory, the 32 bytes it points to.
       const dumpMario = () => a.evaluate(() => {
-        const m = new DataView(window.engine.memory.buffer);
+        const m0 = new DataView(window.engine.memory.buffer); const m = { byteLength: m0.byteLength, getUint32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getUint32(a, l) : 0), getInt16: (a, l) => (a >= 0 && a + 2 <= m0.byteLength ? m0.getInt16(a, l) : 0), getInt32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getInt32(a, l) : 0), getFloat32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getFloat32(a, l) : 0) };
         const lo = window.engine.translator.constants(1).dataStart, hi = window.engine.memory.buffer.byteLength;
         const words = (at, n) => { const o = []; for (let k = 0; k < n; k += 4) { const w = m.getUint32(at + k, true); const t = w >= lo && w + 32 < hi ? Array.from({ length: 8 }, (_, j) => m.getUint32(w + 4 * j, true)) : null; o.push([w, t]); } return o; };
         const obj = m.getUint32(0xb20448, true);
         const out = { obj: words(obj, 0x260), nodes: [] };
         const seen = new Set();
-        const walk = (n, d) => { if (!n || seen.has(n) || d > 40 || out.nodes.length > 400) return; seen.add(n); out.nodes.push([d, m.getInt16(n, true), words(n, 0x40)]); const c = m.getUint32(n + 0x10, true); if (c) { let x = c; do { walk(x, d + 1); x = m.getUint32(x + 8, true); } while (x && x !== c); } };
+        const walk = (n, d) => { if (!n || seen.has(n) || d > 80 || out.nodes.length > 5000) return; seen.add(n); out.nodes.push([d, m.getInt16(n, true), words(n, 0x40)]); const c = m.getUint32(n + 0x10, true); if (c) { let x = c; do { walk(x, d + 1); x = m.getUint32(x + 8, true); } while (x && x !== c); } };
         walk(m.getUint32(obj + 0x14, true), 0);
         return out;
       });
+      const MAT = Number(process.env.MARIO_AT || 0);
       await a.evaluate(() => window.vRestore());
+      await play(a, f, f + MAT);
       const d1 = await dumpMario();
-      await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, `own_${f}.p`)).toString('base64'));
+      await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, process.env.TREEFILE || `own_${f}.p`)).toString('base64'));
+      await play(a, f, f + MAT);
       const d2 = await dumpMario();
       fs.writeFileSync(path.join(dir, `mario_${f}.json`), JSON.stringify([d1, d2]));
+      // Mario's animation DMA table (gMarioAnimsBuf.dmaTable): count, srcAddr, the first entries.
+      const dma = () => a.evaluate(() => {
+        const m0 = new DataView(window.engine.memory.buffer); const m = { byteLength: m0.byteLength, getUint32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getUint32(a, l) : 0), getInt16: (a, l) => (a >= 0 && a + 2 <= m0.byteLength ? m0.getInt16(a, l) : 0), getInt32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getInt32(a, l) : 0), getFloat32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getFloat32(a, l) : 0) };
+        const list = 0xb1e070, t = m.getUint32(list, true);
+        const e = []; for (let i = 0; i < 12; i++) e.push(m.getUint32(t + 8 + 4 * i, true));
+        return { table: t, count: m.getUint32(t, true), src: m.getUint32(t + 4, true), current: m.getUint32(list + 4, true), buf: m.getUint32(list + 8, true), entries: e };
+      });
+      await a.evaluate(() => window.vRestore());
+      const t1 = await dma();
+      await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, `own_${f}.p`)).toString('base64'));
+      const t2 = await dma();
+      console.log('dma raw', JSON.stringify(t1));
+      // The loaded models (gLoadedGraphNodes = area:D_8033A160, 256 pointers): each one's first
+      // 30 nodes' types (depth first), raw restore vs portable load.
+      const models = () => a.evaluate(() => {
+        const m0 = new DataView(window.engine.memory.buffer); const m = { byteLength: m0.byteLength, getUint32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getUint32(a, l) : 0), getInt16: (a, l) => (a >= 0 && a + 2 <= m0.byteLength ? m0.getInt16(a, l) : 0), getInt32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getInt32(a, l) : 0), getFloat32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getFloat32(a, l) : 0) };
+        const out = [];
+        for (let i = 0; i < 256; i++) {
+          const r = m.getUint32(0xb1d210 + 4 * i, true);
+          const types = []; const seen = new Set();
+          const walk = (n) => { if (!n || n + 0x20 > m.byteLength || seen.has(n) || types.length >= 30) return; seen.add(n); types.push(m.getInt16(n, true)); const c = m.getUint32(n + 0x10, true); if (c) { let x = c; do { walk(x); x = m.getUint32(x + 8, true); } while (x && x !== c && types.length < 30); } };
+          walk(r);
+          out.push(types.join(','));
+        }
+        return out;
+      });
+      await a.evaluate(() => window.vRestore());
+      const g1 = await models();
+      await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, `own_${f}.p`)).toString('base64'));
+      const g2 = await models();
+      for (let i = 0; i < 256; i++) if (g1[i] !== g2[i]) console.log(`model ${i}: raw [${g1[i]}] vs portable [${g2[i]}]`);
+      // Active objects after K frames: behavior, model index, position, gfx flags.
+      const objs = () => a.evaluate(() => {
+        const m0 = new DataView(window.engine.memory.buffer); const m = { byteLength: m0.byteLength, getUint32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getUint32(a, l) : 0), getInt16: (a, l) => (a >= 0 && a + 2 <= m0.byteLength ? m0.getInt16(a, l) : 0), getInt32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getInt32(a, l) : 0), getFloat32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getFloat32(a, l) : 0) };
+        const models = new Map(); for (let i = 0; i < 256; i++) models.set(m.getUint32(0xb1d210 + 4 * i, true), i);
+        const out = [];
+        for (let s = 0; s < 240; s++) {
+          const o = 0xb20b60 + s * 0x260;
+          if (!m.getInt16(o + 0x74, true)) continue; // activeFlags
+          const sc = m.getUint32(o + 0x14, true);
+          out.push([s, m.getUint32(o + 0x20c, true).toString(16), models.has(sc) ? models.get(sc) : 'x' + sc.toString(16), m.getInt16(o + 0x2, true).toString(16), [0x20, 0x24, 0x28].map((k) => Math.round(m.getFloat32(o + k, true)))].join(' '));
+        }
+        return out;
+      });
+      for (const [name, load] of [['raw', () => a.evaluate(() => window.vRestore())], ['portable', () => a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, `own_${f}.p`)).toString('base64'))]]) {
+        await load();
+        await play(a, f, f + Number(process.env.OBJ_AT || K));
+        fs.writeFileSync(path.join(dir, `objs_${name}.txt`), (await objs()).join('\n'));
+      }
+      // Frame by frame: raw restore vs portable load, the picture and Mario's animation state.
+      const trace = async (load) => {
+        await load();
+        const out = [];
+        for (let i = 0; i < K; i++) {
+          await play(a, f + i, f + i + 1);
+          const buf = await a.locator('#canvas').screenshot();
+          if (process.env.TRACE && i + 1 === Number(process.env.TRACE)) fs.writeFileSync(path.join(dir, `trace_${out.length ? 'x' : 'x'}_${load.name || 'l'}_${Date.now()}.png`), buf);
+          const st = await a.evaluate(() => {
+            const m0 = new DataView(window.engine.memory.buffer); const m = { byteLength: m0.byteLength, getUint32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getUint32(a, l) : 0), getInt16: (a, l) => (a >= 0 && a + 2 <= m0.byteLength ? m0.getInt16(a, l) : 0), getInt32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getInt32(a, l) : 0), getFloat32: (a, l) => (a >= 0 && a + 4 <= m0.byteLength ? m0.getFloat32(a, l) : 0) };
+            const o = m.getUint32(0xb20448, true);
+            return [m.getInt16(o + 0x38, true), m.getInt16(o + 0x40, true), m.getInt32(o + 0x44, true), m.getInt32(o + 0x48, true), m.getUint32(0xb1e0e0 + 0xc, true)];
+          });
+          out.push([crypto.createHash('md5').update(buf).digest('hex').slice(0, 8), st]);
+        }
+        return out;
+      };
+      // Draw calls of frame +DRAWS: per draw, the bound texture's last upload hash, the vertex
+      // count and a hash of the vertex data. Raw restore vs portable load.
+      const draws = async (load) => {
+        await load();
+        await play(a, f, f + Number(process.env.DRAWS) - 1);
+        await a.evaluate(() => {
+          const gl = document.getElementById('canvas').getContext('webgl2') || document.getElementById('canvas').getContext('webgl');
+          const P = Object.getPrototypeOf(gl);
+          window.__log = [];
+          const h = (arr) => { let x = 2166136261; const u = new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength); for (let i = 0; i < u.length; i++) x = Math.imul(x ^ u[i], 16777619); return (x >>> 0).toString(16); };
+          window.__texHash ??= new Map();
+          if (!window.__hooked) {
+            window.__hooked = true;
+            const bt = P.bindTexture, ti = P.texImage2D, bd = P.bufferData, da = P.drawArrays;
+            P.bindTexture = function (t, tex) { window.__bound = tex; return bt.apply(this, arguments); };
+            P.texImage2D = function () { const d = arguments[arguments.length - 1]; if (d && d.buffer) window.__texHash.set(window.__bound, h(d)); return ti.apply(this, arguments); };
+            P.bufferData = function (t, d) { if (d && d.buffer) window.__vbo = [d.length, h(d), Array.from(d.slice(0, 4)).map((v) => Math.round(v * 100) / 100)]; return bd.apply(this, arguments); };
+            P.drawArrays = function () { if (window.__log) window.__log.push([window.__texHash.get(window.__bound) || '-', ...window.__vbo]); return da.apply(this, arguments); };
+          }
+        });
+        await play(a, f + Number(process.env.DRAWS) - 1, f + Number(process.env.DRAWS));
+        return a.evaluate(() => { const l = window.__log; window.__log = null; return l; });
+      };
+      // The objects the render walk draws: gObjParentGraphNode's children ring, at frame +RING.
+      const ring = () => a.evaluate(() => {
+        const m = new DataView(window.engine.memory.buffer);
+        const out = []; const c = m.getUint32(0xb1a0dc + 0x10, true); let x = c;
+        do { const slot = (x - 0xb20b60) / 0x260; out.push(Number.isInteger(slot) && slot >= 0 && slot < 240 ? `s${slot}${m.getInt16(x + 2, true) & 1 ? '' : '(off)'}` : `@${x.toString(16)} t${m.getInt16(x, true).toString(16)} f${m.getInt16(x + 2, true).toString(16)}`); x = m.getUint32(x + 8, true); } while (x && x !== c && out.length < 400);
+        return out;
+      });
+      // Mario's model as the render walk traverses it: every node's children ring followed by
+      // `next` until it returns (no de-duplication), as types; depth-first like geo_process.
+      const marioTree = () => a.evaluate(() => {
+        const m = new DataView(window.engine.memory.buffer);
+        const obj = m.getUint32(0xb20448, true); const out = [];
+        const rec = (first, depth) => {
+          if (!first || depth > 30 || out.length > 3000) return;
+          let x = first, n = 0;
+          do { const par = m.getUint32(x + 0xc, true); const ty = m.getInt16(x, true) & 0xffff; const dl = [0x19, 0x17, 0x1b, 0x15, 0x16, 0x1a, 0x1c, 0x12a, 0x10c, 0x12e].includes(ty) ? m.getUint32(x + 0x14, true).toString(16) : ''; out.push(`${depth}:${ty.toString(16)} parent ${par ? m.getInt16(par, true).toString(16) : 'null'} dl ${dl} f${m.getInt16(x + 2, true).toString(16)}${ty === 0x10c ? ' sel ' + m.getInt16(x + 0x1a, true) + '/' + m.getInt16(x + 0x18, true) : ''}`); rec(m.getUint32(x + 0x10, true), depth + 1); x = m.getUint32(x + 8, true); n++; } while (x && x !== first && n < 60);
+          if (x !== first) out.push(`${depth}:RING-NOT-CLOSED`);
+        };
+        rec(m.getUint32(obj + 0x14, true), 0);
+        return out;
+      });
+      // The frame's display list (F3DEX2): matrices (hash of the 64 bytes), sub-list calls and
+      // vertex loads, in execution order. Raw restore vs loaded state, after frame +DL.
+      const dlist = () => a.evaluate(() => {
+        const m = new DataView(window.engine.memory.buffer); const len = m.byteLength;
+        const u = (x) => (x >= 0 && x + 4 <= len ? m.getUint32(x, true) : 0);
+        const h = (x, n) => { let v = 2166136261; for (let i = 0; i < n; i++) v = Math.imul(v ^ (x + i < len ? m.getUint8(x + i) : 0), 16777619); return (v >>> 0).toString(16); };
+        const out = []; const stack = [];
+        let pc = u(0xb1dfe4); let steps = 0;
+        while (pc && steps++ < 200000) {
+          const w0 = u(pc), w1 = u(pc + 4), op = w0 >>> 24; pc += 8;
+          if (op === 0xde) { out.push(`DL ${w1.toString(16)}`); if (((w0 >>> 16) & 0xff) === 0) stack.push(pc); pc = w1; }
+          else if (op === 0xdf) { pc = stack.length ? stack.pop() : 0; }
+          else if (op === 0xda) out.push(`MTX ${h(w1, 64)} ${((w0 >>> 0) & 0xff).toString(16)} ${Array.from({ length: 16 }, (_, i) => (w1 + 4 * i + 4 <= len ? m.getFloat32(w1 + 4 * i, true) : 0).toFixed(3)).join(',')}`);
+          else if (op === 0x01) out.push(`VTX ${w1.toString(16)} n${(w0 >>> 12) & 0xff}`);
+        }
+        return out;
+      });
+      // Only Mario drawn on frame +ANIMG; then the animation globals he left, raw vs loaded.
+      if (process.env.ANIMG) {
+        const at = Number(process.env.ANIMG);
+        const run = async (load) => {
+          await load(); await play(a, f, f + at - 1);
+          await a.evaluate(() => { const m = new DataView(window.engine.memory.buffer); const mario = m.getUint32(0xb20448, true); for (let s = 0; s < 240; s++) { const o = 0xb20b60 + s * 0x260; if (o !== mario) m.setInt16(o + 2, m.getInt16(o + 2, true) & ~1, true); } });
+          await play(a, f + at - 1, f + at);
+          return a.evaluate(() => {
+            const m = new DataView(window.engine.memory.buffer); const mario = m.getUint32(0xb20448, true); const cur = m.getUint32(mario + 0x3c, true);
+            const data = m.getUint32(0xb44ca4, true), attr = m.getUint32(0xb44ca0, true);
+            return { type: m.getInt8(0xb44c9a), frame: m.getInt16(0xb44c9c, true), enabled: m.getInt8(0xb44c9e), mult: m.getFloat32(0xb44ca8, true),
+              dataOff: data - cur, attrOff: attr - cur, animYTrans: m.getInt16(mario + 0x3a, true), divisor: m.getInt16(cur + 2, true), flags: m.getInt16(cur, true),
+              curAnimHead: Array.from({ length: 6 }, (_, i) => m.getUint32(cur + 4 * i, true).toString(16)) };
+          });
+        };
+        console.log('animg raw', JSON.stringify(await run(() => a.evaluate(() => window.vRestore()))));
+        console.log('animg loaded', JSON.stringify(await run(() => a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, process.env.TREEFILE || `own_${f}.p`)).toString('base64')))));
+      }
+      if (process.env.DLAT) {
+        const at = Number(process.env.DLAT);
+        await a.evaluate(() => window.vRestore()); await play(a, f, f + at); const l1 = await dlist();
+        await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, process.env.TREEFILE || `own_${f}.p`)).toString('base64')); await play(a, f, f + at); const l2 = await dlist();
+        fs.writeFileSync(path.join(dir, 'dl.json'), JSON.stringify([l1, l2]));
+        console.log(`dl: raw ${l1.length} entries, loaded ${l2.length}`);
+      }
+      if (process.env.SEGS) {
+        const segs = () => a.evaluate((at) => Array.from({ length: 32 }, (_, i) => new DataView(window.engine.memory.buffer).getUint32(at + 4 * i, true).toString(16)), Number(process.env.SEGS));
+        await a.evaluate(() => window.vRestore()); const s1 = await segs();
+        await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, process.env.TREEFILE || `own_${f}.p`)).toString('base64')); const s2 = await segs();
+        for (let i = 0; i < 32; i++) console.log(`seg ${i}: raw ${s1[i]} loaded ${s2[i]}${s1[i] === s2[i] ? '' : '   <<<'}`);
+      }
+      if (process.env.TREE) {
+        await a.evaluate(() => window.vRestore()); await play(a, f, f + Number(process.env.TREE)); const t1 = await marioTree();
+        await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, process.env.TREEFILE || `own_${f}.p`)).toString('base64')); await play(a, f, f + Number(process.env.TREE)); const t2 = await marioTree();
+        fs.writeFileSync(path.join(dir, 'tree.json'), JSON.stringify([t1, t2]));
+        console.log(`tree: raw ${t1.length} nodes, portable ${t2.length}`);
+      }
+      if (process.env.RING) {
+        await a.evaluate(() => window.vRestore()); await play(a, f, f + Number(process.env.RING)); const q1 = await ring();
+        await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, `own_${f}.p`)).toString('base64')); await play(a, f, f + Number(process.env.RING)); const q2 = await ring();
+        console.log('ring raw', q1.length, q1.join(' '));
+        console.log('ring portable', q2.length, q2.join(' '));
+      }
+      // Per object: the vertex floats drawn on frame +BLAME with that object hidden, both paths.
+      if (process.env.BLAME) {
+        const B = Number(process.env.BLAME);
+        await a.evaluate(() => {
+          const gl = document.getElementById('canvas').getContext('webgl2') || document.getElementById('canvas').getContext('webgl');
+          const P = Object.getPrototypeOf(gl); const bd = P.bufferData;
+          window.__floats = 0; P.bufferData = function (t, d) { if (d && d.length) window.__floats += d.length; return bd.apply(this, arguments); };
+        });
+        const measure = async (load, hide) => {
+          await load(); await play(a, f, f + B - 1);
+          if (hide >= 0) await a.evaluate((s) => { const m = new DataView(window.engine.memory.buffer); const o = 0xb20b60 + s * 0x260; m.setInt16(o + 2, m.getInt16(o + 2, true) & ~1, true); }, hide);
+          await a.evaluate(() => { window.__floats = 0; });
+          await play(a, f + B - 1, f + B);
+          return a.evaluate(() => window.__floats);
+        };
+        const raw = () => a.evaluate(() => window.vRestore());
+        const port = () => a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, process.env.TREEFILE || `own_${f}.p`)).toString('base64'));
+        const slots = await a.evaluate(() => { const m = new DataView(window.engine.memory.buffer); const o = []; for (let s = 0; s < 240; s++) if (m.getInt16(0xb20b60 + s * 0x260 + 0x74, true) && (m.getInt16(0xb20b60 + s * 0x260 + 2, true) & 1)) o.push(s); return o; });
+        const r0 = await measure(raw, -1), p0 = await measure(port, -1);
+        console.log(`blame: all drawn raw ${r0} portable ${p0}`);
+        for (const s of slots) {
+          const r = await measure(raw, s), p = await measure(port, s);
+          if (r0 - r !== p0 - p) console.log(`blame slot ${s}: raw share ${r0 - r}, portable share ${p0 - p}`);
+        }
+      }
+      if (process.env.DRAWS) {
+        const r1 = await draws(() => a.evaluate(() => window.vRestore()));
+        const r2 = await draws(() => a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, process.env.TREEFILE || `own_${f}.p`)).toString('base64')));
+        console.log(`draws: raw ${r1.length}, portable ${r2.length}`);
+        for (let i = 0; i < Math.max(r1.length, r2.length); i++) if (JSON.stringify(r1[i]) !== JSON.stringify(r2[i])) console.log(`draw ${i}: raw ${JSON.stringify(r1[i])} portable ${JSON.stringify(r2[i])}`);
+      }
+      const tr1 = await trace(() => a.evaluate(() => window.vRestore()));
+      const tr2 = await trace(() => a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, process.env.TREEFILE || `own_${f}.p`)).toString('base64')));
+      if (process.env.TRACE) for (let i = 0; i < K; i++) console.log(`+${i + 1}`, tr1[i][0] === tr2[i][0] ? 'same' : 'DIFF', JSON.stringify(tr1[i][1]), JSON.stringify(tr2[i][1]));
+      console.log('dma portable', JSON.stringify(t2));
       for (const [tag, file] of [['own', `own_${f}.p`], ['h', `h_${f}.p`]]) {
         if (!fs.existsSync(path.join(dir, file))) continue;
         const b = await open();
+        if (process.env.FULLTEX) await b.evaluate(() => { globalThis.__fullTexReset = true; });
         const info = await b.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, file)).toString('base64'));
         await play(b, f, f + K);
         await shot(b, `q_${tag}_${f}.png`);
