@@ -273,7 +273,7 @@ fn exact_diff(a: &Portable, b: &Portable, detail: bool) -> (Vec<String>, Vec<Str
                                 ab.insert(ia, ib);
                                 ba.insert(ib, ia);
                                 queue.push((
-                                    format!("block{ia}/{ib}({})", a.found_by[ia].0),
+                                    format!("block{ia}/{ib}({})", a.found_by.get(ia).map_or("ghost", |x| x.0.as_str())),
                                     &a.chunks[ia],
                                     &b.chunks[ib],
                                     true,
@@ -334,10 +334,10 @@ fn exact_diff(a: &Portable, b: &Portable, detail: bool) -> (Vec<String>, Vec<Str
         names.push(format!("unmatched-blocks(A{},B{})", ua.len(), ub.len()));
         if detail {
             for &i in &ua {
-                det.push(format!("A-only blk{i} {}b {:?}", a.chunks[i].data.len(), a.found_by[i]));
+                det.push(format!("A-only blk{i} {}b {:?}", a.chunks[i].data.len(), a.found_by.get(i)));
             }
             for &i in &ub {
-                det.push(format!("B-only blk{i} {}b {:?}", b.chunks[i].data.len(), b.found_by[i]));
+                det.push(format!("B-only blk{i} {}b {:?}", b.chunks[i].data.len(), b.found_by.get(i)));
             }
         }
     }

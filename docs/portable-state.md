@@ -130,6 +130,13 @@ relocation is translated, then:
 - **Audio.** Sequence players and the audio heap are not transferred, so the music after a
   load restarts according to the target's state; the game does not read it back.
 - **Display lists, textures, matrices of the render walk:** rebuilt by the next frame.
+- **Typed pointers into reused memory** are checked before a struct layout is applied (`plausible`
+  in `walk.rs`): a `SpawnInfo` must have one of the game's behaviors (not just any address in
+  constant data: a terrain copy's s16 pairs read as such an address and the exporter translated
+  them, changing two vertices of a level's collision data, which showed 146 more surface nodes
+  after the level was loaded in a game that loaded the rendering build's export), an `Object` is
+  never in the heap (`gObjectPool` holds them all), a `Surface`'s `object` is null or a global,
+  and `AllocOnlyPoolBlock::pad`, which malloc leaves unwritten, is not a pointer.
 - **Stale pointers** (an object slot's `respawnInfo` after the object died) into memory that
   was reused for a block we reach are translated like any other. Typed pointers into freed heap
   memory are ghosts (next section).
