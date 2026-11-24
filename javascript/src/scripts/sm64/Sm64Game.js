@@ -59,7 +59,14 @@ class Sm64VisualEngine {
         } catch (e) {
             console.warn("sm64: portable states are unavailable:", e);
         }
-        return new Sm64VisualEngine(game, memory, wasm, translator, codeId);
+        const engine = new Sm64VisualEngine(game, memory, wasm, translator, codeId);
+        // The game as booted: a portable state is loaded into this (see load_portable_state).
+        try {
+            if (translator) engine._bootState = engine.save_state();
+        } catch (e) {
+            console.warn("sm64: no boot snapshot:", e);
+        }
+        return engine;
     }
 
     mem_view(pointer, length) {
@@ -201,8 +208,15 @@ class Sm64VisualEngine {
         const heapLen = dv2.getUint32(36, true);
         if (bytes.length !== RAW_HEADER + stackLen + heapLen) throw new Error("save state is truncated");
         const mem = new Uint8Array(this.memory.buffer);
+        // The renderer's state describes the live GL context (the GL state it mirrors: depth
+        // test, blending, viewport, bound shader; its shader programs; the window size), not the
+        // game: overwriting it with a snapshot's makes it skip GL calls it believes done, and
+        // the frames come out black or wrong (worst with the boot snapshot, taken before
+        // anything was drawn). Keep it; only the texture cache is reset below.
+        const keep = c.rendererSize ? mem.slice(c.renderer, c.renderer + c.rendererSize) : null;
         mem.set(bytes.subarray(RAW_HEADER, RAW_HEADER + stackLen), 0);
         mem.set(bytes.subarray(RAW_HEADER + stackLen), c.dataStart);
+        if (keep) mem.set(keep, c.renderer);
         this._reset_renderer_caches();
     }
 
@@ -225,6 +239,11 @@ class Sm64VisualEngine {
     load_portable_state(bytes) {
         const t = this._translator();
         const info = portableInfo(bytes);
+        // Load into the game as booted, not into one that has played: the translation keeps the
+        // target's heap and allocates the state's blocks in it, and a heap holding a level's
+        // data ends in a corrupted heap (abort() a few frames later, or textures drawn black).
+        // Restoring the boot snapshot is a plain copy of this game's own memory.
+        if (this._bootState) this.load_state(this._bootState);
         const exports = this.wasm.exports;
         const r = t.loadState(bytes, this.memory.buffer, BUILD_VISUAL, (n) => exports.malloc(n));
         const mem = new Uint8Array(this.memory.buffer);

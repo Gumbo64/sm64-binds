@@ -354,6 +354,14 @@ impl Portable {
         tables::TEXTURE_CACHE
     }
 
+    /// The rendering build's renderer state (address, size): what it knows of
+    /// the live GL context (the GL state it mirrors, shader programs, the
+    /// texture cache, the window's size). It is not part of the game, so a
+    /// load keeps it, whatever the loaded memory held there.
+    pub fn renderer() -> (u32, u32) {
+        tables::RENDERER
+    }
+
     /// The addresses of the allocator's state, per build.
     pub fn gm(build: Build) -> u32 {
         tables::GM[build.index()]

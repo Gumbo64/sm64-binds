@@ -70,3 +70,17 @@ window.vSnapshot = function () {
 window.vRestore = function () {
   window.engine.load_state(window.__snap);
 };
+
+// The headless build in the page (what the viewer's worker runs), for render checks.
+import { Sm64HeadlessEngine } from '@fe/src/scripts/sm64/Sm64Headless.js';
+import { getHeadlessWASM } from '@fe/src/scripts/headlessWasm.js';
+window.hInit = async function () {
+  window.hengine = await Sm64HeadlessEngine.create(await getHeadlessWASM());
+  return true;
+};
+window.hStep = function (flat) {
+  for (let i = 0; i < flat.length; i += 3) window.hengine.step_game(new GamePad(flat[i], flat[i + 1], flat[i + 2]));
+};
+window.hExport = function () {
+  return toB64(window.hengine.export_portable_state());
+};

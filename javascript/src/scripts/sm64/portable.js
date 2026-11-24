@@ -58,7 +58,8 @@ export class PortableTranslator {
     }
 
     /** The build's constants: the allocator state's address (`gm`), where its
-     *  constant data ends (`dataStart`), and the rendering build's texture cache. */
+     *  constant data ends (`dataStart`), the rendering build's texture cache and its renderer
+     *  state (`renderer`, `rendererSize`: what a load keeps). */
     constants(build) {
         const x = this.x;
         return {
@@ -68,6 +69,8 @@ export class PortableTranslator {
             textureCacheSize: x.p_const(3, 1),
             geoCacheGeneration: x.p_const(4, 0),
             geoCacheCount: x.p_const(5, 0),
+            renderer: x.p_const(6, 1),
+            rendererSize: x.p_const(7, 1),
         };
     }
 

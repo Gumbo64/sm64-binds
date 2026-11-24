@@ -81,7 +81,7 @@ pub extern "C" fn p_result_len() -> usize {
 /// Constants: 0 the allocator state's address in `build`, 1 where constant
 /// data ends in `build`, 2 the visual build's texture cache address, 3 its
 /// size, 4 and 5 the headless render walk cache's generation and count
-/// addresses.
+/// addresses, 6 and 7 the visual build's renderer state's address and size.
 #[unsafe(no_mangle)]
 pub extern "C" fn p_const(what: u32, b: u32) -> u32 {
     match what {
@@ -91,6 +91,8 @@ pub extern "C" fn p_const(what: u32, b: u32) -> u32 {
         3 => Portable::texture_cache().1,
         4 => Portable::geo_cache()[0],
         5 => Portable::geo_cache()[1],
+        6 => Portable::renderer().0,
+        7 => Portable::renderer().1,
         _ => 0,
     }
 }

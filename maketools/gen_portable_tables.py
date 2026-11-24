@@ -265,6 +265,116 @@ def changed_data(syh):
     return out
 
 
+POINTER_KINDS = ("ANIMS", "WAYPOINT", "OBJ", "SURFACE", "VPTR", "CVPTR", "S16P", "S32P", "CHAIN_SEGMENT")
+
+
+def c_definitions(text):
+    """The top-level definitions of a C file: {name: body text}. Functions (`name(...) {`) and
+    initialized variables (`name[] = {` or `name = {`), so a table of action functions links its
+    user to the functions in it."""
+    text = re.sub(r"/\*.*?\*/|//[^\n]*", " ", text, flags=re.S)
+    text = re.sub(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])+\'', "0", text)
+    # Preprocessor: keep the first branch of each conditional (the branches can open braces
+    # differently), drop the directives.
+    kept, stack = [], []
+    for line in text.split("\n"):
+        d = re.match(r"\s*#\s*(\w+)", line)
+        if d:
+            k = d.group(1)
+            if k in ("if", "ifdef", "ifndef"):
+                stack.append(False)
+            elif k in ("else", "elif") and stack:
+                stack[-1] = True
+            elif k == "endif" and stack:
+                stack.pop()
+            continue
+        if not any(stack):
+            kept.append(line)
+    text = "\n".join(kept)
+    out = {}
+    depth, start, head_from = 0, 0, 0
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0:
+                start = i
+                head = text[head_from:i]
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                m = (re.search(r"\(\s*\*\s*(\w+)\s*(?:\[[^\]]*\])*\s*\)\s*\([^)]*\)\s*=\s*$", head)
+                     or re.search(r"\b(\w+)\s*\((?:[^()]|\([^()]*\))*\)\s*$", head)
+                     or re.search(r"\b(\w+)\s*(?:\[[^\]]*\])*\s*=\s*$", head))
+                if m and m.group(1) not in ("if", "while", "for", "switch", "struct", "union", "enum"):
+                    out[m.group(1)] = out.get(m.group(1), "") + text[start:i + 1]
+                head_from = i + 1
+        elif ch == ";" and depth == 0:
+            head_from = i + 1
+    return out
+
+
+def behavior_pointer_slots(syh):
+    """Which object slots each behavior uses as pointers: {headless address of its script: mask},
+    plus the mask of the common fields (every object's: `oAnimations`, `oFloor`). A behavior uses
+    a field if its script's native functions, or anything they reach (calls, tables of functions,
+    scripts it jumps to), name the field."""
+    lines = open(os.path.join(PORT, "include", "object_fields.h")).read().split("\n")
+    specific_from = next(i for i, l in enumerate(lines) if l.startswith("/* Pathed"))
+    common, specific = 0, {}
+    for i, line in enumerate(lines):
+        m = re.match(r"#define\s+/\*0x[0-9A-Fa-f]+\*/\s+(o\w+)\s+OBJECT_FIELD_(\w+)\((0x[0-9A-Fa-f]+)", line)
+        if m and m.group(2) in POINTER_KINDS:
+            if i < specific_from:
+                common |= 1 << int(m.group(3), 16)
+            else:
+                specific[m.group(1)] = int(m.group(3), 16)
+    defs = {}
+    for d in ("src/game", "src/game/behaviors", "src/engine"):
+        for f in sorted(os.listdir(os.path.join(PORT, d))):
+            if f.endswith(".c"):
+                for name, body in c_definitions(open(os.path.join(PORT, d, f), errors="replace").read()).items():
+                    defs[name] = defs.get(name, "") + body
+    field_re = re.compile(r"\b(" + "|".join(specific) + r")\b")
+    mask, edges = {}, {}
+    for name, body in defs.items():
+        mask[name] = 0
+        for f in set(field_re.findall(body)):
+            mask[name] |= 1 << specific[f]
+        edges[name] = {w for w in set(re.findall(r"\b[A-Za-z_]\w*\b", body)) if w in defs and w != name}
+    changed = True
+    while changed:
+        changed = False
+        for name, es in edges.items():
+            m = mask[name]
+            for e in es:
+                m |= mask[e]
+            if m != mask[name]:
+                mask[name] = m
+                changed = True
+    text = open(os.path.join(PORT, "data", "behavior_data.c")).read()
+    scripts, jumps = {}, {}
+    for m in re.finditer(r"const BehaviorScript (bhv\w+)\[\] = \{(.*?)\};", text, re.S):
+        scripts[m.group(1)] = 0
+        for fn in re.findall(r"CALL_NATIVE\((\w+)\)", m.group(2)):
+            scripts[m.group(1)] |= mask.get(fn, 0)
+        jumps[m.group(1)] = re.findall(r"(?:GOTO|CALL)\((bhv\w+)", m.group(2))
+    changed = True
+    while changed:
+        changed = False
+        for b, targets in jumps.items():
+            for t in targets:
+                new = scripts[b] | scripts.get(t, 0)
+                if new != scripts[b]:
+                    scripts[b] = new
+                    changed = True
+    out = {}
+    for b, m in scripts.items():
+        a = syh.get(("data/behavior_data.o", b))
+        if a:
+            out[a[0]] = m
+    return out, common
+
+
 def main():
     sh, syh, fh = parse_map(os.path.join(BUILD_H, "sm64.map"), "us_web_headless")
     sv, syv, fv = parse_map(os.path.join(BUILD_V, "sm64.map"), "us_web")
@@ -439,6 +549,19 @@ def main():
                 data_starts.append(int(m.group(1), 16))
     data_start = data_starts[0]
     tex = syv[("src/pc/gfx/gfx_pc.o", "gfx_texture_cache")]
+    bhv_slots, bhv_common = behavior_pointer_slots(syh)
+    # The visual build's renderer (src/pc/gfx: GL state it mirrors, shader programs, texture
+    # cache, window size): it describes the live GL context, not the game, so a loaded state
+    # must keep it. Its .bss is one span with nothing else in it.
+    secs = []
+    for line in open(os.path.join(BUILD_V, "sm64.map")):
+        m = re.match(r"^\s+([0-9a-f]+)\s+[0-9a-f]+\s+([0-9a-f]+)\s+\S+:\((\.bss\.\S+)\)$", line)
+        if m and int(m.group(2), 16):
+            secs.append((int(m.group(1), 16), int(m.group(2), 16), line.split()[3]))
+    gfx = [x for x in secs if "/src/pc/gfx/" in x[2]]
+    r_start, r_end = min(a for a, _, _ in gfx), max(a + n for a, n, _ in gfx)
+    intruders = [x for x in secs if r_start <= x[0] < r_end and "/src/pc/gfx/" not in x[2]]
+    assert gfx and not intruders, f"the renderer's .bss is not one span: {intruders[:3]}"
     geo_gen = syh[("src/game/rendering_graph_node.o", "sGeoCacheGeneration")][0]
     geo_count = syh[("src/game/rendering_graph_node.o", "sGeoCacheCount")][0]
 
@@ -462,6 +585,17 @@ def main():
     w(f"pub const DATA_STARTS: [u32; 2] = [{data_starts[0]:#x}, {data_starts[1]:#x}];")
     w("/// The visual build's texture cache (address, size): it maps texture addresses to GL textures.")
     w(f"pub const TEXTURE_CACHE: (u32, u32) = ({tex[0]:#x}, {tex[1]});")
+    w("/// The visual build's renderer state (address, size): src/pc/gfx's .bss, which a load keeps.")
+    w(f"pub const RENDERER: (u32, u32) = ({r_start:#x}, {r_end - r_start});")
+    w("/// The object slots every object uses as pointers (the common fields: `oAnimations`, `oFloor`).")
+    w(f"pub const COMMON_POINTER_SLOTS: u128 = {bhv_common:#x};")
+    w("/// The object slots each behavior uses as pointers, beyond the common ones: (the headless")
+    w("/// (canonical) address of its script, mask), sorted. An object whose behavior is not listed")
+    w("/// uses `POINTER_SLOTS`, every slot any field declares a pointer.")
+    w("pub static BEHAVIOR_POINTER_SLOTS: &[(u32, u128)] = &[")
+    for a, m in sorted(bhv_slots.items()):
+        w(f"    ({a:#x}, {m:#x}),")
+    w("];")
     w("/// The headless build's render walk cache (its generation and count), which a loaded state must invalidate.")
     w(f"pub const GEO_CACHE: [u32; 2] = [{geo_gen:#x}, {geo_count:#x}];")
     w("pub static POINTEES: &[&str] = &[" + ", ".join(f'"{p}"' for p in L.pointees) + "];")

@@ -43,7 +43,7 @@ const server = await createServer({
   logLevel: 'error',
 });
 await server.listen();
-const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader', '--enable-features=WebAssemblyUnlimitedSyncCompilation'] });
 const open = async () => {
   const page = await browser.newPage();
   page.on('pageerror', (e) => console.log('pageerror', e.message));
@@ -134,6 +134,154 @@ try {
       const first = a.findIndex((x, i) => JSON.stringify(x) !== JSON.stringify(b[i]));
       console.log(`rewind at ${f} (${(b64.length * 0.75) | 0} bytes): ${first < 0 ? 'identical' : 'DIFFERS at frame +' + (first + 1)}`);
       at = f + K;
+    }
+  } else if (mode === 'render') {
+    // What the viewer's headless seek shows: at each frame, (a) the rendering build played
+    // there and K frames on, (b) a fresh rendering build loading the headless build's portable
+    // state of that frame, then the same K frames, (c) the rendering build reloading its own
+    // export (no cross-build translation). Canvas screenshots in <dir>: a_/b_/c_<frame>.png.
+    const [dir, k, ...frames] = rest;
+    const K = Number(k);
+    fs.mkdirSync(dir, { recursive: true });
+    const shot = (page, name) => page.locator('#canvas').screenshot({ path: path.join(dir, name) });
+    for (const f of frames.map(Number).sort((a, b) => a - b)) {
+      const a = await open();
+      await play(a, 0, f);
+      const own = await a.evaluate(() => window.vExport());
+      const save = (name, b64) => fs.writeFileSync(path.join(dir, name), Buffer.from(b64, 'base64'));
+      save(`own_${f}.p`, own);
+      await play(a, f, f + K);
+      await shot(a, `a_${f}.png`);
+      save(`a_${f + K}.p`, await a.evaluate(() => window.vExport()));
+      try {
+        const ci = await a.evaluate((b) => window.vLoad(b), own);
+        await play(a, f, f + K);
+        await shot(a, `c_${f}.png`);
+        console.log(`render at ${f}: own reload ${JSON.stringify(ci)}`);
+      } catch (e) {
+        console.log(`render at ${f}: own reload FAILED: ${e.message.split('\n')[0]}`);
+      }
+      await a.close();
+      const b = await open();
+      // Like the viewer: the rendering build has played elsewhere first (PRE frames, env).
+      const pre = Number(process.env.PRE || 0);
+      // RESET=1: back to the engine's own power-on snapshot before loading (the fix under test).
+      if (process.env.RESET === '1') await b.evaluate(() => window.vSnapshot());
+      if (pre) await play(b, 0, pre);
+      if (process.env.RESET === '1') await b.evaluate(() => window.vRestore());
+      await b.evaluate(() => window.hInit());
+      for (let at = 0; at < f; at += 2000) await b.evaluate((fl) => window.hStep(fl), slice(at, Math.min(2000, f - at)));
+      const hp = await b.evaluate(() => window.hExport());
+      save(`hp_${f}.p`, hp);
+      const info = await b.evaluate((x) => window.vLoad(x), hp);
+      save(`bload_${f}.p`, await b.evaluate(() => window.vExport()));
+      await play(b, f, f + K);
+      await shot(b, `b_${f}.png`);
+      save(`b_${f + K}.p`, await b.evaluate(() => window.vExport()));
+      await b.close();
+      console.log(`render at ${f}: headless load ${JSON.stringify(info)}`);
+    }
+  } else if (mode === 'quick') {
+    // Fast render check: one rendering build plays to each frame with drawing switched off (the
+    // reference), exports its own state there, then draws the next K frames: q_a_<frame>.png.
+    // Fresh rendering builds then load (1) that own state and (2) <dir>/h_<frame>.p (the native
+    // headless build's, `portable_check record`), draw the same K frames: q_own_/q_h_<frame>.png.
+    const [dir, k, ...frames] = rest;
+    const K = Number(k);
+    const mute = (page, on) => page.evaluate((on) => {
+      const gl = document.getElementById('canvas').getContext('webgl2') || document.getElementById('canvas').getContext('webgl');
+      const P = Object.getPrototypeOf(gl);
+      window.__orig ??= { drawElements: P.drawElements, drawArrays: P.drawArrays, clear: P.clear };
+      for (const m of Object.keys(window.__orig)) P[m] = on ? () => {} : window.__orig[m];
+    }, on);
+    const shot = (page, name) => page.locator('#canvas').screenshot({ path: path.join(dir, name) });
+    const a = await open();
+    let at = 0;
+    for (const f of frames.map(Number).sort((x, y) => x - y)) {
+      await mute(a, true);
+      await play(a, at, f);
+      await mute(a, false);
+      await a.evaluate(() => window.vSnapshot());
+      fs.writeFileSync(path.join(dir, `own_${f}.p`), Buffer.from(await a.evaluate(() => window.vExport()), 'base64'));
+      await play(a, f, f + K);
+      at = f + K;
+      await shot(a, `q_a_${f}.png`);
+      fs.writeFileSync(path.join(dir, `after_a_${f}_${K}.p`), Buffer.from(await a.evaluate(() => window.vExport()), 'base64'));
+      // The same state reloaded into this engine (which has been drawing), the same K frames.
+      await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, `own_${f}.p`)).toString('base64'));
+      await play(a, f, f + K);
+      await shot(a, `q_same_${f}.png`);
+      // The raw snapshot of this engine's memory at <frame> (no portable translation).
+      await a.evaluate(() => window.vRestore());
+      await play(a, f, f + K);
+      await shot(a, `q_raw_${f}.png`);
+      // Static memory after the raw restore vs after the portable load (same engine, same build).
+      const statics = () => a.evaluate(() => {
+        const c = window.engine.translator.constants(1);
+        return Array.from(new Uint8Array(window.engine.memory.buffer, c.dataStart, 0xc60000 - c.dataStart));
+      });
+      await a.evaluate(() => window.vRestore());
+      const m1 = await statics();
+      await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, `own_${f}.p`)).toString('base64'));
+      const m2 = await statics();
+      const base = await a.evaluate(() => window.engine.translator.constants(1).dataStart);
+      const ranges = [];
+      for (let i = 0; i < m1.length; i++) if (m1[i] !== m2[i]) { const s0 = i; while (i < m1.length && m1[i] !== m2[i]) i++; ranges.push([base + s0, i - s0]); }
+      fs.writeFileSync(path.join(dir, `statics_${f}.json`), JSON.stringify(ranges));
+      // Mario as the renderer sees him: his object, then his model's graph nodes (depth first),
+      // each word with, if it points into memory, the 32 bytes it points to.
+      const dumpMario = () => a.evaluate(() => {
+        const m = new DataView(window.engine.memory.buffer);
+        const lo = window.engine.translator.constants(1).dataStart, hi = window.engine.memory.buffer.byteLength;
+        const words = (at, n) => { const o = []; for (let k = 0; k < n; k += 4) { const w = m.getUint32(at + k, true); const t = w >= lo && w + 32 < hi ? Array.from({ length: 8 }, (_, j) => m.getUint32(w + 4 * j, true)) : null; o.push([w, t]); } return o; };
+        const obj = m.getUint32(0xb20448, true);
+        const out = { obj: words(obj, 0x260), nodes: [] };
+        const seen = new Set();
+        const walk = (n, d) => { if (!n || seen.has(n) || d > 40 || out.nodes.length > 400) return; seen.add(n); out.nodes.push([d, m.getInt16(n, true), words(n, 0x40)]); const c = m.getUint32(n + 0x10, true); if (c) { let x = c; do { walk(x, d + 1); x = m.getUint32(x + 8, true); } while (x && x !== c); } };
+        walk(m.getUint32(obj + 0x14, true), 0);
+        return out;
+      });
+      await a.evaluate(() => window.vRestore());
+      const d1 = await dumpMario();
+      await a.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, `own_${f}.p`)).toString('base64'));
+      const d2 = await dumpMario();
+      fs.writeFileSync(path.join(dir, `mario_${f}.json`), JSON.stringify([d1, d2]));
+      for (const [tag, file] of [['own', `own_${f}.p`], ['h', `h_${f}.p`]]) {
+        if (!fs.existsSync(path.join(dir, file))) continue;
+        const b = await open();
+        const info = await b.evaluate((x) => window.vLoad(x), fs.readFileSync(path.join(dir, file)).toString('base64'));
+        await play(b, f, f + K);
+        await shot(b, `q_${tag}_${f}.png`);
+        fs.writeFileSync(path.join(dir, `after_${tag}_${f}_${K}.p`), Buffer.from(await b.evaluate(() => window.vExport()), 'base64'));
+        console.log(`quick ${f} ${tag}: ${JSON.stringify(info)}`);
+        await b.close();
+      }
+    }
+  } else if (mode === 'loadshot') {
+    // A fresh rendering build loads each portable state file and plays K frames of the movie
+    // from <frame>: <dir>/ls_<name>.png.
+    const [dir, k, f0, ...files] = rest;
+    const K = Number(k), f = Number(f0);
+    for (const file of files) {
+      const page = await open();
+      const pre = Number(process.env.PRE || 0);
+      if (pre) await play(page, 0, pre);
+      await page.evaluate(() => {
+        window.__draws = 0;
+        for (const P of [WebGLRenderingContext.prototype, WebGL2RenderingContext.prototype]) for (const m of ['drawArrays', 'drawElements']) {
+          const o = P[m]; P[m] = function (...a) { window.__draws++; return o.apply(this, a); };
+        }
+      });
+      const d0 = await page.evaluate(() => { const n = window.__draws; window.vStep([0, 0, 0]); return window.__draws - n; });
+      const info = await page.evaluate((x) => window.vLoad(x), fs.readFileSync(file).toString('base64'));
+      await page.locator('#canvas').screenshot({ path: path.join(dir, `ls_${path.basename(file)}_0.png`) });
+      const n1 = await page.evaluate(() => window.__draws);
+      await play(page, f, f + K);
+      const d1 = (await page.evaluate(() => window.__draws) - n1) / K;
+      console.log(`draw calls per frame: before the load ${d0}, after ${d1}`);
+      await page.locator('#canvas').screenshot({ path: path.join(dir, `ls_${path.basename(file)}.png`) });
+      console.log(`loadshot ${file}: ${JSON.stringify(info)}`);
+      await page.close();
     }
   } else {
     console.log('usage: see the header of this file');

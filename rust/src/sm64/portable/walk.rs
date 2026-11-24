@@ -205,6 +205,10 @@ fn object_layout() -> Option<u16> {
 
 /// `struct Object`'s first rawData slot, from include/object_fields.h.
 const OBJ_RAW: u32 = 0x88;
+/// `behavior`: the address of the object's behavior script.
+const OBJ_BEHAVIOR: u32 = 0x20C;
+/// `rawData`'s length in words (`asU32[0x50]`): after it come real pointers (`curBhvCommand`, ...).
+const OBJ_RAW_WORDS: u32 = 0x50;
 /// `struct Object::bhvStack` (uintptr_t[8]).
 const OBJ_BHV_STACK: u32 = 0x1D4;
 
@@ -460,6 +464,7 @@ impl<'a> Walk<'a> {
             }
             let tgt = match k {
                 K::Ptr(_) => self.classify(v),
+                _ if self.numeric_slot(obj, l, a, o) => Tgt::Null,
                 _ => self.word_target(v, self.rodata_slot(obj, l, o)),
             };
             if let Tgt::Heap(ci, off) = tgt {
@@ -504,6 +509,28 @@ impl<'a> Walk<'a> {
                 }
             }
         }
+    }
+
+    /// The object slots (`rawData` words) the object at `obj` uses as pointers: the common
+    /// fields' and its behavior's (`BEHAVIOR_POINTER_SLOTS`); every slot any field declares a
+    /// pointer (`POINTER_SLOTS`) if its behavior is not known.
+    fn object_pointer_slots(&self, obj: u32) -> u128 {
+        let bhv = rd(self.mem, obj + OBJ_BEHAVIOR).and_then(|b| to_canonical_global(self.build, b));
+        match bhv.and_then(|b| BEHAVIOR_POINTER_SLOTS.binary_search_by_key(&b, |x| x.0).ok()) {
+            Some(i) => COMMON_POINTER_SLOTS | BEHAVIOR_POINTER_SLOTS[i].1,
+            None => POINTER_SLOTS,
+        }
+    }
+
+    /// Whether the word at `a`, at offset `off` of a `layout` region, is an object's `rawData`
+    /// slot that its behavior does not use as a pointer: a number, whatever its value. Values
+    /// there fall in the address range (`INTERACT_TEXT` is 0x800000; a Boo's oscillation timer
+    /// or a spinning object's yaw grows without wrapping), and translating them as addresses
+    /// changes them.
+    fn numeric_slot(&self, obj: Option<u16>, layout: u16, a: u32, off: u32) -> bool {
+        Some(layout) == obj
+            && (OBJ_RAW..OBJ_RAW + 4 * OBJ_RAW_WORDS).contains(&off)
+            && (self.object_pointer_slots(a - off) >> ((off - OBJ_RAW) / 4)) & 1 == 0
     }
 
     fn rodata_slot(&self, obj: Option<u16>, layout: u16, off: u32) -> bool {
@@ -735,6 +762,7 @@ pub fn walk_unchecked(mem: &[u8], build: Build) -> Result<Walked, String> {
                         None
                     }
                 },
+                K::Word if w.numeric_slot(obj, l, a, o) => None,
                 K::Word => match w.word_target(v, w.rodata_slot(obj, l, o)) {
                     Tgt::Heap(ci, off) => w
                         .reached

@@ -318,6 +318,20 @@ fn main() {
                 println!("h_{f}: recorded");
             }
         }
+        // portable_check step <rom> <movie.m64> <in.p> <frame> <n> <out.p>: a fresh headless game
+        // loads in.p (the state at <frame>), plays the movie's next n frames, exports out.p.
+        "step" => {
+            let g = SM64GameGenerator::from_file(&a[2]).unwrap();
+            let p = pads(&a[3]);
+            let st = Portable::from_bytes(&std::fs::read(&a[4]).unwrap()).unwrap();
+            let (frame, n): (usize, usize) = (a[5].parse().unwrap(), a[6].parse().unwrap());
+            let mut game = g.create_game().unwrap();
+            game.load_portable(&st).unwrap();
+            for pad in &p[frame..frame + n] {
+                game.step_game(*pad).unwrap();
+            }
+            std::fs::write(&a[7], game.export_portable().unwrap().to_bytes()).unwrap();
+        }
         "load" => {
             let g = SM64GameGenerator::from_file(&a[2]).unwrap();
             let p = pads(&a[3]);
