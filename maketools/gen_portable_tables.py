@@ -245,9 +245,22 @@ def has_pointers(L, li, seen=None):
     return False
 
 
-def changed_data(syh):
-    """Names ((object, symbol)) of data that differ between mem_0.bin and the
-    other dumps in $PORTABLE_DUMPS; saved to CHANGED_FILE."""
+def data_starts():
+    """Where .data starts (the end of constant data) in the headless and the visual build,
+    from their linker maps."""
+    out = []
+    for b in (BUILD_H, BUILD_V):
+        for line in open(os.path.join(b, "sm64.map")):
+            m = re.match(r"^\s+([0-9a-f]+)\s+[0-9a-f]+\s+[0-9a-f]+\s+\.data$", line)
+            if m:
+                out.append(int(m.group(1), 16))
+    assert len(out) == 2, f"expected one .data per map, found {out}"
+    return out
+
+
+def changed_data(syh, data_start):
+    """Names ((object, symbol)) of data (at or above the headless `data_start`) that differ
+    between mem_0.bin and the other dumps in $PORTABLE_DUMPS; saved to CHANGED_FILE."""
     d = os.environ.get("PORTABLE_DUMPS")
     if not d:
         if os.path.exists(CHANGED_FILE):
@@ -257,7 +270,7 @@ def changed_data(syh):
     dumps = [open(os.path.join(d, f), "rb").read() for f in sorted(os.listdir(d)) if f.startswith("mem_") and f != "mem_0.bin"]
     out = set()
     for (obj, sym), (a, n, sec) in syh.items():
-        if a >= 0x7B4620 and n and any(m[a:a + n] != base[a:a + n] for m in dumps):
+        if a >= data_start and n and any(m[a:a + n] != base[a:a + n] for m in dumps):
             out.add((obj, sym))
     with open(CHANGED_FILE, "w") as f:
         for obj, sym in sorted(out):
@@ -437,10 +450,10 @@ def main():
                     walk(v)
 
     # --- runs of data that moved together -------------------------------------
-    DATA_START = 0x10000
+    RUNS_FROM = 0x10000  # constant data too: pointers into it translate by offset
     runs = []
     for key, (a, s) in sh.items():
-        if a < DATA_START or s == 0 or key[0].endswith(")") and False:
+        if a < RUNS_FROM or s == 0:
             continue
         if key in sv and sv[key][1] == s:
             # skip code/section-less entries
@@ -454,8 +467,9 @@ def main():
             merged.append((a, v, s))
 
     # --- variables ---------------------------------------------------------------
-    rodata_end_h = max(a + s for (o, sec), (a, s) in sh.items() if sec == ".rodata" or False) if False else None
-    changed = changed_data(syh)
+    data_starts_hv = data_starts()
+    data_start = data_starts_hv[0]
+    changed = changed_data(syh, data_start)
     bss_start = None
     for line in open(os.path.join(BUILD_H, "sm64.map")):
         m = re.match(r"^\s+([0-9a-f]+)\s+[0-9a-f]+\s+[0-9a-f]+\s+\.bss$", line)
@@ -464,7 +478,7 @@ def main():
     vars_out = []
     stats = {"typed": 0, "raw": 0, "const": 0, "skipped": 0}
     for (obj, symname), (ah, sz, secname) in sorted(syh.items(), key=lambda kv: kv[1][0]):
-        if ah < 0x7B4620 or sz == 0:  # data and bss only (.rodata is below)
+        if ah < data_start or sz == 0:  # data and bss only (.rodata is below)
             continue
         if symname.startswith((".", "__const.")):
             continue
@@ -541,13 +555,6 @@ def main():
     gm_h = syh[next(k for k in syh if k[0].endswith("dlmalloc.o)") and k[1] == "_gm_")][0]
     gm_v = syv[next(k for k in syv if k[0].endswith("dlmalloc.o)") and k[1] == "_gm_")][0]
 
-    data_starts = []
-    for b in (BUILD_H, BUILD_V):
-        for line in open(os.path.join(b, "sm64.map")):
-            m = re.match(r"^\s+([0-9a-f]+)\s+[0-9a-f]+\s+[0-9a-f]+\s+\.data$", line)
-            if m:
-                data_starts.append(int(m.group(1), 16))
-    data_start = data_starts[0]
     tex = syv[("src/pc/gfx/gfx_pc.o", "gfx_texture_cache")]
     bhv_slots, bhv_common = behavior_pointer_slots(syh)
     # The visual build's renderer (src/pc/gfx: GL state it mirrors, shader programs, texture
@@ -582,7 +589,7 @@ def main():
     w("/// Where .data starts in the headless build: below it is constant data.")
     w(f"pub const DATA_START: u32 = {data_start:#x};")
     w("/// Where .data starts (the end of constant data) in the headless and the visual build.")
-    w(f"pub const DATA_STARTS: [u32; 2] = [{data_starts[0]:#x}, {data_starts[1]:#x}];")
+    w(f"pub const DATA_STARTS: [u32; 2] = [{data_starts_hv[0]:#x}, {data_starts_hv[1]:#x}];")
     w("/// The visual build's texture cache (address, size): it maps texture addresses to GL textures.")
     w(f"pub const TEXTURE_CACHE: (u32, u32) = ({tex[0]:#x}, {tex[1]});")
     w("/// The visual build's renderer state (address, size): src/pc/gfx's .bss, which a load keeps.")
