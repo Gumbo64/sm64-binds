@@ -5,7 +5,7 @@
 use super::layout::{Item, K, Var, Target};
 
 /// The headless WASM these addresses are for (its code's SHA-1).
-pub const BUILD_ID: &str = "897378b4ea1065e645be067fd130483837aa72a1";
+pub const BUILD_ID: &str = "4a657a093b061633a619e4129735d77d23e24c2f";
 
 pub static POINTEES: &[&str] = &["?", "void", "GraphNode", "SpawnInfo", "GraphNodeRoot", "short", "signed char", "ObjectWarpNode", "WarpNode", "InstantWarp", "Camera", "UnusedArea28", "Whirlpool", "ptr", "Object", "Animation", "float", "ObjectNode", "int", "Waypoint", "ChainSegment", "Surface", "unsigned long", "unsigned short", "Area", "CreditsEntry", "anon", "PlayerCameraState", "MarioBodyState", "Controller", "DmaHandlerList", "DmaTable", "unsigned char", "CameraTrigger", "ParallelTrackingPoint", "char", "EnvFxParticle", "unsigned long long", "OSMesgQueue_s", "OSThread_s", "DemoInput", "SPTask", "GfxPool", "MarioState", "AllocOnlyPool", "FreeListNode", "AllocOnlyPoolBlock", "MainPoolBlock", "MainPoolState", "MemoryPool", "Painting", "PaintingMeshVertex", "TextLabel", "DisplayListNode", "GraphNodeMasterList", "GraphNodePerspective", "GraphNodeCamera", "GraphNodeObject", "GraphNodeHeldObject", "LinkedList", "LevelCommand", "SurfaceNode"];
 

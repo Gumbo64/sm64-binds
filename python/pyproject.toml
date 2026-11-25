@@ -1,6 +1,6 @@
 [project]
 name = "sm64-binds"
-version = "2.1.1"
+version = "2.1.2"
 authors = [
   { name="Gumbo64", email="gumbo64.uncoated526@passmail.net" },
 ]

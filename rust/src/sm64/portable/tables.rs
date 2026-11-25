@@ -4,8 +4,8 @@
 
 use super::layout::{Item, K};
 
-pub const BUILD_ID_HEADLESS: &str = "897378b4ea1065e645be067fd130483837aa72a1";
-pub const BUILD_ID_VISUAL: &str = "fb31796a53ebfcb4e4feda8e60df5658a0c80070";
+pub const BUILD_ID_HEADLESS: &str = "4a657a093b061633a619e4129735d77d23e24c2f";
+pub const BUILD_ID_VISUAL: &str = "6b4e5e4fdd56118c516de82ff1e8343862273a4b";
 /// dlmalloc's `_gm_` (the malloc state), headless then visual.
 pub const GM: [u32; 2] = [0xcca7c8, 0xc558ec];
 

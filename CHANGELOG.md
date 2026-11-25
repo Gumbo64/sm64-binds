@@ -3,6 +3,20 @@
 All three packages (Rust `sm64-binds`, Python `sm64-binds`, JavaScript
 `sm64-binds-frontend`) are released together at the same version.
 
+## 2.1.2
+
+**The game build changes** (build id 897378b4... -> 4a657a09...), so a state or replay from 2.1.1 is not
+interchangeable with this one where the difference below shows. No API change.
+
+- Game fix, port vs N64: `bhv_small_water_wave_loop` (water_objs.inc.c) and `bhv_object_bubble_loop`
+  (bubble.inc.c) guarded their splash spawns with `#ifdef USE_SYSTEM_MALLOC` (always defined here) instead of
+  `MALLOC_OBJECTS`, like `try_to_spawn_object`. With the object pool full the port spawned a splash (after evicting
+  one more unimportant object) that the N64 refuses, and the RNG and object list parted from there. Found by
+  replaying a 107,931-frame cycle in Mupen64Plus; now identical to the N64. Runs that never fill the pool in water
+  are unaffected.
+- The WASM payloads, the precompiled module, the Mupen and portable-state tables (only their build ids change) and
+  the browser translator were regenerated for the new build.
+
 ## 2.1.1
 
 - Release fix: Cargo.lock pins wasm-bindgen 0.2.108 again (0.2.129 broke wasmer 6.1.0's JS backend, so 2.1.0's release build failed and it was never published). Otherwise identical to 2.1.0.
