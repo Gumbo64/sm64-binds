@@ -8,276 +8,40 @@
 //! function table's indices for function pointers.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::OnceLock;
 
-use super::layout::{K, layout_size, leaves};
+use super::addresses::*;
+use super::builds::{Build, var_addr};
+use super::excluded::*;
+use super::heap::*;
+use super::layout::K;
 use super::tables::*;
-
-/// Where portable pointers to malloc blocks start.
-pub const HEAP_BASE: u32 = 0x4000_0000;
-
-/// Which of the two builds a memory image or state belongs to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Build {
-    /// `build/us_web_headless`: what nodes, bots and the Rust/Python bindings run.
-    Headless,
-    /// `build/us_web`: the rendering build the browser runs.
-    Visual,
-}
-
-impl Build {
-    pub fn index(self) -> usize {
-        match self {
-            Build::Headless => 0,
-            Build::Visual => 1,
-        }
-    }
-    pub fn name(self) -> &'static str {
-        match self {
-            Build::Headless => "headless",
-            Build::Visual => "visual",
-        }
-    }
-    pub fn build_id(self) -> &'static str {
-        match self {
-            Build::Headless => BUILD_ID_HEADLESS,
-            Build::Visual => BUILD_ID_VISUAL,
-        }
-    }
-}
-
-/// A malloc block in use: its user address and usable length.
-#[derive(Debug, Clone, Copy)]
-pub struct Chunk {
-    pub user: u32,
-    pub len: u32,
-}
-
-fn rd(mem: &[u8], a: u32) -> Option<u32> {
-    Some(u32::from_le_bytes(
-        mem.get(a as usize..a as usize + 4)?.try_into().ok()?,
-    ))
-}
-
-/// Every malloc block in use, found by walking dlmalloc's chunks from the
-/// start of its heap to its top.
-pub fn heap_chunks(mem: &[u8], build: Build) -> Result<Vec<Chunk>, String> {
-    Ok(heap_all(mem, build)?
-        .into_iter()
-        .filter(|c| c.2)
-        .map(|c| Chunk {
-            user: c.0 + 8,
-            len: c.1 - 4,
-        })
-        .collect())
-}
-
-/// Every dlmalloc chunk, in use or free: (chunk address, size, in use).
-pub fn heap_all(mem: &[u8], build: Build) -> Result<Vec<(u32, u32, bool)>, String> {
-    let gm = GM[build.index()];
-    let (Some(least), Some(top)) = (rd(mem, gm + 16), rd(mem, gm + 24)) else {
-        return Err("memory too short for the allocator state".into());
-    };
-    let mut out = Vec::new();
-    let mut c = least;
-    while c < top {
-        let head = rd(mem, c + 4).ok_or("chunk past the end of memory")?;
-        let size = head & !7;
-        if size < 16 || c + size > top {
-            return Err(format!("corrupt chunk at {c:#x} (size {size})"));
-        }
-        let next = c + size;
-        let next_head = rd(mem, next + 4).ok_or("chunk past the end of memory")?;
-        out.push((c, size, next_head & 1 != 0));
-        c = next;
-    }
-    if c != top {
-        return Err(format!(
-            "heap walk ended at {c:#x}, not at its top {top:#x}"
-        ));
-    }
-    Ok(out)
-}
-
-// --- address translation tables ---------------------------------------------
-
-fn runs_by_visual() -> &'static Vec<(u32, u32, u32)> {
-    static R: OnceLock<Vec<(u32, u32, u32)>> = OnceLock::new();
-    R.get_or_init(|| {
-        let mut v: Vec<_> = RUNS.iter().map(|&(h, v, s)| (v, h, s)).collect();
-        v.sort_unstable();
-        v
-    })
-}
-
-fn lookup_run(runs: &[(u32, u32, u32)], a: u32) -> Option<u32> {
-    let i = runs.partition_point(|r| r.0 <= a);
-    let r = runs.get(i.checked_sub(1)?)?;
-    (a - r.0 < r.2).then(|| r.1 + (a - r.0))
-}
-
-/// The headless address of a global or constant at `a` in `build`'s memory.
-pub fn to_canonical_global(build: Build, a: u32) -> Option<u32> {
-    match build {
-        Build::Headless => lookup_run(runs_vec(), a).map(|_| a),
-        Build::Visual => lookup_run(runs_by_visual(), a),
-    }
-}
-
-fn runs_vec() -> &'static Vec<(u32, u32, u32)> {
-    static R: OnceLock<Vec<(u32, u32, u32)>> = OnceLock::new();
-    R.get_or_init(|| RUNS.to_vec())
-}
-
-/// Where a portable (headless) global address is in `build`'s memory.
-pub fn from_canonical_global(build: Build, a: u32) -> Option<u32> {
-    match build {
-        Build::Headless => lookup_run(runs_vec(), a).map(|_| a),
-        Build::Visual => lookup_run(runs_vec(), a),
-    }
-}
-
-fn fn_maps() -> &'static (HashMap<u32, u32>, HashMap<u32, u32>) {
-    static M: OnceLock<(HashMap<u32, u32>, HashMap<u32, u32>)> = OnceLock::new();
-    M.get_or_init(|| {
-        let h2v = FNS.iter().map(|&(h, v, _)| (h as u32, v as u32)).collect();
-        let v2h = FNS.iter().map(|&(h, v, _)| (v as u32, h as u32)).collect();
-        (h2v, v2h)
-    })
-}
-
-pub fn fn_to_canonical(build: Build, idx: u32) -> Option<u32> {
-    match build {
-        Build::Headless => Some(idx),
-        Build::Visual => fn_maps().1.get(&idx).copied(),
-    }
-}
-
-pub fn fn_from_canonical(build: Build, idx: u32) -> Option<u32> {
-    match build {
-        Build::Headless => Some(idx),
-        Build::Visual => fn_maps().0.get(&idx).copied(),
-    }
-}
-
-/// (size, layout) of what pointee `id` points to, if it is a struct we know.
-fn pointee(id: u16) -> Option<(u32, u16)> {
-    static P: OnceLock<Vec<Option<(u32, u16)>>> = OnceLock::new();
-    P.get_or_init(|| {
-        POINTEES
-            .iter()
-            .map(|n| {
-                NAMED
-                    .binary_search_by(|(m, _, _)| m.cmp(n))
-                    .ok()
-                    .map(|i| (NAMED[i].1, NAMED[i].2))
-            })
-            .collect()
-    })[id as usize]
-}
-
-/// Pointers to the display lists the render walk builds (a master list's
-/// heads and tails): the rendering build leaves them set at the end of a frame,
-/// the headless one clears them, and they point into per-frame memory. They
-/// are not state: a loaded game starts with none.
-fn is_render_list(pointee: u16) -> bool {
-    POINTEES[pointee as usize] == "DisplayListNode"
-}
-
-/// Whether a layout is nothing but `uintptr_t` words.
-fn only_words(layout: u16) -> bool {
-    static W: OnceLock<Vec<bool>> = OnceLock::new();
-    W.get_or_init(|| {
-        LAYOUTS
-            .iter()
-            .map(|items| !items.is_empty() && items.iter().all(|i| matches!(i.1, K::Word)))
-            .collect()
-    })
-    .get(layout as usize)
-    .copied()
-    .unwrap_or(false)
-}
-
-fn named_by(name: &str) -> Option<(u32, u16)> {
-    NAMED
-        .binary_search_by(|(m, _, _)| m.cmp(&name))
-        .ok()
-        .map(|i| (NAMED[i].1, NAMED[i].2))
-}
-
-fn object_layout() -> Option<u16> {
-    static L: OnceLock<Option<u16>> = OnceLock::new();
-    *L.get_or_init(|| named_by("Object").map(|x| x.1))
-}
-
-/// `struct Object`'s first rawData slot, from include/object_fields.h.
-const OBJ_RAW: u32 = 0x88;
-/// `behavior`: the address of the object's behavior script.
-const OBJ_BEHAVIOR: u32 = 0x20C;
-/// `rawData`'s length in words (`asU32[0x50]`): after it come real pointers (`curBhvCommand`, ...).
-const OBJ_RAW_WORDS: u32 = 0x50;
-/// `struct Object::bhvStack` (uintptr_t[8]).
-const OBJ_BHV_STACK: u32 = 0x1D4;
-
-fn pool_layout() -> Option<u16> {
-    named_by("AllocOnlyPool").map(|x| x.1)
-}
+use super::types::*;
 
 // --- the walk ------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Slot {
+pub(super) enum Slot {
     Var(usize),
     Chunk(usize),
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Region {
-    addr: u32,
-    layout: u16,
+pub(super) struct Region {
+    pub(super) addr: u32,
+    pub(super) layout: u16,
     /// For [`PTRS`] regions: how many pointers.
-    count: u32,
-    slot: Slot,
+    pub(super) count: u32,
+    pub(super) slot: Slot,
     /// Offset of `addr` in the slot's bytes.
-    off: u32,
+    pub(super) off: u32,
 }
 
 impl Region {
-    fn slot_desc(&self) -> String {
+    pub(super) fn slot_desc(&self) -> String {
         match self.slot {
             Slot::Var(i) => VARS[i].0.to_string(),
             Slot::Chunk(c) => format!("chunk {c}"),
         }
-    }
-}
-
-fn layout_names(layout: u16) -> String {
-    NAMED
-        .iter()
-        .filter(|n| n.2 == layout)
-        .map(|n| n.0)
-        .collect::<Vec<_>>()
-        .join("|")
-}
-
-/// The layout of a run of pointers behind a pointer to pointers (`GraphNode **views`):
-/// as many words as hold pointers, up to 64.
-const PTRS: u16 = 0xFFFE;
-
-fn rleaves(layout: u16, base: u32, count: u32, f: &mut impl FnMut(u32, K, u16, u32)) {
-    if layout == PTRS {
-        for i in 0..count {
-            f(base + 4 * i, K::Word, PTRS, 4 * i);
-        }
-    } else {
-        // `AllocOnlyPoolBlock::pad` (a `void *`, "require 8 bytes alignment") is never written:
-        // whatever malloc left there is not a pointer, though it can look like one.
-        let pool_block = named_by("AllocOnlyPoolBlock").map(|x| x.1);
-        leaves(layout, base, &mut |a, k, l, o| {
-            if !(Some(l) == pool_block && o == 4) {
-                f(a, k, l, o)
-            }
-        });
     }
 }
 
@@ -316,26 +80,26 @@ pub struct Walked {
     pub unresolved_count: u32,
 }
 
-struct Walk<'a> {
-    build: Build,
-    mem: &'a [u8],
-    chunks: Vec<Chunk>,
+pub(super) struct Walk<'a> {
+    pub(super) build: Build,
+    pub(super) mem: &'a [u8],
+    pub(super) chunks: Vec<Chunk>,
     /// Every chunk of the heap (address, size, in use), by address.
-    all: Vec<(u32, u32, bool)>,
+    pub(super) all: Vec<(u32, u32, bool)>,
     /// `gMatStackFixed`'s variable index: render walk pointers, not state.
-    mat_fixed: Option<usize>,
-    order: Vec<usize>,
-    reached: HashMap<usize, usize>,
-    regions: Vec<Region>,
-    seen: HashSet<(u32, u16)>,
-    queue: Vec<usize>,
+    pub(super) mat_fixed: Option<usize>,
+    pub(super) order: Vec<usize>,
+    pub(super) reached: HashMap<usize, usize>,
+    pub(super) regions: Vec<Region>,
+    pub(super) seen: HashSet<(u32, u16)>,
+    pub(super) queue: Vec<usize>,
     /// Pointers in this address range are not followed (the display list pool).
-    skip: Vec<(u32, u32)>,
-    found_by: Vec<(Slot, u32)>,
-    bad_nodes: Vec<(u32, u16)>,
+    pub(super) skip: Vec<(u32, u32)>,
+    pub(super) found_by: Vec<(Slot, u32)>,
+    pub(super) bad_nodes: Vec<(u32, u16)>,
 }
 
-enum Tgt {
+pub(super) enum Tgt {
     Null,
     Heap(usize, u32),
     Global(u32),
@@ -343,13 +107,13 @@ enum Tgt {
 }
 
 impl<'a> Walk<'a> {
-    fn chunk_of(&self, v: u32) -> Option<usize> {
+    pub(super) fn chunk_of(&self, v: u32) -> Option<usize> {
         let i = self.chunks.partition_point(|c| c.user <= v);
         let c = self.chunks.get(i.checked_sub(1)?)?;
         (v - c.user < c.len).then_some(i - 1)
     }
 
-    fn classify(&self, v: u32) -> Tgt {
+    pub(super) fn classify(&self, v: u32) -> Tgt {
         if v == 0 {
             return Tgt::Null;
         }
@@ -362,28 +126,14 @@ impl<'a> Walk<'a> {
         }
     }
 
-    /// Whether a word in a union is a pointer (and which sort).
-    fn word_target(&self, v: u32, rodata_ok: bool) -> Tgt {
-        match self.classify(v) {
-            Tgt::Heap(c, o) => Tgt::Heap(c, o),
-            Tgt::Global(g) if g >= DATA_START || rodata_ok => Tgt::Global(g),
-            _ => Tgt::Null,
-        }
-    }
-
-    /// Variables that only hold render walk state (not game state).
-    fn render_only(&self, slot: Slot) -> bool {
-        matches!(slot, Slot::Var(i) if VARS[i].0.ends_with(":gDisplayListHeap"))
-    }
-
     /// The free chunk (address, size) holding `v`, if `v` is in one.
-    fn free_chunk_of(&self, v: u32) -> Option<(u32, u32)> {
+    pub(super) fn free_chunk_of(&self, v: u32) -> Option<(u32, u32)> {
         let i = self.all.partition_point(|c| c.0 <= v);
         let &(c, size, in_use) = self.all.get(i.checked_sub(1)?)?;
         (!in_use && v >= c + 8 && v < c + size).then_some((c, size))
     }
 
-    fn reach(&mut self, ci: usize, by: (Slot, u32)) -> usize {
+    pub(super) fn reach(&mut self, ci: usize, by: (Slot, u32)) -> usize {
         if let Some(&i) = self.reached.get(&ci) {
             return i;
         }
@@ -394,11 +144,18 @@ impl<'a> Walk<'a> {
         i
     }
 
-    fn push_region(&mut self, addr: u32, layout: u16, slot: Slot, off: u32) {
+    pub(super) fn push_region(&mut self, addr: u32, layout: u16, slot: Slot, off: u32) {
         self.push_region_n(addr, layout, 0, slot, off);
     }
 
-    fn push_region_n(&mut self, addr: u32, layout: u16, count: u32, slot: Slot, off: u32) {
+    pub(super) fn push_region_n(
+        &mut self,
+        addr: u32,
+        layout: u16,
+        count: u32,
+        slot: Slot,
+        off: u32,
+    ) {
         if self.seen.insert((addr, layout)) {
             self.regions.push(Region {
                 addr,
@@ -411,99 +168,7 @@ impl<'a> Walk<'a> {
         }
     }
 
-    /// The struct a pointer to a `GraphNode` really points to.
-    fn refine(&self, name: &str, addr: u32) -> Option<(u32, u16)> {
-        if name == "GraphNode" {
-            let t = u16::from_le_bytes(
-                self.mem
-                    .get(addr as usize..addr as usize + 2)?
-                    .try_into()
-                    .ok()?,
-            );
-            // Not a node at all (a pointer into the middle of one, or a stale
-            // one into memory that has been reused): no struct to apply.
-            let &(_, n) = NODE_TYPES.iter().find(|x| x.0 == t)?;
-            // Nodes sit in circular doubly linked lists.
-            let (prev, next) = (rd(self.mem, addr + 4)?, rd(self.mem, addr + 8)?);
-            if prev == 0
-                || next == 0
-                || rd(self.mem, next + 4)? != addr
-                || rd(self.mem, prev + 8)? != addr
-            {
-                return None;
-            }
-            return named_by(n);
-        }
-        named_by(name)
-    }
-
-    /// Whether the struct a pointer says it points to is plausibly there: a
-    /// stale pointer (an object that was freed, say) can point into memory that
-    /// has been reused for something else, and applying a layout to that would
-    /// turn numbers into pointers.
-    fn plausible(&self, name: &str, addr: u32) -> bool {
-        match name {
-            // The behavior script is always set, and is one of the game's behaviors (an address
-            // in constant data is not enough: a terrain copy's s16 pairs, y and 0x17, read as
-            // 0x0017yyyy, an address in the rendering build's constant data, and the exporter
-            // then translated them as the pointer they are not, changing a vertex).
-            // The pointers next to it are null or point to something.
-            "SpawnInfo" => {
-                let ok = |v: Option<u32>| {
-                    v.is_some_and(|v| {
-                        matches!(self.classify(v), Tgt::Null | Tgt::Heap(..) | Tgt::Global(_))
-                    })
-                };
-                rd(self.mem, addr + 0x14).is_some_and(|b| match self.classify(b) {
-                    Tgt::Global(g) => BEHAVIOR_POINTER_SLOTS
-                        .binary_search_by_key(&g, |x| x.0)
-                        .is_ok(),
-                    _ => false,
-                }) && ok(rd(self.mem, addr + 0x18))
-                    && ok(rd(self.mem, addr + 0x1c))
-            }
-            // A pool's last block comes from malloc (or, headless, the draw arena: a global),
-            // and it has used no more of it than it has. A stale pointer to a freed pool
-            // (sMemPoolForGoddard after the intro) points into memory reused for something
-            // else, such as graph nodes, which the pool's layout would then mangle.
-            "AllocOnlyPool" => {
-                let (Some(last), Some(size), Some(next)) = (
-                    rd(self.mem, addr),
-                    rd(self.mem, addr + 4),
-                    rd(self.mem, addr + 8),
-                ) else {
-                    return false;
-                };
-                next <= size
-                    && match self.classify(last) {
-                        Tgt::Null | Tgt::Global(_) => true,
-                        Tgt::Heap(ci, off) => off == 0 && self.chunks[ci].len >= size,
-                        Tgt::Unresolved => false,
-                    }
-            }
-            // `gEffectsMemoryPool` (system malloc): an allocation pool first. A stale pointer
-            // to a freed pool (the level's pools are released, their memory reused) points
-            // at something else, graph nodes say, whose words the pool's layout would turn
-            // into pointers (a padding word of a graph node became a pointer).
-            "MemoryPool" => rd(self.mem, addr).is_some_and(|p| match self.classify(p) {
-                Tgt::Heap(..) => self.plausible("AllocOnlyPool", p),
-                _ => false,
-            }),
-            // Objects live in `gObjectPool`, a global array; one in a heap block is a stale
-            // pointer (a platform, a parent) into memory reused for something else, and
-            // an Object layout over graph nodes or collision data makes pointers of
-            // numbers (and walks into more of the same).
-            "Object" => false,
-            // A surface's `object` is null or a pool object. A stale floor pointer into reused
-            // memory (a level's collision data was freed, a later level's data sits there)
-            // reads other numbers there.
-            "Surface" => rd(self.mem, addr + 0x2c)
-                .is_some_and(|o| matches!(self.classify(o), Tgt::Null | Tgt::Global(_))),
-            _ => true,
-        }
-    }
-
-    fn process(&mut self, ri: usize) {
+    pub(super) fn process(&mut self, ri: usize) {
         let Region {
             addr,
             layout,
@@ -601,95 +266,6 @@ impl<'a> Walk<'a> {
             }
         }
     }
-
-    /// The object slots (`rawData` words) the object at `obj` uses as pointers: the common
-    /// fields' and its behavior's (`BEHAVIOR_POINTER_SLOTS`); every slot any field declares a
-    /// pointer (`POINTER_SLOTS`) if its behavior is not known.
-    fn object_pointer_slots(&self, obj: u32) -> u128 {
-        let bhv = rd(self.mem, obj + OBJ_BEHAVIOR).and_then(|b| to_canonical_global(self.build, b));
-        match bhv.and_then(|b| {
-            BEHAVIOR_POINTER_SLOTS
-                .binary_search_by_key(&b, |x| x.0)
-                .ok()
-        }) {
-            Some(i) => COMMON_POINTER_SLOTS | BEHAVIOR_POINTER_SLOTS[i].1,
-            None => POINTER_SLOTS,
-        }
-    }
-
-    /// Whether the word at `a`, at offset `off` of a `layout` region, is an object's `rawData`
-    /// slot that its behavior does not use as a pointer: a number, whatever its value. Values
-    /// there fall in the address range (`INTERACT_TEXT` is 0x800000; a Boo's oscillation timer
-    /// or a spinning object's yaw grows without wrapping), and translating them as addresses
-    /// changes them.
-    fn numeric_slot(&self, obj: Option<u16>, layout: u16, a: u32, off: u32) -> bool {
-        Some(layout) == obj
-            && (OBJ_RAW..OBJ_RAW + 4 * OBJ_RAW_WORDS).contains(&off)
-            && (self.object_pointer_slots(a - off) >> ((off - OBJ_RAW) / 4)) & 1 == 0
-    }
-
-    fn rodata_slot(&self, obj: Option<u16>, layout: u16, off: u32) -> bool {
-        // arrays of uintptr_t (the segment table, the level script and geo layout
-        // stacks) hold addresses of scripts and assets
-        if only_words(layout) {
-            return true;
-        }
-        Some(layout) == obj
-            && (((OBJ_RAW..OBJ_RAW + 4 * 128).contains(&off)
-                && (POINTER_SLOTS >> ((off - OBJ_RAW) / 4)) & 1 != 0)
-                // bhvStack: addresses inside behavior scripts
-                || (OBJ_BHV_STACK..OBJ_BHV_STACK + 32).contains(&off))
-    }
-}
-
-/// Which variables the state has, in `VARS` order, as (index, address in
-/// `build`'s memory, size, layout).
-fn var_addr(build: Build, i: usize) -> (u32, u32, u16) {
-    let v = &VARS[i];
-    (if build == Build::Headless { v.1 } else { v.2 }, v.3, v.4)
-}
-
-/// The pools the render walk draws into (`gGfxAllocOnlyPool`, `gDisplayListHeap`):
-/// not state, rebuilt every frame. Their addresses in `mem`.
-pub fn draw_pools(mem: &[u8], build: Build) -> Vec<u32> {
-    [":gGfxAllocOnlyPool"]
-        .iter()
-        .filter_map(|n| {
-            let i = VARS.iter().position(|v| v.0.ends_with(n))?;
-            rd(mem, var_addr(build, i).0).filter(|&p| p != 0)
-        })
-        .collect()
-}
-
-/// Why a state cannot be made portable, if it cannot: goddard (the intro's
-/// Mario head and the like) keeps its own object graph in malloc blocks,
-/// whose pointers are not described by types, so a state taken while it is
-/// running does not translate. Its pool is only allocated while it runs.
-pub fn unsupported(mem: &[u8], build: Build) -> Option<String> {
-    let pool_at = |name: &str| {
-        let i = VARS.iter().position(|v| v.0.ends_with(name))?;
-        rd(mem, var_addr(build, i).0)
-    };
-    // The variable keeps pointing at the pool after it is freed, so look for
-    // the pool in the main pool's list of blocks.
-    let pool = pool_at(":sMemPoolForGoddard")?;
-    if pool == 0 {
-        return None;
-    }
-    let mut b = pool_at(":sPoolListHeadL")?;
-    for _ in 0..100_000 {
-        if b == 0 {
-            return None;
-        }
-        if b + 12 == pool {
-            return Some(
-                "goddard (the intro's Mario head) is running; its state has no portable form"
-                    .to_string(),
-            );
-        }
-        b = rd(mem, b)?;
-    }
-    None
 }
 
 /// Finds the state in `mem`: the variables, and every malloc block reachable
@@ -1030,7 +606,7 @@ pub fn walk_unchecked(mem: &[u8], build: Build) -> Result<Walked, String> {
     Ok(out)
 }
 
-fn note_unresolved(out: &mut Walked, r: &Region, a: u32, v: u32) {
+pub(super) fn note_unresolved(out: &mut Walked, r: &Region, a: u32, v: u32) {
     out.unresolved_count += 1;
     if out.unresolved.len() < 200 {
         let what = match r.slot {
@@ -1056,22 +632,4 @@ fn note_unresolved(out: &mut Walked, r: &Region, a: u32, v: u32) {
 pub fn game_blocks(mem: &[u8], build: Build) -> Result<Vec<(u32, u32)>, String> {
     let w = walk_unchecked(mem, build)?;
     Ok(w.chunk_addrs.into_iter().zip(w.chunk_lens).collect())
-}
-
-/// The blocks of the display list pool (the rendering build's, which draw
-/// from malloc): they are not part of a state, but loading one drops the
-/// pool's list of them, so whoever loads it has to free them. Empty in the
-/// headless build, whose pool is in an arena.
-pub fn display_list_blocks(mem: &[u8], build: Build) -> Result<Vec<u32>, String> {
-    let chunks = heap_chunks(mem, build)?;
-    let mut out = Vec::new();
-    let is_block = |b: u32| chunks.binary_search_by(|c| c.user.cmp(&b)).is_ok();
-    for pool in draw_pools(mem, build) {
-        let mut b = rd(mem, pool).unwrap_or(0);
-        while b != 0 && is_block(b) && out.len() < 100_000 {
-            out.push(b);
-            b = rd(mem, b).unwrap_or(0);
-        }
-    }
-    Ok(out)
 }
