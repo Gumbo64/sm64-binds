@@ -81,6 +81,8 @@ pub(super) fn emit(mut w: Walk, exact: &[ExactLink]) -> Walked {
             Owner::Chunk(c) => (format!("block@{:#x}", w.img.chunks[c].user), o),
         })
         .collect();
+    // Diagnostics: GraphNode pointers the walk could not type.
+    out.bad_nodes = std::mem::take(&mut w.bad_nodes);
     let obj = object_layout();
     let pool = pool_layout();
     if let Some(m) = w.mat_stack_fixed {
@@ -128,7 +130,7 @@ pub(super) fn emit(mut w: Walk, exact: &[ExactLink]) -> Walked {
                         .map(|&bi| (HEAP_BASE + out.chunk_bases[bi] + off, 0)),
                     PointsTo::Global(g) => Some((g, 0)),
                     PointsTo::Unresolved => {
-                        note_unresolved(&mut out, r, a, v);
+                        note_unresolved(&mut out, &w.img, r, a, v);
                         None
                     }
                 },
@@ -148,7 +150,7 @@ pub(super) fn emit(mut w: Walk, exact: &[ExactLink]) -> Walked {
                         match fn_to_canonical(build, v) {
                             Some(c) => Some((c, 1)),
                             None => {
-                                note_unresolved(&mut out, r, a, v);
+                                note_unresolved(&mut out, &w.img, r, a, v);
                                 None
                             }
                         }

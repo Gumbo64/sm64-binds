@@ -4,7 +4,8 @@
 //! one header word, the number of ghosts (`ghosts.rs`); version 1 states (no
 //! ghosts) still load. A state records the build it came from, that build's id
 //! and a fingerprint of the tables ([`tables_id`]): a state is only loaded with
-//! tables whose variables are the same, in the same order.
+//! tables made from that same build (its id) whose variables are the same, in
+//! the same order.
 //!
 //! Guarantees: `from_bytes(to_bytes(p))` gives back the state part of `p` (the
 //! diagnostics are not stored), and `to_bytes` of that is the same bytes.
@@ -124,7 +125,18 @@ impl Portable {
             1 => Build::Visual,
             n => return Err(format!("unknown source build {n}")),
         };
-        r.bytes(20)?;
+        // The function indices and addresses in the tables are those of one
+        // build of each: a state from any other build (even one with the same
+        // variables) would load wrong pointers, so it is refused.
+        let id: String = r.bytes(20)?.iter().map(|b| format!("{b:02x}")).collect();
+        if id != source.build_id() {
+            return Err(format!(
+                "portable state was made by {} build {id}, but these tables are for {} build {}",
+                source.name(),
+                source.name(),
+                source.build_id()
+            ));
+        }
         if r.u32()? != tables_id() {
             return Err("portable state was made with different tables".into());
         }

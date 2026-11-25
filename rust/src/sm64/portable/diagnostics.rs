@@ -4,6 +4,7 @@
 //! Nothing here changes a state's bytes. Tools that print these:
 //! `rust/examples/portable_unresolved.rs` and the rest of `portable_*`.
 
+use super::image::Image;
 use super::regions::{Owner, Region};
 use super::state::Walked;
 use super::tables::{NAMED, VARS};
@@ -18,15 +19,14 @@ fn layout_names(layout: u16) -> String {
         .join("|")
 }
 
-/// Counts an untranslatable pointer (value `v` at `a`, in region `r`) and
+/// Counts an untranslatable pointer (value `v` at `a`, in region `r` of `img`) and
 /// describes the first 200.
-pub(super) fn note_unresolved(out: &mut Walked, r: &Region, a: u32, v: u32) {
+pub(super) fn note_unresolved(out: &mut Walked, img: &Image, r: &Region, a: u32, v: u32) {
     out.unresolved_count += 1;
     if out.unresolved.len() < 200 {
         let what = match r.owner {
             Owner::Var(i) => VARS[i].0.to_string(),
-            // (`c` is the chunk's index, printed as hex, not its address.)
-            Owner::Chunk(c) => format!("chunk@{:#x}", c),
+            Owner::Chunk(c) => format!("block@{:#x}", img.chunks[c].user),
         };
         out.unresolved.push((
             format!(

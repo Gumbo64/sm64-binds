@@ -199,7 +199,7 @@ Before a struct layout is applied behind a heap pointer:
 | `SpawnInfo` | `behaviorScript` is one of the game's behaviors; the next two pointers are null or point somewhere | a terrain copy's s16 pair (y, 0x17) read as 0x0017yyyy, an address in the rendering build's constant data: two collision vertices were rewritten, **+146 surface nodes**, then a **crash** in `geo_process_node_and_siblings` |
 | `AllocOnlyPool` | its last block is a malloc block (or, headless, a global) at least `size` long, and it used no more than `size` | the stale `sMemPoolForGoddard` (reused for Mario's graph nodes) was typed as a pool and the +12 fix-up zeroed a switch node's `parent`: **Mario drawn twice** |
 | `MemoryPool` | its first word is a plausible `AllocOnlyPool` | a stale `gEffectsMemoryPool` typed Mario's animated-part node, a padding word became a pointer: **invisible Mario** |
-| `Object` | never in the heap (`gObjectPool` is a global array) | stale platform/parent pointers typed graph nodes and collision data as objects (part of the crash above) |
+| `Object` | never in the heap (`gObjectPool` is a global array) | stale platform/parent pointers typed graph nodes and collision data as objects (part of the crash above). It never fires on the corpus now: kept as a guard, added while chasing the `SpawnInfo` mis-type |
 | `Surface` | its `object` is null or a global | a stale floor into a later level's collision data |
 
 A failed check only means "do not type this memory"; the pointer is still
@@ -239,8 +239,10 @@ offset size
 
 A block's portable base is not stored: it is the sum of the earlier blocks'
 lengths, each rounded up to 16. Version 1 is version 2 without the ghost count
-(no ghosts). About 0.5 MB for a level (50 KB deflated). The source build id is
-written but not checked on load; the tables id is.
+(no ghosts). About 0.5 MB for a level (50 KB deflated). Both ids are checked on
+load: the source build id must be the tables' id of the build the state names
+(`Build::build_id`), so a state from another build of the same variables (other
+function indices) is refused rather than loaded with wrong pointers.
 
 ## 6. Changing it
 
@@ -306,18 +308,10 @@ manifest means every output byte is the same on the corpus. It is sensitive:
 disabling the object-slot rule (and the `Surface` check) changed 2,639 of its
 lines, in 369 of the 427 memory images.
 
-## 8. Known oddities (found while writing this guide; behaviour unchanged)
+## 8. Known oddities
 
-- `Walked::bad_nodes` is always empty: the walk collects graph-node pointers
-  with an unknown type, but never copies them to its output.
-- `diagnostics::note_unresolved` labels a block `chunk@0x..` with its chunk
-  *index* in hex, while `found_by` and `ghost_refs` use `block@<address>`.
-- `may_point_to_constants` checks 128 object words from `rawData`, while
-  `is_number_slot` checks the 80 (`OBJ_RAW_WORDS`) that are `rawData`; the extra
-  range has no bits in `POINTER_SLOTS`, so it does nothing.
-- `from_bytes` reads the source build id but does not check it; only the
-  tables id (variable names and sizes) is checked, so a state from another
-  build of the same variables, with other function indices, would load wrongly.
-- `gen_portable_tables.py` hard-codes the headless `.data` start (0x7B4620) in
-  two places instead of using the value it reads from the map, and has two
-  dead expressions (`... and False`, `... if False else None`).
+Those found while writing this guide were fixed in 2.3.2 (the source build id
+is checked on load, `Walked::bad_nodes` is filled, unresolved pointers in
+blocks are labelled `block@<address>`, `may_point_to_constants` checks the 80
+`rawData` words, `gen_portable_tables.py` reads `.data`'s start from the map);
+none changed a state's bytes.

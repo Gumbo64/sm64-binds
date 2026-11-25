@@ -114,7 +114,7 @@ pub(super) fn may_point_to_constants(obj: Option<u16>, layout: u16, off: u32) ->
         return true;
     }
     Some(layout) == obj
-        && (((OBJ_RAW..OBJ_RAW + 4 * 128).contains(&off)
+        && (((OBJ_RAW..OBJ_RAW + 4 * OBJ_RAW_WORDS).contains(&off)
             && (POINTER_SLOTS >> ((off - OBJ_RAW) / 4)) & 1 != 0)
             // bhvStack: addresses inside behavior scripts
             || (OBJ_BHV_STACK..OBJ_BHV_STACK + 32).contains(&off))

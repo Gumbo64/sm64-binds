@@ -75,7 +75,8 @@ reuses) blocks in the target, translates every relocation and writes the bytes.
   0   8  magic "SM64PORT"
   8   4  format version (little endian) = 2 (version 1, without the ghost count, is still read)
  12   4  source build: 0 headless, 1 rendering
- 16  20  source build id: SHA-1 of the source WASM's code (the module without data sections)
+ 16  20  source build id: SHA-1 of the source WASM's code (the module without data sections);
+        a state is refused unless it is the tables' id of the source build
  36   4  tables id: a hash of the variables, in order (a state is only loaded with the
         tables that wrote it)
  40   4  number of variables

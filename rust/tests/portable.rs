@@ -5,7 +5,7 @@
 //! The cross-build half (headless <-> rendering) needs a browser: see
 //! `examples/portable_check.rs` and `javascript/e2e/`.
 
-use sm64_binds::portable::Portable;
+use sm64_binds::portable::{Build, Portable};
 use sm64_binds::{GamePad, SM64Game, SM64GameGenerator};
 
 const ROM_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../baserom.us.z64");
@@ -111,6 +111,46 @@ fn bytes_round_trip_and_garbage_is_refused() {
     let mut version = bytes.clone();
     version[8] = 9;
     assert!(Portable::from_bytes(&version).is_err());
+}
+
+/// A state says which build made it; one from a build these tables are not for (even with
+/// the same variables: its function indices could differ) is refused, not loaded wrong.
+#[test]
+fn a_state_from_another_build_is_refused() {
+    let (generator, pads) = setup_or_skip!();
+    let mut game = generator.create_game().unwrap();
+    play(&mut game, &pads, 700);
+    let bytes = game.export_portable().unwrap().to_bytes();
+    let id: String = bytes[16..36].iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(id, Build::Headless.build_id());
+    // A forged build id.
+    let mut forged = bytes.clone();
+    forged[20] ^= 0x5a;
+    let err = Portable::from_bytes(&forged).unwrap_err();
+    assert!(err.contains("build"), "{err}");
+    // The same in a version 1 state.
+    let mut v1 = forged.clone();
+    v1[8..12].copy_from_slice(&1u32.to_le_bytes());
+    v1.drain(48..52);
+    assert!(Portable::from_bytes(&v1).is_err());
+    // The headless id under the visual build's name.
+    let mut relabelled = bytes.clone();
+    relabelled[12..16].copy_from_slice(&1u32.to_le_bytes());
+    assert!(Portable::from_bytes(&relabelled).is_err());
+    // The visual build's id with the visual build's name passes the check.
+    let mut visual = bytes.clone();
+    visual[12..16].copy_from_slice(&1u32.to_le_bytes());
+    let vid = Build::Visual.build_id();
+    for i in 0..20 {
+        visual[16 + i] = u8::from_str_radix(&vid[2 * i..2 * i + 2], 16).unwrap();
+    }
+    assert_eq!(Portable::from_bytes(&visual).unwrap().source, Build::Visual);
+    // And the genuine state still loads.
+    let mut other = generator.create_game().unwrap();
+    play(&mut other, &pads, 60);
+    other
+        .load_portable(&Portable::from_bytes(&bytes).unwrap())
+        .unwrap();
 }
 
 #[test]
