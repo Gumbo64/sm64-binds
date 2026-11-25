@@ -24,7 +24,7 @@ runtime. The ROM is required: a US `z64` copy, exactly 8.00 MB.
 | `js_example/` | A Vite + React app consuming the npm package. |
 | `maketools/` | Scripts that build and package the distributable WASM. |
 | `scripts/` | Release helpers: version reporting and artifact checks. |
-| `docs/` | Format and design notes: Mupen64 states (`mupen64-st.md`), portable states (`portable-state.md`). |
+| `docs/` | Format and design notes: Mupen64 states (`mupen64-st.md`), portable states (a reader's guide to the translator, [`PORTABLE.md`](docs/PORTABLE.md); design notes and measurements, `portable-state.md`). |
 | `rust/benchmark/` | Timing programs; see `rust/benchmark/README.md`. |
 | `WASM_ZIP_XOR/` | The distributable XOR'd payloads. |
 | `sm64-port/` | Vendored sm64-port checkout, only needed to rebuild the WASM. |
@@ -79,7 +79,7 @@ println!("{}", game.load_mupen_state(&st)?);
 ```
 
 Save a state in the headless build and load it in the browser's rendering build, or the
-other way round (portable states, see `docs/portable-state.md`):
+other way round (portable states; how the translator works: [`docs/PORTABLE.md`](docs/PORTABLE.md), design notes: `docs/portable-state.md`):
 
 ```rust
 let bytes = game.export_portable()?.to_bytes();

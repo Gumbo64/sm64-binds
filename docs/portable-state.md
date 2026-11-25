@@ -1,5 +1,9 @@
 # Portable save states (headless and rendering builds)
 
+Design notes and measurements. For a guided tour of the code (the flow of one translation,
+the reading order, every rule and the bug behind it, how to change and test it), read
+[`PORTABLE.md`](PORTABLE.md) first.
+
 A game state saved by one of the two WASM builds can be loaded by the other, and
 the game goes on identically:
 
@@ -131,7 +135,7 @@ relocation is translated, then:
   load restarts according to the target's state; the game does not read it back.
 - **Display lists, textures, matrices of the render walk:** rebuilt by the next frame.
 - **Typed pointers into reused memory** are checked before a struct layout is applied (`plausible`
-  in `walk.rs`): a `SpawnInfo` must have one of the game's behaviors (not just any address in
+  in `plausible.rs`): a `SpawnInfo` must have one of the game's behaviors (not just any address in
   constant data: a terrain copy's s16 pairs read as such an address and the exporter translated
   them, changing two vertices of a level's collision data, which showed 146 more surface nodes
   after the level was loaded in a game that loaded the rendering build's export), an `Object` is
