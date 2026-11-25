@@ -1,32 +1,18 @@
-//! Type lookups over the generated tables.
+//! Lookups over the generated tables: struct layouts by name, what a pointer
+//! points to, and the offsets of `struct Object` the rules need.
+//!
+//! Everything here is a pure function of `tables.rs`; nothing reads memory.
+//!
+//! Read next: `regions.rs`.
 
 use std::sync::OnceLock;
 
 use super::layout::{Item, K};
 use super::tables::*;
 
-/// The extent of a layout: the end of its last item.
-pub fn layout_size(layout: u16) -> usize {
-    super::tables::LAYOUTS[layout as usize]
-        .iter()
-        .map(|&Item(offset, kind, count, stride)| {
-            let last = match kind {
-                K::S1 => 1,
-                K::S2 => 2,
-                K::S4 | K::Ptr(_) | K::Fn | K::Word => 4,
-                K::S8 => 8,
-                K::Opaque(n) => n as usize,
-                K::Layout(l) => layout_size(l),
-            };
-            offset as usize + (count.max(1) as usize - 1) * stride as usize + last
-        })
-        .max()
-        .unwrap_or(0)
-}
-
 /// Calls `f(address, kind, layout, offset in that layout)` for every scalar
 /// leaf of something with `layout` at `base`.
-pub fn leaves(layout: u16, base: u32, f: &mut impl FnMut(u32, K, u16, u32)) {
+pub(super) fn leaves(layout: u16, base: u32, f: &mut impl FnMut(u32, K, u16, u32)) {
     for &Item(offset, kind, count, stride) in super::tables::LAYOUTS[layout as usize] {
         for i in 0..count {
             let o = offset + i * stride;
@@ -54,14 +40,6 @@ pub(super) fn pointee(id: u16) -> Option<(u32, u16)> {
     })[id as usize]
 }
 
-/// Pointers to the display lists the render walk builds (a master list's
-/// heads and tails): the rendering build leaves them set at the end of a frame,
-/// the headless one clears them, and they point into per-frame memory. They
-/// are not state: a loaded game starts with none.
-pub(super) fn is_render_list(pointee: u16) -> bool {
-    POINTEES[pointee as usize] == "DisplayListNode"
-}
-
 /// Whether a layout is nothing but `uintptr_t` words.
 pub(super) fn only_words(layout: u16) -> bool {
     static W: OnceLock<Vec<bool>> = OnceLock::new();
@@ -76,6 +54,7 @@ pub(super) fn only_words(layout: u16) -> bool {
     .unwrap_or(false)
 }
 
+/// (size, layout) of the struct called `name`.
 pub(super) fn named_by(name: &str) -> Option<(u32, u16)> {
     NAMED
         .binary_search_by(|(m, _, _)| m.cmp(&name))
@@ -83,6 +62,7 @@ pub(super) fn named_by(name: &str) -> Option<(u32, u16)> {
         .map(|i| (NAMED[i].1, NAMED[i].2))
 }
 
+/// The layout of `struct Object`.
 pub(super) fn object_layout() -> Option<u16> {
     static L: OnceLock<Option<u16>> = OnceLock::new();
     *L.get_or_init(|| named_by("Object").map(|x| x.1))
@@ -97,36 +77,7 @@ pub(super) const OBJ_RAW_WORDS: u32 = 0x50;
 /// `struct Object::bhvStack` (uintptr_t[8]).
 pub(super) const OBJ_BHV_STACK: u32 = 0x1D4;
 
+/// The layout of `struct AllocOnlyPool`.
 pub(super) fn pool_layout() -> Option<u16> {
     named_by("AllocOnlyPool").map(|x| x.1)
-}
-
-pub(super) fn layout_names(layout: u16) -> String {
-    NAMED
-        .iter()
-        .filter(|n| n.2 == layout)
-        .map(|n| n.0)
-        .collect::<Vec<_>>()
-        .join("|")
-}
-
-/// The layout of a run of pointers behind a pointer to pointers (`GraphNode **views`):
-/// as many words as hold pointers, up to 64.
-pub(super) const PTRS: u16 = 0xFFFE;
-
-pub(super) fn rleaves(layout: u16, base: u32, count: u32, f: &mut impl FnMut(u32, K, u16, u32)) {
-    if layout == PTRS {
-        for i in 0..count {
-            f(base + 4 * i, K::Word, PTRS, 4 * i);
-        }
-    } else {
-        // `AllocOnlyPoolBlock::pad` (a `void *`, "require 8 bytes alignment") is never written:
-        // whatever malloc left there is not a pointer, though it can look like one.
-        let pool_block = named_by("AllocOnlyPoolBlock").map(|x| x.1);
-        leaves(layout, base, &mut |a, k, l, o| {
-            if !(Some(l) == pool_block && o == 4) {
-                f(a, k, l, o)
-            }
-        });
-    }
 }

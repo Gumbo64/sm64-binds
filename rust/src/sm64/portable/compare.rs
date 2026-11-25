@@ -1,8 +1,15 @@
-//! Comparing states.
+//! Comparing states: what the checks use to say two games are the same.
+//!
+//! [`Portable::digest`] is one hash per variable with pointers left out, so the
+//! two builds playing the same game agree on it frame by frame (the browser
+//! side gets it through `p_digest`); [`Portable::diff`] says which variables and
+//! blocks of two states differ. Neither is used by export or load.
+//!
+//! Read next: the checks, `rust/examples/portable_fuzz.rs` and
+//! `rust/examples/portable_check.rs`.
 
-use super::Portable;
+use super::state::{Buf, Portable};
 use super::tables::{self, VARS};
-use super::walk::Buf;
 
 impl Portable {
     /// One 64-bit hash per variable of the state's values: what two builds

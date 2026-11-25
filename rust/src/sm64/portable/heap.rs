@@ -1,4 +1,14 @@
-//! dlmalloc's heap.
+//! dlmalloc's heap in a memory image: which chunks are in use.
+//!
+//! Both builds use emscripten's dlmalloc (32-bit, no footers). A chunk is a
+//! 4-byte `prev_foot`, a 4-byte head (`size | flags`), then the user's bytes;
+//! bit 0 of the *next* chunk's head says whether this one is in use. The walk
+//! goes from the allocator's `least_addr` (`_gm_ + 16`) to its `top`
+//! (`_gm_ + 24`, from `tables::GM`) and fails on anything that does not chain
+//! up exactly to the top, so a corrupt or truncated image is refused rather
+//! than half-read.
+//!
+//! Read next: `image.rs`, which says what an address in an image points to.
 
 use super::builds::Build;
 use super::tables::*;
@@ -10,7 +20,8 @@ pub struct Chunk {
     pub len: u32,
 }
 
-pub(super) fn rd(mem: &[u8], a: u32) -> Option<u32> {
+/// The little-endian word at `a`, if `mem` has it.
+pub(super) fn read_u32(mem: &[u8], a: u32) -> Option<u32> {
     Some(u32::from_le_bytes(
         mem.get(a as usize..a as usize + 4)?.try_into().ok()?,
     ))
@@ -32,19 +43,19 @@ pub fn heap_chunks(mem: &[u8], build: Build) -> Result<Vec<Chunk>, String> {
 /// Every dlmalloc chunk, in use or free: (chunk address, size, in use).
 pub fn heap_all(mem: &[u8], build: Build) -> Result<Vec<(u32, u32, bool)>, String> {
     let gm = GM[build.index()];
-    let (Some(least), Some(top)) = (rd(mem, gm + 16), rd(mem, gm + 24)) else {
+    let (Some(least), Some(top)) = (read_u32(mem, gm + 16), read_u32(mem, gm + 24)) else {
         return Err("memory too short for the allocator state".into());
     };
     let mut out = Vec::new();
     let mut c = least;
     while c < top {
-        let head = rd(mem, c + 4).ok_or("chunk past the end of memory")?;
+        let head = read_u32(mem, c + 4).ok_or("chunk past the end of memory")?;
         let size = head & !7;
         if size < 16 || c + size > top {
             return Err(format!("corrupt chunk at {c:#x} (size {size})"));
         }
         let next = c + size;
-        let next_head = rd(mem, next + 4).ok_or("chunk past the end of memory")?;
+        let next_head = read_u32(mem, next + 4).ok_or("chunk past the end of memory")?;
         out.push((c, size, next_head & 1 != 0));
         c = next;
     }

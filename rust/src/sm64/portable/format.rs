@@ -1,9 +1,19 @@
-//! The byte format.
+//! The byte format of a portable state ("SM64PORT").
+//!
+//! The layout is documented on [`Portable::to_bytes`]. Version 2 (current) adds
+//! one header word, the number of ghosts (`ghosts.rs`); version 1 states (no
+//! ghosts) still load. A state records the build it came from, that build's id
+//! and a fingerprint of the tables ([`tables_id`]): a state is only loaded with
+//! tables whose variables are the same, in the same order.
+//!
+//! Guarantees: `from_bytes(to_bytes(p))` gives back the state part of `p` (the
+//! diagnostics are not stored), and `to_bytes` of that is the same bytes.
+//!
+//! Read next: `load.rs`.
 
-use super::Portable;
 use super::builds::Build;
+use super::state::{Buf, Portable};
 use super::tables::{POINTEES, VARS};
-use super::walk::Buf;
 
 const MAGIC: &[u8; 8] = b"SM64PORT";
 /// Version 2 adds ghosts (the last `ghosts` blocks); version 1 states have none.

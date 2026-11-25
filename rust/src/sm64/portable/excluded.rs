@@ -1,7 +1,30 @@
-//! What is not game state.
+//! What is not game state, and states that cannot be translated.
+//!
+//! Some memory a variable reaches is rebuilt every frame (display lists,
+//! render walk matrices) or belongs to one build (its renderer); it is left out
+//! of a state, or zeroed in it, so both builds export the same bytes for the
+//! same game and a load does not overwrite what the target needs:
+//!
+//! - the display list pool (`gGfxAllocOnlyPool`'s blocks, [`draw_pools`]):
+//!   not followed, its header zeroed; the rendering target frees its old blocks
+//!   after a load ([`display_list_blocks`]);
+//! - render-list pointers (`DisplayListNode *`) and `gMatStackFixed` (pointers
+//!   into the frame's display lists, which the rendering build leaves set and
+//!   the headless one clears): zeroed (`rules.rs`, `relocate.rs`);
+//! - `gDisplayListHeap`: never ghosted;
+//! - the headless build's extra `AllocOnlyPool` field (+12, a draw-arena
+//!   flag): zeroed in every pool; a headless load sets it again in the display
+//!   list pool, which it also empties (`load.rs`);
+//! - goddard (the intro's Mario head): its object graph has no types, so a
+//!   state taken while it runs is refused ([`unsupported`]);
+//! - by the tables (`maketools/gen_portable_tables.py`): audio, goddard, libc,
+//!   dlmalloc, SDL, GL and `src/pc` variables are not in `VARS` at all; the
+//!   rendering build's renderer `.bss` (`tables::RENDERER`) is kept by a load.
+//!
+//! Read next: `plausible.rs`.
 
 use super::builds::{Build, var_addr};
-use super::heap::{heap_chunks, rd};
+use super::heap::{heap_chunks, read_u32};
 use super::tables::*;
 
 /// The pools the render walk draws into (`gGfxAllocOnlyPool`, `gDisplayListHeap`):
@@ -11,7 +34,7 @@ pub fn draw_pools(mem: &[u8], build: Build) -> Vec<u32> {
         .iter()
         .filter_map(|n| {
             let i = VARS.iter().position(|v| v.0.ends_with(n))?;
-            rd(mem, var_addr(build, i).0).filter(|&p| p != 0)
+            read_u32(mem, var_addr(build, i).0).filter(|&p| p != 0)
         })
         .collect()
 }
@@ -23,7 +46,7 @@ pub fn draw_pools(mem: &[u8], build: Build) -> Vec<u32> {
 pub fn unsupported(mem: &[u8], build: Build) -> Option<String> {
     let pool_at = |name: &str| {
         let i = VARS.iter().position(|v| v.0.ends_with(name))?;
-        rd(mem, var_addr(build, i).0)
+        read_u32(mem, var_addr(build, i).0)
     };
     // The variable keeps pointing at the pool after it is freed, so look for
     // the pool in the main pool's list of blocks.
@@ -42,7 +65,7 @@ pub fn unsupported(mem: &[u8], build: Build) -> Option<String> {
                     .to_string(),
             );
         }
-        b = rd(mem, b)?;
+        b = read_u32(mem, b)?;
     }
     None
 }
@@ -56,10 +79,10 @@ pub fn display_list_blocks(mem: &[u8], build: Build) -> Result<Vec<u32>, String>
     let mut out = Vec::new();
     let is_block = |b: u32| chunks.binary_search_by(|c| c.user.cmp(&b)).is_ok();
     for pool in draw_pools(mem, build) {
-        let mut b = rd(mem, pool).unwrap_or(0);
+        let mut b = read_u32(mem, pool).unwrap_or(0);
         while b != 0 && is_block(b) && out.len() < 100_000 {
             out.push(b);
-            b = rd(mem, b).unwrap_or(0);
+            b = read_u32(mem, b).unwrap_or(0);
         }
     }
     Ok(out)

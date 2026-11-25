@@ -3,75 +3,73 @@
 //! The headless WASM (`build/us_web_headless`, what Rust, Python and the nodes
 //! run) and the rendering WASM (`build/us_web`, what the browser runs) are
 //! linked from the same objects, but at different addresses, and their
-//! mallocs hand out different blocks. A [`Portable`] state holds the game's
-//! variables and the malloc blocks they reach, with every pointer and
-//! function pointer replaced by a build-neutral one, so it loads in either
-//! build and the game goes on identically. See `docs/portable-state.md`.
+//! mallocs hand out different blocks, so a raw memory snapshot of one does not
+//! load in the other. A [`Portable`] state holds the game's variables and the
+//! malloc blocks they reach, with every pointer and function pointer replaced
+//! by a build-neutral one, so it loads in either build and the game goes on
+//! identically. The guide is `docs/PORTABLE.md`; the design notes and
+//! measurements are in `docs/portable-state.md`.
+//!
+//! One translation:
+//!
+//! ```text
+//! export:  memory image --heap.rs--> chunks --walk.rs--> regions + reached blocks
+//!            --relocate.rs (+ ghosts.rs)--> Portable --format.rs--> bytes
+//! load:    bytes --format.rs--> Portable --load.rs (place, patches)--> writes into the target
+//! ```
+//!
+//! Reading order, bottom up (each file starts with what it is, what it
+//! guarantees and what to read next):
+//!
+//! | layer | files |
+//! |---|---|
+//! | memory layout, generated | `tables.rs` (by `maketools/gen_portable_tables.py`), `layout.rs` |
+//! | lookups and addresses | `types.rs`, `builds.rs`, `addresses.rs`, `heap.rs`, `image.rs`, `regions.rs` |
+//! | which words are pointers | `rules.rs`, `excluded.rs`, `plausible.rs` |
+//! | the walk | `walk.rs` |
+//! | relocation | `relocate.rs`, `ghosts.rs`, `state.rs`, `diagnostics.rs`, `export.rs` |
+//! | format | `format.rs` |
+//! | loading | `load.rs` |
+//! | checks | `compare.rs` (digest, diff) |
+//! | public API | this file |
 //!
 //! This module only needs `std`: the same source is compiled to WASM for the
 //! browser (`rust/portable-wasm`).
 
-mod addresses;
-mod builds;
-mod compare;
-mod excluded;
-mod format;
-mod heap;
+// Layer 1: the memory layout of both builds (generated) and its vocabulary.
 mod layout;
-mod load;
-mod plausible;
-mod rules;
 #[rustfmt::skip]
 mod tables;
+// Layer 2: lookups over the tables and over a memory image.
+mod addresses;
+mod builds;
+mod heap;
+mod image;
+mod regions;
 mod types;
+// Layer 3: which words are pointers, and what is not state.
+mod excluded;
+mod plausible;
+mod rules;
+// Layer 4: finding the state.
 mod walk;
+// Layer 5: making it portable.
+mod diagnostics;
+mod export;
+mod ghosts;
+mod relocate;
+mod state;
+// Layer 6: the byte format, loading, and comparing states.
+mod compare;
+mod format;
+mod load;
 
 pub use builds::Build;
 pub use excluded::{display_list_blocks, unsupported};
+pub use export::{export, game_blocks, walk};
 pub use heap::{heap_all, heap_chunks};
+pub use state::{Buf, Patch, Portable, Walked};
 use tables::VARS;
-pub use walk::{Buf, Walked, game_blocks, walk};
-
-/// The game's state, translated to build-neutral form by [`export`].
-#[derive(Debug, Clone)]
-pub struct Portable {
-    /// The build the state was exported from.
-    pub source: Build,
-    pub vars: Vec<Buf>,
-    pub chunks: Vec<Buf>,
-    pub chunk_bases: Vec<u32>,
-    /// How many of the last `chunks` are ghosts: raw copies of freed memory that
-    /// stale pointers point into. They are allocated and written on a load and
-    /// never freed; no type walk touches them.
-    pub ghosts: usize,
-    /// The stale pointers translated into ghosts (variable or block, offset, original value).
-    pub ghost_refs: Vec<(String, u32, u32)>,
-    /// Pointers that had no translation and were set to null.
-    pub unresolved: Vec<(String, u32, u32)>,
-    pub unresolved_count: u32,
-    /// Where each block was first found (for diagnostics).
-    pub found_by: Vec<(String, u32)>,
-}
-
-/// A group of bytes to write into the target's memory.
-pub type Patch = (u32, Vec<u8>);
-
-/// Translates the state in `mem` (a copy of the linear memory of a `build`
-/// game, at least up to its heap's top) to portable form.
-pub fn export(mem: &[u8], build: Build) -> Result<Portable, String> {
-    let w = walk(mem, build)?;
-    Ok(Portable {
-        source: build,
-        vars: w.vars,
-        chunks: w.chunks,
-        chunk_bases: w.chunk_bases,
-        ghosts: w.ghosts,
-        ghost_refs: w.ghost_refs,
-        unresolved: w.unresolved,
-        unresolved_count: w.unresolved_count,
-        found_by: w.found_by,
-    })
-}
 
 impl Portable {
     /// Where the headless build's render walk cache is, for invalidating it

@@ -1,10 +1,33 @@
-//! Loading.
+//! Loading a portable state into a build's memory.
+//!
+//! A load is three calls, so that the caller (Rust `SM64Game::load_portable`,
+//! or JavaScript through `rust/portable-wasm`) does the allocating with the
+//! target game's own `malloc`:
+//!
+//! 1. [`Portable::place`]: which of the target's own game blocks (from
+//!    `game_blocks`) each state block reuses, best fit first; 0 for the rest,
+//!    which the caller allocates ([`Portable::chunk_sizes`]). Ghosts are always
+//!    allocated, and never freed.
+//! 2. [`Portable::patches`]: the bytes to write, every relocation translated
+//!    to the target: a heap pointer to the target address of its block, a
+//!    global through `RUNS`, a function through `FNS`. A pointer with no
+//!    translation becomes null and is counted ([`Portable::untranslatable`]
+//!    lists them). The display list pool is emptied, and marked as the draw
+//!    arena's in a headless target.
+//! 3. The caller writes the patches, then resets what the target caches about
+//!    the old state: the headless render walk cache (`Portable::geo_cache`), or
+//!    the rendering build's texture cache, its display list blocks, and its
+//!    renderer state (`Portable::renderer`, kept across the load).
+//!
+//! Guarantees: `patches` only reads the state and the addresses given; a load
+//! needs no type information.
+//!
+//! Read next: `compare.rs`, or `mod.rs` for the public API.
 
-use super::addresses::*;
+use super::addresses::{HEAP_BASE, fn_from_canonical, from_canonical_global};
 use super::builds::Build;
+use super::state::{Buf, Patch, Portable};
 use super::tables::VARS;
-use super::walk::Buf;
-use super::{Patch, Portable};
 
 impl Portable {
     /// The bytes of the ghosts: what a load leaks.
@@ -133,7 +156,8 @@ impl Portable {
             ));
         }
         // The display list pools start empty (their blocks are not state), and the
-        // headless build draws into an arena of its own: its pools are marked.
+        // headless build draws into an arena of its own: its pools are marked
+        // (`struct AllocOnlyPool`'s extra headless field, +12, set to 1).
         for name in [":gGfxAllocOnlyPool"] {
             let Some(i) = VARS.iter().position(|v| v.0.ends_with(name)) else {
                 continue;
