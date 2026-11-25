@@ -14,7 +14,7 @@ void bhv_object_bubble_loop(void) {
 
     if (bubbleY > waterY) {
         if (
-#ifdef USE_SYSTEM_MALLOC
+#ifdef MALLOC_OBJECTS
             TRUE
 #else
             gFreeObjectList.next != NULL

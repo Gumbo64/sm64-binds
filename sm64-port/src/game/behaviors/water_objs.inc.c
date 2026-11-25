@@ -66,7 +66,7 @@ void bhv_small_water_wave_loop(void) {
         o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
         o->oPosY += 5.0f;
         if (
-#ifdef USE_SYSTEM_MALLOC
+#ifdef MALLOC_OBJECTS
             TRUE
 #else
             gFreeObjectList.next != NULL
