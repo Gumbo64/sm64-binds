@@ -3,6 +3,13 @@
 All three packages (Rust `sm64-binds`, Python `sm64-binds`, JavaScript
 `sm64-binds-frontend`) are released together at the same version.
 
+## 2.3.2
+
+- **Fixed:** loading a portable state checks the build id it records: a state from another build
+  is refused instead of loaded with wrong function pointers. Every state 2.1.0–2.3.1 wrote loads.
+- Portable diagnostics: `Walked::bad_nodes` is filled; unresolved pointers in blocks are named
+  `block@<address>`. Exported bytes are unchanged.
+
 ## 2.3.1
 
 - **Fixed:** loading a portable state across builds (headless → rendering) now renders and plays
