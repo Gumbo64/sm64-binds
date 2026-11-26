@@ -47,8 +47,7 @@ SOURCES = ["src/game", "src/engine", "src/menu", "src/buffers"]
 
 # Symbols only one side has, that the loader needs by name.
 N64_ONLY = ["sSurfacePool", "sSurfaceNodePool", "sSurfacePoolSize", "sSegmentTable"]
-PORT_ONLY = [("surface_load", "sStaticSurfacePool"), ("surface_load", "sStaticSurfaceNodePool"),
-             ("surface_load", "sDynamicSurfacePool"), ("surface_load", "sDynamicSurfaceNodePool")]
+PORT_ONLY = []
 
 # Copied although their units are not.
 COPY_EXTRA = {"gObjParentGraphNode", "gAreaUpdateCounter"}
@@ -84,8 +83,7 @@ NO_COPY = {
     "gFrameBuffer0", "gFrameBuffer1", "gFrameBuffer2", "gZBuffer", "gPhysicalFrameBuffers", "gPhysicalZBuffer",
     "gGlobalTimer_unused", "sCurrFBNum", "gMarioAnimsData", "gDemoInputs",
     "gEnvironmentRegions", "gEnvironmentLevels", "gCCMEnteredSlide",
-    "sSurfacePool", "sSurfaceNodePool", "sSurfacePoolSize", "gSurfacesAllocated", "gSurfaceNodesAllocated",
-    "gNumStaticSurfaces", "gNumStaticSurfaceNodes", "gStaticSurfacePartition",
+    "sSurfacePool", "sSurfaceNodePool", "sSurfacePoolSize", "gStaticSurfacePartition",
     "gWarpTransition",
     # Hardware and profiling state, and heap pointers the port manages itself.
     "gObjectMemoryPool", "gControllerStatuses", "gControllerPads", "gGameVblankHandler", "gNumCalls",

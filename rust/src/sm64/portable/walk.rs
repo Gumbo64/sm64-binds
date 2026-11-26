@@ -609,6 +609,27 @@ pub fn walk_unchecked(mem: &[u8], build: Build) -> Result<Walked, String> {
             w.push_region(addr, layout, Slot::Var(i), 0);
         }
     }
+    // The surface pools: arrays the game indexes, allocated once. Every entry
+    // is typed, stale ones too (after an area change the dynamic partition
+    // still lists the old area's).
+    for (var, ty) in [
+        ("src/engine/surface_load:sSurfaceNodePool", "SurfaceNode"),
+        ("src/engine/surface_load:sSurfacePool", "Surface"),
+    ] {
+        let (Some(i), Some((size, layout))) = (VARS.iter().position(|v| v.0 == var), named_by(ty))
+        else {
+            continue;
+        };
+        let Some(v) = rd(mem, var_addr(build, i).0) else {
+            continue;
+        };
+        if let Some(ci) = w.chunk_of(v).filter(|&ci| w.chunks[ci].user == v) {
+            w.reach(ci, (Slot::Var(i), 0));
+            for k in 0..w.chunks[ci].len / size {
+                w.push_region(v + k * size, layout, Slot::Chunk(ci), k * size);
+            }
+        }
+    }
     while let Some(ri) = w.queue.pop() {
         w.process(ri);
     }
