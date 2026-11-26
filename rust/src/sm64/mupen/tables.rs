@@ -5,7 +5,7 @@
 use super::layout::{Item, K, Var, Target};
 
 /// The headless WASM these addresses are for (its code's SHA-1).
-pub const BUILD_ID: &str = "4a657a093b061633a619e4129735d77d23e24c2f";
+pub const BUILD_ID: &str = "73f3e66d5cbb590507f3414379fe1aff7fbcdf57";
 
 pub static POINTEES: &[&str] = &["?", "void", "GraphNode", "SpawnInfo", "GraphNodeRoot", "short", "signed char", "ObjectWarpNode", "WarpNode", "InstantWarp", "Camera", "UnusedArea28", "Whirlpool", "ptr", "Object", "Animation", "float", "ObjectNode", "int", "Waypoint", "ChainSegment", "Surface", "unsigned long", "unsigned short", "Area", "CreditsEntry", "anon", "PlayerCameraState", "MarioBodyState", "Controller", "DmaHandlerList", "DmaTable", "unsigned char", "CameraTrigger", "ParallelTrackingPoint", "char", "EnvFxParticle", "unsigned long long", "OSMesgQueue_s", "OSThread_s", "DemoInput", "SPTask", "GfxPool", "MarioState", "AllocOnlyPool", "FreeListNode", "AllocOnlyPoolBlock", "MainPoolBlock", "MainPoolState", "MemoryPool", "Painting", "PaintingMeshVertex", "TextLabel", "DisplayListNode", "GraphNodeMasterList", "GraphNodePerspective", "GraphNodeCamera", "GraphNodeObject", "GraphNodeHeldObject", "LinkedList", "LevelCommand", "SurfaceNode"];
 
@@ -221,7 +221,7 @@ pub static LAYOUTS: &[&[Item]] = &[
     &[Item(0, K::S2, 2, 2), Item(4, K::Ptr(2), 4, 4), Item(20, K::Ptr(1), 1, 4), Item(24, K::S2, 3, 2), Item(30, K::S1, 2, 1)],
     &[Item(0, K::S2, 2, 2), Item(4, K::Ptr(2), 4, 4), Item(20, K::Fn, 1, 4), Item(24, K::S4, 1, 4), Item(28, K::Ptr(14), 1, 4), Item(32, K::S2, 3, 2)],
     &[Item(0, K::Layout(101), 2, 40)],
-    &[Item(0, K::Ptr(44), 1, 4), Item(4, K::Ptr(45), 27, 4)],
+    &[Item(0, K::Ptr(44), 1, 4), Item(4, K::Ptr(45), 27, 4), Item(112, K::S4, 4, 4)],
     &[Item(0, K::Ptr(46), 1, 4), Item(4, K::S4, 3, 4)],
     &[Item(0, K::Ptr(46), 1, 4), Item(4, K::Ptr(1), 1, 4)],
     &[Item(0, K::Ptr(45), 1, 4)],
@@ -1264,7 +1264,8 @@ pub static NAMED: &[(&str, u32, u16)] = &[
     ("MainPoolState", 4, 216),
     ("MarioBodyState", 40, 101),
     ("MarioState", 200, 100),
-    ("MemoryPool", 112, 211),
+    ("MemoryBlock", 8, 47),
+    ("MemoryPool", 128, 211),
     ("ModeTransitionInfo", 72, 94),
     ("MovtexObject", 36, 220),
     ("MovtexQuad", 28, 221),
