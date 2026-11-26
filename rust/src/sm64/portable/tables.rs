@@ -4,8 +4,8 @@
 
 use super::layout::{Item, K};
 
-pub const BUILD_ID_HEADLESS: &str = "73f3e66d5cbb590507f3414379fe1aff7fbcdf57";
-pub const BUILD_ID_VISUAL: &str = "7669190565f9f4e5f64fce5f05f2dba78fe39f46";
+pub const BUILD_ID_HEADLESS: &str = "5e3b86e14bab07ee6c0e7b1d955bc8b259b7cb82";
+pub const BUILD_ID_VISUAL: &str = "6dafbecabed0c428eb37276bca7c75edb2bd6599";
 /// dlmalloc's `_gm_` (the malloc state), headless then visual.
 pub const GM: [u32; 2] = [0xcca7c8, 0xc558ec];
 
@@ -1705,12 +1705,12 @@ pub static VARS: &[(&str, u32, u32, u32, u16)] = &[
     ("src/engine/math_util:gSplineKeyframe", 0xb060d4, 0xb1a1a4, 4, 63),
     ("src/engine/math_util:gSplineKeyframeFraction", 0xb060d8, 0xb1a1a8, 4, 21),
     ("src/engine/surface_collision:sFloorGeo", 0xb060dc, 0xb1a1ac, 32, 180),
-    ("src/engine/surface_load:sStaticSurfaceNodePool", 0xb060fc, 0xb1a1cc, 4, 200),
-    ("src/engine/surface_load:sStaticSurfacePool", 0xb06100, 0xb1a1d0, 4, 200),
-    ("src/engine/surface_load:sDynamicSurfaceNodePool", 0xb06104, 0xb1a1d4, 4, 200),
-    ("src/engine/surface_load:sDynamicSurfacePool", 0xb06108, 0xb1a1d8, 4, 200),
-    ("src/engine/surface_load:unused8038BE90", 0xb0610c, 0xb1a1dc, 4, 21),
-    ("src/engine/surface_load:sStaticSurfaceLoadComplete", 0xb06110, 0xb1a1e0, 1, 24),
+    ("src/engine/surface_load:sSurfacePoolSize", 0xb060fc, 0xb1a1cc, 2, 20),
+    ("src/engine/surface_load:sSurfaceNodePool", 0xb06100, 0xb1a1d0, 4, 401),
+    ("src/engine/surface_load:sSurfacePool", 0xb06104, 0xb1a1d4, 4, 60),
+    ("src/engine/surface_load:sSurfaceNodePoolEnd", 0xb06108, 0xb1a1d8, 4, 401),
+    ("src/engine/surface_load:sSurfacePoolEnd", 0xb0610c, 0xb1a1dc, 4, 60),
+    ("src/engine/surface_load:unused8038BE90", 0xb06110, 0xb1a1e0, 4, 21),
     ("src/engine/surface_load:gDynamicSurfacePartition", 0xb06120, 0xb1a1f0, 6144, 404),
     ("src/engine/surface_load:gStaticSurfacePartition", 0xb07920, 0xb1b9f0, 6144, 404),
     ("src/game/area:gPlayerSpawnInfos", 0xb09120, 0xb1d1f0, 32, 34),
@@ -9771,7 +9771,8 @@ pub static RUNS: &[(u32, u32, u32)] = &[
     (0xb05f24, 0xb19ff4, 0x4),
     (0xb05f30, 0xb1a000, 0x46),
     (0xb05f80, 0xb1a050, 0x82),
-    (0xb06004, 0xb1a0d4, 0x10d),
+    (0xb06004, 0xb1a0d4, 0xfa),
+    (0xb06100, 0xb1a1d0, 0x14),
     (0xb06120, 0xb1a1f0, 0x3612),
     (0xb09734, 0xb1d804, 0xb),
     (0xb09740, 0xb1d810, 0x192),

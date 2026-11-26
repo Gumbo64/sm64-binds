@@ -185,8 +185,9 @@ transplant possible:
        data, animation tables and native-function pointers (the port's are WASM
        table indices). Animation tables are then paired entry by entry.
      - The model table (`gLoadedGraphNodes`).
-     - Surfaces and surface nodes in allocation order. The N64 keeps them in
-       arrays; the port keeps them in alloc-only pools, which the loader walks.
+     - Surfaces and surface nodes, entry for entry: both sides keep them in
+       arrays of the same sizes (the N64 in its main pool, the port from malloc,
+       once) and allocate them in the same order.
      - Same-behavior object slots: their model, animation, collision and
        respawn pointers.
   2. Regions:
@@ -231,13 +232,12 @@ transplant possible:
 - **uintptr_t** (`bhvStack`, …) is treated as an ambiguous word.
 - **Mario's animation**: the loader reloads the animation the N64 has in its
   DMA buffer into the port's buffer, as `load_patchable_table` does.
-- **Dynamic surfaces**: the state's surfaces go into a fresh block in each of
-  the port's dynamic pools, allocated with the game's exported `malloc`, so
-  that Mario's floor or wall can point at last frame's platform surface.
+- **Dynamic surfaces**: the N64's pools are copied entry for entry past the
+  static ones (stale entries too), with the surface counters, so that Mario's
+  floor or wall can point at last frame's platform surface.
 - **Static collision** is not copied. It is compared instead, as a check that
   both sides loaded the same area: every test matched byte for byte after
-  conversion. The port's `gNumStaticSurfaces` counts a few extra area-load
-  allocations, so the pool walk gives the real count.
+  conversion.
 - **Level data that changes while playing** is copied into the port's copies:
   - respawn flags in every area's spawn infos and macro lists
   - the paintings' ripple state

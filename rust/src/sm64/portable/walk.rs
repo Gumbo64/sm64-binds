@@ -1,10 +1,11 @@
 //! The walk: which malloc blocks are part of the game's state.
 //!
 //! The state is the game's variables (`tables::VARS`) and every malloc block
-//! reachable from them. The walk starts with one typed region per variable and
-//! follows pointers, newest region first (a stack): a pointer into a block in use
-//! *reaches* the block (it becomes part of the state, numbered in the order
-//! found), and, if the pointer's struct is known and plausible there
+//! reachable from them. The walk starts with one typed region per variable (and
+//! per entry of the two surface pools) and follows pointers, newest region
+//! first (a stack): a pointer into a block in use *reaches* the block (it
+//! becomes part of the state, numbered in the order found), and, if the
+//! pointer's struct is known and plausible there
 //! (`plausible.rs`), adds a typed region for it, whose pointers are followed in
 //! turn. Then the first word of every reached block is checked for the link of
 //! an allocation pool (the exact address of another block), which no type
@@ -270,6 +271,27 @@ pub(super) fn find_state(mem: &[u8], build: Build) -> Result<(Walk<'_>, Vec<Exac
         }
         if layout != 0xFFFF {
             w.push_region(addr, layout, Owner::Var(i), 0);
+        }
+    }
+    // The surface pools: arrays the game indexes, allocated once. Every entry
+    // is typed, stale ones too (after an area change the dynamic partition
+    // still lists the old area's).
+    for (var, ty) in [
+        ("src/engine/surface_load:sSurfaceNodePool", "SurfaceNode"),
+        ("src/engine/surface_load:sSurfacePool", "Surface"),
+    ] {
+        let (Some(i), Some((size, layout))) = (VARS.iter().position(|v| v.0 == var), named_by(ty))
+        else {
+            continue;
+        };
+        let Some(v) = w.img.read(var_addr(build, i).0) else {
+            continue;
+        };
+        if let Some(ci) = w.img.chunk_of(v).filter(|&ci| w.img.chunks[ci].user == v) {
+            w.reach(ci, (Owner::Var(i), 0));
+            for k in 0..w.img.chunks[ci].len / size {
+                w.push_region(v + k * size, layout, Owner::Chunk(ci), k * size);
+            }
         }
     }
     while let Some(ri) = w.queue.pop() {
