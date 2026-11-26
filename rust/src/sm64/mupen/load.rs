@@ -15,7 +15,7 @@ use anyhow::{Result, bail};
 
 use super::MupenState;
 use super::layout::{Counts, convert, named, var};
-use super::tables::{BUILD_ID, N64_ONLY, PORT_ONLY, TARGETS, VARS};
+use super::tables::{BUILD_ID, N64_ONLY, TARGETS, VARS};
 use super::translate::Translator;
 use crate::sm64::SM64Game;
 
@@ -84,10 +84,6 @@ fn n64_only(name: &str) -> Option<u32> {
     N64_ONLY.iter().find(|(n, _)| *n == name).map(|(_, a)| *a)
 }
 
-fn port_only(name: &str) -> Option<u32> {
-    PORT_ONLY.iter().find(|(n, _)| *n == name).map(|(_, a)| *a)
-}
-
 /// Little-endian reads of a port memory snapshot.
 fn p32(m: &[u8], a: u32) -> u32 {
     m.get(a as usize..a as usize + 4)
@@ -114,34 +110,6 @@ fn port_int(m: &[u8], name: &str) -> Option<i64> {
         2 => p16(m, v.port) as i16 as i64,
         _ => p32(m, v.port) as i32 as i64,
     })
-}
-
-/// The items of an alloc-only pool (the port's surface pools), in
-/// allocation order. Blocks are 100, 200, 400... bytes, each item in one
-/// block, and the newest block is the pool's `lastBlock`.
-fn pool_items(m: &[u8], pool: u32, item: u32, count: u32) -> Vec<u32> {
-    let mut blocks = Vec::new();
-    let mut b = p32(m, pool);
-    while b != 0 && blocks.len() < 64 {
-        blocks.push(b);
-        b = p32(m, b);
-    }
-    blocks.reverse();
-    let mut out = Vec::with_capacity(count as usize);
-    let mut size = 100u32;
-    for (i, &blk) in blocks.iter().enumerate() {
-        let n = if i + 1 == blocks.len() {
-            p32(m, pool + 8) / item
-        } else {
-            size / item
-        };
-        for j in 0..n {
-            out.push(blk + 8 + j * item);
-        }
-        size = size.saturating_mul(2).max(item);
-    }
-    out.truncate(count as usize);
-    out
 }
 
 /// Where an N64 address is, for reports: a variable and offset, or heap.
@@ -242,30 +210,10 @@ impl SM64Game {
         report.level = level;
         report.area = area;
 
-        // Room for the state's dynamic surfaces (rebuilt every frame from
-        // objects, but Mario's floor can be one of last frame's): a fresh
-        // block in each of the port's dynamic pools, from the game's malloc.
-        let dynamic = |all: &str, stat: &str| {
-            (n64_int(st, all).unwrap_or(0) - n64_int(st, stat).unwrap_or(0)).max(0) as u32
-        };
-        let (d_surfaces, d_nodes) = (
-            dynamic("gSurfacesAllocated", "gNumStaticSurfaces"),
-            dynamic("gSurfaceNodesAllocated", "gNumStaticSurfaceNodes"),
-        );
-        let mut fresh = None;
-        if d_surfaces > 0 && d_nodes > 0 && self.has_export("malloc") {
-            let sb = self.malloc(8 + 48 * d_surfaces)?;
-            let nb = self.malloc(8 + 8 * d_nodes)?;
-            if sb != 0 && nb != 0 {
-                fresh = Some((sb, d_surfaces, nb, d_nodes));
-            }
-        }
-        let snap: Vec<u8> = self.with_memory(|m| m.to_vec());
-
         let mut tr = Translator::new(st, n64_only("sSegmentTable"), Some(&snap));
         learn_behaviors(&mut tr, &snap);
         let level_copies = learn_tables(&mut tr, st, &snap, &mut report);
-        let surfaces = learn_surfaces(&mut tr, st, &snap, &mut report, fresh);
+        let surfaces = learn_surfaces(&mut tr, st, &snap, &mut report);
         let object_pool = learn_object_pool(&mut tr, st, &snap, &mut report);
         let object_heap = learn_objects(
             &mut tr,
@@ -386,32 +334,36 @@ impl SM64Game {
             }
         }
 
-        // Dynamic surfaces and nodes into the port's slots; static ones are
-        // compared, not written.
-        if let Some(s) = surfaces {
-            writes.extend(s.writes.iter().cloned());
-            for (kind, n64s, ports, statics, item) in [
+        // The surface and node pools, entry for entry: the static ones are
+        // compared, the rest (this frame's dynamic ones, and stale entries,
+        // which the dynamic partition can still list after an area change)
+        // are written.
+        if let Some(s) = &surfaces {
+            for (kind, n64, port, capacity, live, statics) in [
                 (
                     "Surface",
-                    &s.n64_surfaces,
-                    &s.port_surfaces,
+                    s.n64_surfaces,
+                    s.port_surfaces,
+                    SURFACE_POOL_SIZE,
+                    s.surfaces,
                     s.static_surfaces,
-                    48u32,
                 ),
                 (
                     "SurfaceNode",
-                    &s.n64_nodes,
-                    &s.port_nodes,
+                    s.n64_nodes,
+                    s.port_nodes,
+                    SURFACE_NODE_POOL_SIZE,
+                    s.nodes,
                     s.static_nodes,
-                    8u32,
                 ),
             ] {
                 let Some((size, layout)) = named(kind) else {
                     continue;
                 };
-                debug_assert_eq!(size, item);
-                for (i, (&n, &p)) in n64s.iter().zip(ports.iter()).enumerate() {
-                    if (i as u32) < statics {
+                let mut stale = Counts::default();
+                for i in 0..capacity {
+                    let (n, p) = (n64 + i * size, port + i * size);
+                    if i < statics {
                         let mut out = snap[p as usize..(p + size) as usize].to_vec();
                         let mut c = Counts::default();
                         convert(
@@ -425,21 +377,14 @@ impl SM64Game {
                         if kind == "Surface" && out != snap[p as usize..(p + size) as usize] {
                             report.static_surfaces.2 += 1;
                         }
-                    } else {
-                        heap_struct(
-                            &mut writes,
-                            &mut tr,
-                            &mut counts,
-                            st,
-                            &snap,
-                            n,
-                            p,
-                            size,
-                            layout,
-                        );
-                        if kind == "Surface" {
-                            report.dynamic_surfaces.1 += 1;
-                        }
+                        continue;
+                    }
+                    // Stale entries (past the counter) may hold anything: their
+                    // pointers are not counted.
+                    let c = if i < live { &mut counts } else { &mut stale };
+                    heap_struct(&mut writes, &mut tr, c, st, &snap, n, p, size, layout);
+                    if kind == "Surface" && i < live {
+                        report.dynamic_surfaces.1 += 1;
                     }
                 }
             }
@@ -469,16 +414,6 @@ impl SM64Game {
 }
 
 impl SM64Game {
-    /// `size` bytes from the game's own malloc (its exported `malloc`).
-    fn malloc(&mut self, size: u32) -> Result<u32> {
-        let (store, exports) = self.parts_mut();
-        let f: wasmer::TypedFunction<i32, i32> = exports
-            .instance
-            .exports
-            .get_typed_function(store, "malloc")?;
-        Ok(f.call(store, size as i32)? as u32)
-    }
-
     /// Brings this game to the level and area of `st`, so that
     /// [`SM64Game::load_mupen_state`] can load it, by starting the warp the
     /// game itself would use (a level change to one of the area's warp
@@ -856,47 +791,57 @@ fn learn_envfx(tr: &mut Translator, st: &MupenState, snap: &[u8], report: &mut M
     }
 }
 
+/// The N64's surface pools (allocated from its main pool) and the port's
+/// arrays (allocated once, with spare entries after the N64's sizes): the same
+/// entry at the same index.
+const SURFACE_POOL_SIZE: u32 = 2300;
+const SURFACE_NODE_POOL_SIZE: u32 = 7000;
+
 struct Surfaces {
-    n64_surfaces: Vec<u32>,
-    port_surfaces: Vec<u32>,
+    n64_surfaces: u32,
+    port_surfaces: u32,
+    /// Allocated (the counter, at most the pool size) and static entries.
+    surfaces: u32,
     static_surfaces: u32,
-    n64_nodes: Vec<u32>,
-    port_nodes: Vec<u32>,
+    n64_nodes: u32,
+    port_nodes: u32,
+    nodes: u32,
     static_nodes: u32,
-    /// The port's pool and counter updates for fresh dynamic blocks.
-    writes: Vec<(u32, Vec<u8>)>,
 }
 
-/// Pairs the surfaces and surface nodes by allocation order: the N64 keeps
-/// them in two arrays, the port in alloc-only pools (static and dynamic).
+/// Pairs the two sides' surface and node pools, which the port allocates as
+/// the N64 does (in order from index 0 when an area loads, dynamic entries
+/// after the static ones), so pointers into them translate by offset.
 fn learn_surfaces(
     tr: &mut Translator,
     st: &MupenState,
     snap: &[u8],
     report: &mut MupenLoadReport,
-    fresh: Option<(u32, u32, u32, u32)>,
 ) -> Option<Surfaces> {
     let n_pool = st.u32(n64_only("sSurfacePool")?)?;
     let n_nodes = st.u32(n64_only("sSurfaceNodePool")?)?;
+    let (p_pool, p_nodes) = (
+        p32(snap, var("sSurfacePool")?.port),
+        p32(snap, var("sSurfaceNodePool")?.port),
+    );
     let get = |name: &str| {
         (
             n64_int(st, name).unwrap_or(0) as u32,
             port_int(snap, name).unwrap_or(0) as u32,
         )
     };
-    let (n_static, p_static_count) = get("gNumStaticSurfaces");
-    let (n_all, p_all) = get("gSurfacesAllocated");
-    let (n_static_nodes, p_static_nodes_count) = get("gNumStaticSurfaceNodes");
-    let (n_all_nodes, p_all_nodes) = get("gSurfaceNodesAllocated");
-    report.dynamic_surfaces = (n_all.saturating_sub(n_static), 0);
-    // The port's static pools hold what loading the area made. Its
-    // gNumStaticSurfaces can count a few more (allocations made while the
-    // area loaded), so the pools, not the counters, say how many there are.
-    let pool = |name| p32(snap, port_only(name).unwrap_or(0));
-    let mut port_surfaces = pool_items(snap, pool("sStaticSurfacePool"), 48, u32::MAX);
-    let mut port_nodes = pool_items(snap, pool("sStaticSurfaceNodePool"), 8, u32::MAX);
-    let (p_static, p_static_nodes) = (port_surfaces.len() as u32, port_nodes.len() as u32);
+    let (n_static, p_static) = get("gNumStaticSurfaces");
+    let (n_all, _) = get("gSurfacesAllocated");
+    let (n_static_nodes, p_static_nodes) = get("gNumStaticSurfaceNodes");
+    let (n_all_nodes, _) = get("gSurfaceNodesAllocated");
     report.static_surfaces = (n_static, p_static, 0);
+    report.dynamic_surfaces = (n_all.saturating_sub(n_static), 0);
+    if n_pool == 0 || n_nodes == 0 || p_pool == 0 || p_nodes == 0 {
+        report
+            .notes
+            .push("no surface pools (not in a level)".into());
+        return None;
+    }
     if n_static != p_static || n_static_nodes != p_static_nodes {
         report.notes.push(format!(
             "static collision differs (surfaces {n_static} vs {p_static}, nodes {n_static_nodes} vs {p_static_nodes}): \
@@ -904,81 +849,23 @@ fn learn_surfaces(
         ));
         return None;
     }
-    let mut writes = Vec::new();
-    if let Some((sb, ns, nb, nn)) = fresh {
-        // The fresh blocks become the pools' newest blocks, holding all of
-        // the state's dynamic surfaces and nodes; the older blocks are freed
-        // with them when the next frame clears the pools.
-        for (pool_var, block, count, item, all, stat) in [
-            (
-                "sDynamicSurfacePool",
-                sb,
-                ns,
-                48,
-                "gSurfacesAllocated",
-                p_static_count,
-            ),
-            (
-                "sDynamicSurfaceNodePool",
-                nb,
-                nn,
-                8,
-                "gSurfaceNodesAllocated",
-                p_static_nodes_count,
-            ),
-        ] {
-            let pool_at = pool(pool_var);
-            if pool_at == 0 {
-                return None;
-            }
-            let mut header = p32(snap, pool_at).to_le_bytes().to_vec();
-            header.extend_from_slice(&[0; 4]);
-            writes.push((block, header));
-            let mut fields = block.to_le_bytes().to_vec();
-            fields.extend_from_slice(&(count * item).to_le_bytes());
-            fields.extend_from_slice(&(count * item).to_le_bytes());
-            writes.push((pool_at, fields));
-            if let Some(v) = var(all) {
-                writes.push((
-                    v.port,
-                    (stat + count).to_le_bytes()[..v.size as usize].to_vec(),
-                ));
-            }
-        }
-        port_surfaces.extend((0..ns).map(|j| sb + 8 + 48 * j));
-        port_nodes.extend((0..nn).map(|j| nb + 8 + 8 * j));
-    } else {
-        port_surfaces.extend(pool_items(
-            snap,
-            pool("sDynamicSurfacePool"),
-            48,
-            p_all.saturating_sub(p_static_count),
-        ));
-        port_nodes.extend(pool_items(
-            snap,
-            pool("sDynamicSurfaceNodePool"),
-            8,
-            p_all_nodes.saturating_sub(p_static_nodes_count),
+    if n_all > SURFACE_POOL_SIZE || n_all_nodes > SURFACE_NODE_POOL_SIZE {
+        report.notes.push(format!(
+            "the state has {n_all} surfaces and {n_all_nodes} nodes: the N64 wrote those past its pools \
+             over other memory, they are not copied"
         ));
     }
-    let n64_surfaces: Vec<u32> = (0..n_all).map(|i| n_pool + 48 * i).collect();
-    let n64_nodes: Vec<u32> = (0..n_all_nodes).map(|i| n_nodes + 8 * i).collect();
-    for (n, p) in n64_surfaces.iter().zip(&port_surfaces) {
-        tr.pair(*n, *p);
-    }
-    for (n, p) in n64_nodes.iter().zip(&port_nodes) {
-        tr.pair(*n, *p);
-    }
-    let n = n64_surfaces.len().min(port_surfaces.len());
-    let m = n64_nodes.len().min(port_nodes.len());
+    tr.region(n_pool, SURFACE_POOL_SIZE * 48, p_pool);
+    tr.region(n_nodes, SURFACE_NODE_POOL_SIZE * 8, p_nodes);
     Some(Surfaces {
-        n64_surfaces: n64_surfaces[..n].to_vec(),
-        port_surfaces: port_surfaces[..n].to_vec(),
+        n64_surfaces: n_pool,
+        port_surfaces: p_pool,
+        surfaces: n_all.min(SURFACE_POOL_SIZE),
         static_surfaces: n_static,
-        n64_nodes: n64_nodes[..m].to_vec(),
-        port_nodes: port_nodes[..m].to_vec(),
+        n64_nodes: n_nodes,
+        port_nodes: p_nodes,
+        nodes: n_all_nodes.min(SURFACE_NODE_POOL_SIZE),
         static_nodes: n_static_nodes,
-        writes,
     })
 }
 

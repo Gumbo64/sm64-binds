@@ -5,7 +5,7 @@
 use super::layout::{Item, K, Var, Target};
 
 /// The headless WASM these addresses are for (its code's SHA-1).
-pub const BUILD_ID: &str = "73f3e66d5cbb590507f3414379fe1aff7fbcdf57";
+pub const BUILD_ID: &str = "5e3b86e14bab07ee6c0e7b1d955bc8b259b7cb82";
 
 pub static POINTEES: &[&str] = &["?", "void", "GraphNode", "SpawnInfo", "GraphNodeRoot", "short", "signed char", "ObjectWarpNode", "WarpNode", "InstantWarp", "Camera", "UnusedArea28", "Whirlpool", "ptr", "Object", "Animation", "float", "ObjectNode", "int", "Waypoint", "ChainSegment", "Surface", "unsigned long", "unsigned short", "Area", "CreditsEntry", "anon", "PlayerCameraState", "MarioBodyState", "Controller", "DmaHandlerList", "DmaTable", "unsigned char", "CameraTrigger", "ParallelTrackingPoint", "char", "EnvFxParticle", "unsigned long long", "OSMesgQueue_s", "OSThread_s", "DemoInput", "SPTask", "GfxPool", "MarioState", "AllocOnlyPool", "FreeListNode", "AllocOnlyPoolBlock", "MainPoolBlock", "MainPoolState", "MemoryPool", "Painting", "PaintingMeshVertex", "TextLabel", "DisplayListNode", "GraphNodeMasterList", "GraphNodePerspective", "GraphNodeCamera", "GraphNodeObject", "GraphNodeHeldObject", "LinkedList", "LevelCommand", "SurfaceNode"];
 
@@ -335,6 +335,7 @@ pub static LAYOUTS: &[&[Item]] = &[
     &[Item(0, K::Ptr(61), 1, 4), Item(4, K::Ptr(21), 1, 4)],
     &[Item(0, K::Layout(322), 3, 8)],
     &[Item(0, K::Layout(323), 256, 24)],
+    &[Item(0, K::Ptr(61), 1, 4)],
     &[Item(0, K::S1, 3, 1)],
     &[Item(0, K::Ptr(14), 32, 4)],
     &[Item(0, K::S1, 24, 1)],
@@ -343,7 +344,7 @@ pub static LAYOUTS: &[&[Item]] = &[
     &[Item(0, K::S1, 17, 1)],
     &[Item(0, K::Ptr(14), 8, 4)],
     &[Item(0, K::S4, 4, 4), Item(16, K::S2, 1, 2), Item(18, K::S1, 10, 1), Item(28, K::S2, 2, 2)],
-    &[Item(0, K::Layout(303), 8, 56), Item(448, K::Layout(332), 2, 32)],
+    &[Item(0, K::Layout(303), 8, 56), Item(448, K::Layout(333), 2, 32)],
     &[Item(0, K::S1, 201216, 1)],
     &[Item(0, K::S1, 1024, 1)],
     &[Item(0, K::S1, 2304, 1)],
@@ -354,7 +355,7 @@ pub static LAYOUTS: &[&[Item]] = &[
 
 /// Variables both builds have: (name, unit, N64 address, port address, size, layout, copy, const).
 pub static VARS: &[Var] = &[
-    Var { name: "gZBuffer", unit: "zbuffer", n64: 0x80000400, port: 0xc875d0, size: 153600, layout: 339, copy: false, constant: false },
+    Var { name: "gZBuffer", unit: "zbuffer", n64: 0x80000400, port: 0xc875d0, size: 153600, layout: 340, copy: false, constant: false },
     Var { name: "introBackgroundIndexTable", unit: "intro_geo", n64: 0x801a7ce8, port: 0xbc5c24, size: 12, layout: 246, copy: false, constant: false },
     Var { name: "gameOverBackgroundTable", unit: "intro_geo", n64: 0x801a7cf8, port: 0x7c15f7, size: 12, layout: 246, copy: false, constant: false },
     Var { name: "sSelectedButtonID", unit: "file_select", n64: 0x801a7d10, port: 0x7c14a6, size: 1, layout: 27, copy: false, constant: false },
@@ -374,7 +375,7 @@ pub static VARS: &[Var] = &[
     Var { name: "textViewScore", unit: "file_select", n64: 0x801a7d5c, port: 0x7c15e1, size: 12, layout: 246, copy: false, constant: false },
     Var { name: "textCopyFileButton", unit: "file_select", n64: 0x801a7d68, port: 0x7c153c, size: 10, layout: 109, copy: false, constant: false },
     Var { name: "textEraseFileButton", unit: "file_select", n64: 0x801a7d74, port: 0x7c1546, size: 11, layout: 260, copy: false, constant: false },
-    Var { name: "textSoundModes", unit: "file_select", n64: 0x801a7d80, port: 0x7c14d0, size: 24, layout: 327, copy: false, constant: false },
+    Var { name: "textSoundModes", unit: "file_select", n64: 0x801a7d80, port: 0x7c14d0, size: 24, layout: 328, copy: false, constant: false },
     Var { name: "textMarioA", unit: "file_select", n64: 0x801a7d98, port: 0x7c14e8, size: 8, layout: 207, copy: false, constant: false },
     Var { name: "textMarioB", unit: "file_select", n64: 0x801a7da0, port: 0x7c14f0, size: 8, layout: 207, copy: false, constant: false },
     Var { name: "textMarioC", unit: "file_select", n64: 0x801a7da8, port: 0x7c14f8, size: 8, layout: 207, copy: false, constant: false },
@@ -387,31 +388,31 @@ pub static VARS: &[Var] = &[
     Var { name: "textCopy", unit: "file_select", n64: 0x801a7dd8, port: 0x7c14c2, size: 5, layout: 80, copy: false, constant: false },
     Var { name: "textErase", unit: "file_select", n64: 0x801a7de0, port: 0x7c14c7, size: 6, layout: 241, copy: false, constant: false },
     Var { name: "textCheckFile", unit: "file_select", n64: 0x801a7de8, port: 0x7c1508, size: 11, layout: 260, copy: false, constant: false },
-    Var { name: "textNoSavedDataExists", unit: "file_select", n64: 0x801a7df4, port: 0x7c1520, size: 21, layout: 328, copy: false, constant: false },
+    Var { name: "textNoSavedDataExists", unit: "file_select", n64: 0x801a7df4, port: 0x7c1520, size: 21, layout: 329, copy: false, constant: false },
     Var { name: "textCopyFile", unit: "file_select", n64: 0x801a7e0c, port: 0x7c155f, size: 10, layout: 109, copy: false, constant: false },
     Var { name: "textCopyItToWhere", unit: "file_select", n64: 0x801a7e18, port: 0x7c1570, size: 18, layout: 177, copy: false, constant: false },
-    Var { name: "textNoSavedDataExistsCopy", unit: "file_select", n64: 0x801a7e2c, port: 0x7c1590, size: 21, layout: 328, copy: false, constant: false },
+    Var { name: "textNoSavedDataExistsCopy", unit: "file_select", n64: 0x801a7e2c, port: 0x7c1590, size: 21, layout: 329, copy: false, constant: false },
     Var { name: "textCopyCompleted", unit: "file_select", n64: 0x801a7e44, port: 0x7c15b0, size: 18, layout: 177, copy: false, constant: false },
-    Var { name: "textSavedDataExists", unit: "file_select", n64: 0x801a7e58, port: 0x7c15d0, size: 17, layout: 330, copy: false, constant: false },
-    Var { name: "textNoFileToCopyFrom", unit: "file_select", n64: 0x801a7e6c, port: 0x7c1551, size: 14, layout: 329, copy: false, constant: false },
+    Var { name: "textSavedDataExists", unit: "file_select", n64: 0x801a7e58, port: 0x7c15d0, size: 17, layout: 331, copy: false, constant: false },
+    Var { name: "textNoFileToCopyFrom", unit: "file_select", n64: 0x801a7e6c, port: 0x7c1551, size: 14, layout: 330, copy: false, constant: false },
     Var { name: "textYes", unit: "file_select", n64: 0x801a7e7c, port: 0x7c15ed, size: 4, layout: 5, copy: false, constant: false },
-    Var { name: "textNo", unit: "file_select", n64: 0x801a7e80, port: 0x7c15f1, size: 3, layout: 325, copy: false, constant: false },
-    Var { name: "textStarX", unit: "file_select", n64: 0x801a7ee8, port: 0x7c15f4, size: 3, layout: 325, copy: false, constant: false },
+    Var { name: "textNo", unit: "file_select", n64: 0x801a7e80, port: 0x7c15f1, size: 3, layout: 326, copy: false, constant: false },
+    Var { name: "textStarX", unit: "file_select", n64: 0x801a7ee8, port: 0x7c15f4, size: 3, layout: 326, copy: false, constant: false },
     Var { name: "sSelectedActIndex", unit: "star_select", n64: 0x801a81a0, port: 0xbc5c54, size: 1, layout: 27, copy: true, constant: false },
     Var { name: "sSelectableStarIndex", unit: "star_select", n64: 0x801a81a4, port: 0xbc5c53, size: 1, layout: 27, copy: true, constant: false },
     Var { name: "sActSelectorMenuTimer", unit: "star_select", n64: 0x801a81a8, port: 0xbc5c58, size: 4, layout: 26, copy: true, constant: false },
-    Var { name: "sMainMenuButtons", unit: "file_select", n64: 0x801b99f8, port: 0xbc5b80, size: 128, layout: 326, copy: false, constant: false },
-    Var { name: "sStarSelectorModels", unit: "star_select", n64: 0x801b9a80, port: 0xbc5c30, size: 32, layout: 331, copy: true, constant: false },
+    Var { name: "sMainMenuButtons", unit: "file_select", n64: 0x801b99f8, port: 0xbc5b80, size: 128, layout: 327, copy: false, constant: false },
+    Var { name: "sStarSelectorModels", unit: "star_select", n64: 0x801b9a80, port: 0xbc5c30, size: 32, layout: 332, copy: true, constant: false },
     Var { name: "sLoadedActNum", unit: "star_select", n64: 0x801b9aa0, port: 0xbc5c55, size: 1, layout: 27, copy: true, constant: false },
     Var { name: "sObtainedStars", unit: "star_select", n64: 0x801b9aa1, port: 0xbc5c51, size: 1, layout: 27, copy: true, constant: false },
     Var { name: "sVisibleStars", unit: "star_select", n64: 0x801b9aa2, port: 0xbc5c50, size: 1, layout: 27, copy: true, constant: false },
     Var { name: "sInitSelectedActNum", unit: "star_select", n64: 0x801b9aa3, port: 0xbc5c52, size: 1, layout: 27, copy: true, constant: false },
-    Var { name: "gAudioHeap", unit: "buffers", n64: 0x801ce000, port: 0xbc5c70, size: 201216, layout: 334, copy: false, constant: false },
-    Var { name: "gGfxSPTaskYieldBuffer", unit: "buffers", n64: 0x80206e00, port: 0xbf7270, size: 2304, layout: 336, copy: false, constant: false },
-    Var { name: "gSaveBuffer", unit: "buffers", n64: 0x80207700, port: 0xbf7b70, size: 512, layout: 333, copy: true, constant: false },
-    Var { name: "gGfxSPTaskStack", unit: "buffers", n64: 0x80207900, port: 0xbf6e70, size: 1024, layout: 335, copy: false, constant: false },
-    Var { name: "gGfxPools", unit: "buffers", n64: 0x80207d00, port: 0xbf7d70, size: 88, layout: 337, copy: false, constant: false },
-    Var { name: "gGfxSPTaskOutputBuffer", unit: "gfx_output_buffer", n64: 0x80227000, port: 0xc685d0, size: 126976, layout: 338, copy: false, constant: false },
+    Var { name: "gAudioHeap", unit: "buffers", n64: 0x801ce000, port: 0xbc5c70, size: 201216, layout: 335, copy: false, constant: false },
+    Var { name: "gGfxSPTaskYieldBuffer", unit: "buffers", n64: 0x80206e00, port: 0xbf7270, size: 2304, layout: 337, copy: false, constant: false },
+    Var { name: "gSaveBuffer", unit: "buffers", n64: 0x80207700, port: 0xbf7b70, size: 512, layout: 334, copy: true, constant: false },
+    Var { name: "gGfxSPTaskStack", unit: "buffers", n64: 0x80207900, port: 0xbf6e70, size: 1024, layout: 336, copy: false, constant: false },
+    Var { name: "gGfxPools", unit: "buffers", n64: 0x80207d00, port: 0xbf7d70, size: 88, layout: 338, copy: false, constant: false },
+    Var { name: "gGfxSPTaskOutputBuffer", unit: "gfx_output_buffer", n64: 0x80227000, port: 0xc685d0, size: 126976, layout: 339, copy: false, constant: false },
     Var { name: "gGlobalTimer", unit: "game_init", n64: 0x8032d5d4, port: 0xb09e94, size: 4, layout: 26, copy: true, constant: false },
     Var { name: "gPlayer1Controller", unit: "game_init", n64: 0x8032d5e4, port: 0x7bd0ec, size: 4, layout: 158, copy: true, constant: false },
     Var { name: "gPlayer2Controller", unit: "game_init", n64: 0x8032d5e8, port: 0x7bd0f0, size: 4, layout: 158, copy: true, constant: false },
@@ -1072,10 +1073,10 @@ pub static VARS: &[Var] = &[
     Var { name: "gCurrentObject", unit: "object_list_processor", n64: 0x80361160, port: 0xb8c374, size: 4, layout: 105, copy: true, constant: false },
     Var { name: "gCurBhvCommand", unit: "object_list_processor", n64: 0x80361164, port: 0xbb088c, size: 4, layout: 265, copy: true, constant: false },
     Var { name: "gPrevFrameObjectCount", unit: "object_list_processor", n64: 0x80361168, port: 0xbb049e, size: 2, layout: 25, copy: true, constant: false },
-    Var { name: "gSurfaceNodesAllocated", unit: "object_list_processor", n64: 0x8036116c, port: 0xbb0890, size: 4, layout: 26, copy: false, constant: false },
-    Var { name: "gSurfacesAllocated", unit: "object_list_processor", n64: 0x80361170, port: 0xbb0894, size: 4, layout: 26, copy: false, constant: false },
-    Var { name: "gNumStaticSurfaceNodes", unit: "object_list_processor", n64: 0x80361174, port: 0xbb0898, size: 4, layout: 26, copy: false, constant: false },
-    Var { name: "gNumStaticSurfaces", unit: "object_list_processor", n64: 0x80361178, port: 0xbb089c, size: 4, layout: 26, copy: false, constant: false },
+    Var { name: "gSurfaceNodesAllocated", unit: "object_list_processor", n64: 0x8036116c, port: 0xbb0890, size: 4, layout: 26, copy: true, constant: false },
+    Var { name: "gSurfacesAllocated", unit: "object_list_processor", n64: 0x80361170, port: 0xbb0894, size: 4, layout: 26, copy: true, constant: false },
+    Var { name: "gNumStaticSurfaceNodes", unit: "object_list_processor", n64: 0x80361174, port: 0xbb0898, size: 4, layout: 26, copy: true, constant: false },
+    Var { name: "gNumStaticSurfaces", unit: "object_list_processor", n64: 0x80361178, port: 0xbb089c, size: 4, layout: 26, copy: true, constant: false },
     Var { name: "gObjectMemoryPool", unit: "object_list_processor", n64: 0x8036117c, port: 0xbb0490, size: 4, layout: 217, copy: false, constant: false },
     Var { name: "gCheckingSurfaceCollisionsForCamera", unit: "object_list_processor", n64: 0x80361180, port: 0xbb049c, size: 2, layout: 25, copy: true, constant: false },
     Var { name: "gFindFloorIncludeSurfaceIntangible", unit: "object_list_processor", n64: 0x80361182, port: 0xbb08a0, size: 2, layout: 25, copy: true, constant: false },
@@ -1172,16 +1173,19 @@ pub static VARS: &[Var] = &[
     Var { name: "sRegister", unit: "level_script", n64: 0x8038be24, port: 0xb060c4, size: 4, layout: 26, copy: false, constant: false },
     Var { name: "sCurrentCmd", unit: "level_script", n64: 0x8038be28, port: 0xb06038, size: 4, layout: 318, copy: false, constant: false },
     Var { name: "sFloorGeo", unit: "surface_collision", n64: 0x8038be30, port: 0xb060dc, size: 32, layout: 145, copy: true, constant: false },
-    Var { name: "unused8038BE90", unit: "surface_load", n64: 0x8038be90, port: 0xb0610c, size: 4, layout: 26, copy: true, constant: false },
+    Var { name: "unused8038BE90", unit: "surface_load", n64: 0x8038be90, port: 0xb06110, size: 4, layout: 26, copy: true, constant: false },
     Var { name: "gStaticSurfacePartition", unit: "surface_load", n64: 0x8038be98, port: 0xb07920, size: 6144, layout: 324, copy: false, constant: false },
     Var { name: "gDynamicSurfacePartition", unit: "surface_load", n64: 0x8038d698, port: 0xb06120, size: 6144, layout: 324, copy: true, constant: false },
+    Var { name: "sSurfaceNodePool", unit: "surface_load", n64: 0x8038ee98, port: 0xb06100, size: 4, layout: 325, copy: false, constant: false },
+    Var { name: "sSurfacePool", unit: "surface_load", n64: 0x8038ee9c, port: 0xb06104, size: 4, layout: 227, copy: false, constant: false },
+    Var { name: "sSurfacePoolSize", unit: "surface_load", n64: 0x8038eea0, port: 0xb060fc, size: 2, layout: 25, copy: false, constant: false },
     Var { name: "gRandomSeed16", unit: "behavior_script", n64: 0x8038eee0, port: 0xb05f20, size: 2, layout: 25, copy: true, constant: false },
 ];
 
 /// N64 addresses of symbols the port does not have (or names differently).
 pub static N64_ONLY: &[(&str, u32)] = &[("sSurfacePool", 0x8038ee9c), ("sSurfaceNodePool", 0x8038ee98), ("sSurfacePoolSize", 0x8038eea0), ("sSegmentTable", 0x8033b400)];
 /// Port addresses of port-only symbols.
-pub static PORT_ONLY: &[(&str, u32)] = &[("sStaticSurfacePool", 0xb06100), ("sStaticSurfaceNodePool", 0xb060fc), ("sDynamicSurfacePool", 0xb06108), ("sDynamicSurfaceNodePool", 0xb06104)];
+pub static PORT_ONLY: &[(&str, u32)] = &[];
 
 /// Named structs: (name, size, layout), for structs reached through pointers.
 pub static NAMED: &[(&str, u32, u16)] = &[
@@ -1259,7 +1263,7 @@ pub static NAMED: &[(&str, u32, u16)] = &[
     ("LinkedList", 8, 311),
     ("LoadedPreset", 8, 197),
     ("MacroPreset", 8, 197),
-    ("MainMenuSaveData", 32, 332),
+    ("MainMenuSaveData", 32, 333),
     ("MainPoolBlock", 12, 215),
     ("MainPoolState", 4, 216),
     ("MarioBodyState", 40, 101),
@@ -1293,7 +1297,7 @@ pub static NAMED: &[(&str, u32, u16)] = &[
     ("SLWalkingPenguinStep", 16, 46),
     ("SPTask", 80, 153),
     ("SaveBlockSignature", 4, 202),
-    ("SaveBuffer", 512, 333),
+    ("SaveBuffer", 512, 334),
     ("SaveFile", 56, 303),
     ("Shadow", 48, 305),
     ("Skybox", 16, 308),
@@ -17815,8 +17819,11 @@ pub static TARGETS: &[Target] = &[
     Target(0x8038be24, 0xb060c4, 0x4, "sRegister"),
     Target(0x8038be28, 0xb06038, 0x4, "sCurrentCmd"),
     Target(0x8038be30, 0xb060dc, 0x20, "sFloorGeo"),
-    Target(0x8038be90, 0xb0610c, 0x4, "unused8038BE90"),
+    Target(0x8038be90, 0xb06110, 0x4, "unused8038BE90"),
     Target(0x8038be98, 0xb07920, 0x1800, "gStaticSurfacePartition"),
     Target(0x8038d698, 0xb06120, 0x1800, "gDynamicSurfacePartition"),
+    Target(0x8038ee98, 0xb06100, 0x4, "sSurfaceNodePool"),
+    Target(0x8038ee9c, 0xb06104, 0x4, "sSurfacePool"),
+    Target(0x8038eea0, 0xb060fc, 0x2, "sSurfacePoolSize"),
     Target(0x8038eee0, 0xb05f20, 0x2, "gRandomSeed16"),
 ];

@@ -3,6 +3,43 @@
 All three packages (Rust `sm64-binds`, Python `sm64-binds`, JavaScript
 `sm64-binds-frontend`) are released together at the same version.
 
+## 2.1.3
+
+**The game build changes** (build id 73f3e66d... -> 5e3b86e1...; rendering build 76691905... -> 6dafbeca...), so a state
+or replay from 2.1.2 is not interchangeable with this one where the differences below show. No API change.
+
+- Game fix, port vs N64: the surface pools. With `USE_SYSTEM_MALLOC` the port kept surfaces and surface nodes in
+  four unbounded alloc-only pools (static and dynamic). They are now the N64's two pools, arrays of the N64's sizes
+  (`sSurfaceNodePool`, 7000 nodes; `sSurfacePool`, 2300 surfaces), allocated in order from index 0 when an area
+  loads, dynamic entries after the static ones, so counts, indices and stale entries are the N64's. The arrays come
+  from malloc once, at the first level, and are never freed, so the game's variables keep their addresses in both
+  builds.
+- Game fix, port vs N64: `load_area_terrain` no longer calls `clear_dynamic_surfaces()` (a port addition, against
+  dangling pointers into freed pools). That reset the counters it had just zeroed to the previous area's
+  `gNumStaticSurfaces` / `gNumStaticSurfaceNodes`, so they grew with every area loaded (32,736 "static" nodes in BoB
+  late in the v0.2 cycle 1, where the N64 has 5,340), and emptied the dynamic partition.
+  As on the N64, the counters now start at 0 for every area, and after an area change the dynamic partition keeps
+  listing the old area's dynamic surfaces (their entries are still in the pools) until the next frame clears it, so
+  Mario's spawn `find_floor` sees what it sees on the N64. Found by comparing the counters with Mupen64Plus at
+  every poll: they differed at 35,370 of 35,405 polls of the v0.2 cycle 1 and now match at all of them.
+- Overflow: the N64 has no bounds check (`alloc_surface` / `alloc_surface_node`: "A bounds check! ... we, um...").
+  Nodes past 7000 are written over the surface pool's main pool block header and then over the surfaces (static
+  ones first); surfaces past 2300 into the free main pool, which the display list heap overwrites while the frame
+  is drawn, and past that into the memory after the main pool. The values written over surfaces are N64 pointers
+  and display lists, so this cannot be reproduced; the port gives the pools spare entries instead (4096 nodes, 1024
+  surfaces): what overflows works for the game logic as written, as on the N64 until something reads the
+  overwritten memory (the camera during the frame's drawing, or a corrupted static surface). Past the spare
+  entries the surface or node is left out (the counters still count, as on the N64). In vanilla play the pools
+  never fill: the fullest areas seen (TASes, SM64Coin cycles, in Mupen64Plus) peak at 2196 of 2300 surfaces (BBH)
+  and 5655 of 7000 nodes. Forced overflows (`gNumStaticSurfaces` or `gNumStaticSurfaceNodes` raised in BoB, in
+  Mupen64Plus and the port alike: up to 48 surfaces or 84 nodes past the pools) stay identical, Mario and the RNG,
+  for the rest of the cycle.
+- Mupen64 states: the surface and node pools are copied entry for entry (pointers into them translate by offset),
+  as are the four surface counters; the dynamic-block allocation the loader did is gone.
+- Portable states: every entry of the two pools is typed, stale ones too.
+- The WASM payloads, the precompiled module, the Mupen and portable-state tables (build ids, the surface_load
+  variables) and the browser translator were regenerated for the new build.
+
 ## 2.1.2
 
 **The game build changes** (build id 897378b4... -> 73f3e66d...), so a state or replay from 2.1.1 is not

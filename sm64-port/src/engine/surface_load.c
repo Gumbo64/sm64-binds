@@ -1,4 +1,7 @@
 #include <PR/ultratypes.h>
+#ifdef USE_SYSTEM_MALLOC
+#include <stdlib.h>
+#endif
 
 #include "prevent_bss_reordering.h"
 
@@ -27,13 +30,6 @@ SpatialPartitionCell gDynamicSurfacePartition[NUM_CELLS][NUM_CELLS];
 /**
  * Pools of data to contain either surface nodes or surfaces.
  */
-#ifdef USE_SYSTEM_MALLOC
-static struct AllocOnlyPool *sStaticSurfaceNodePool;
-static struct AllocOnlyPool *sStaticSurfacePool;
-static struct AllocOnlyPool *sDynamicSurfaceNodePool;
-static struct AllocOnlyPool *sDynamicSurfacePool;
-static u8 sStaticSurfaceLoadComplete;
-#else
 struct SurfaceNode *sSurfaceNodePool;
 struct Surface *sSurfacePool;
 
@@ -41,6 +37,28 @@ struct Surface *sSurfacePool;
  * The size of the surface pool (2300).
  */
 s16 sSurfacePoolSize;
+
+#ifdef USE_SYSTEM_MALLOC
+/*
+ * The port keeps the N64's pools: 7000 nodes and 2300 surfaces, one array each, allocated in order
+ * from index 0 when an area loads, dynamic ones after the static ones, so counts, indices and
+ * stale entries are the N64's. The N64 takes them from the main pool and has no bounds check:
+ * past the end it writes on. Nodes past 7000 land on the pool's block header and then on the
+ * surfaces (static ones first); surfaces past 2300 land in the free main pool, which the display
+ * list heap overwrites when the frame is drawn. The game logic reads them back as written, so
+ * here they go to spare entries after each pool (the N64's values as long as nothing reads the
+ * overwritten memory). Past the spare entries allocation fails: the counters still count, but
+ * the surface or node is left out. See CHANGELOG.md (2.1.3).
+ *
+ * The arrays come from malloc once (the first level) and are never freed; on the heap, they
+ * leave the game's variables where they were.
+ */
+#define SURFACE_NODE_POOL_SIZE 7000
+#define SURFACE_POOL_SIZE 2300
+#define SURFACE_NODE_POOL_SPARE 4096
+#define SURFACE_POOL_SPARE 1024
+static struct SurfaceNode *sSurfaceNodePoolEnd;
+static struct Surface *sSurfacePoolEnd;
 #endif
 
 
@@ -50,24 +68,24 @@ u8 unused8038EEA8[0x30];
  * Allocate the part of the surface node pool to contain a surface node.
  */
 static struct SurfaceNode *alloc_surface_node(void) {
+    struct SurfaceNode *node;
+
 #ifdef USE_SYSTEM_MALLOC
-    struct AllocOnlyPool *pool = !sStaticSurfaceLoadComplete ?
-                                 sStaticSurfaceNodePool : sDynamicSurfaceNodePool;
-    struct SurfaceNode *node = alloc_only_pool_alloc(pool, sizeof(struct SurfaceNode));
-#else
-    struct SurfaceNode *node = &sSurfaceNodePool[gSurfaceNodesAllocated];
+    if (gSurfaceNodesAllocated >= sSurfaceNodePoolEnd - sSurfaceNodePool) {
+        gSurfaceNodesAllocated++;
+        return NULL;
+    }
 #endif
+    node = &sSurfaceNodePool[gSurfaceNodesAllocated];
     gSurfaceNodesAllocated++;
 
     node->next = NULL;
 
-#ifndef USE_SYSTEM_MALLOC
     //! A bounds check! If there's more surface nodes than 7000 allowed,
     //  we, um...
     // Perhaps originally just debug feedback?
     if (gSurfaceNodesAllocated >= 7000) {
     }
-#endif
 
     return node;
 }
@@ -77,22 +95,22 @@ static struct SurfaceNode *alloc_surface_node(void) {
  * initialize the surface.
  */
 static struct Surface *alloc_surface(void) {
+    struct Surface *surface;
+
 #ifdef USE_SYSTEM_MALLOC
-    struct AllocOnlyPool *pool = !sStaticSurfaceLoadComplete ?
-                                 sStaticSurfacePool : sDynamicSurfacePool;
-    struct Surface *surface = alloc_only_pool_alloc(pool, sizeof(struct Surface));
-#else
-    struct Surface *surface = &sSurfacePool[gSurfacesAllocated];
+    if (gSurfacesAllocated >= sSurfacePoolEnd - sSurfacePool) {
+        gSurfacesAllocated++;
+        return NULL;
+    }
 #endif
+    surface = &sSurfacePool[gSurfacesAllocated];
     gSurfacesAllocated++;
 
-#ifndef USE_SYSTEM_MALLOC
     //! A bounds check! If there's more surfaces than the 2300 allowed,
     //  we, um...
     // Perhaps originally just debug feedback?
     if (gSurfacesAllocated >= sSurfacePoolSize) {
     }
-#endif
 
     surface->type = 0;
     surface->force = 0;
@@ -162,6 +180,13 @@ static void add_surface_to_cell(s16 dynamic, s16 cellX, s16 cellZ, struct Surfac
     //  missing higher surfaces.
     //  upperY would be a better sort method.
     surfacePriority = surface->vertex1[1] * sortDir;
+
+#ifdef USE_SYSTEM_MALLOC
+    // Past the spare nodes (see alloc_surface_node).
+    if (newNode == NULL) {
+        return;
+    }
+#endif
 
     newNode->surface = surface;
 
@@ -382,6 +407,12 @@ static struct Surface *read_surface_data(s16 *vertexData, s16 **vertexIndices) {
     nz *= mag;
 
     surface = alloc_surface();
+#ifdef USE_SYSTEM_MALLOC
+    // Past the spare surfaces (see alloc_surface).
+    if (surface == NULL) {
+        return NULL;
+    }
+#endif
 
     surface->vertex1[0] = x1;
     surface->vertex2[0] = x2;
@@ -548,13 +579,18 @@ static void load_environmental_regions(s16 **data) {
  * Allocate some of the main pool for surfaces (2300 surf) and for surface nodes (7000 nodes).
  */
 void alloc_surface_pools(void) {
-#ifdef USE_SYSTEM_MALLOC
-    sStaticSurfaceNodePool = alloc_only_pool_init();
-    sStaticSurfacePool = alloc_only_pool_init();
-    sDynamicSurfaceNodePool = alloc_only_pool_init();
-    sDynamicSurfacePool = alloc_only_pool_init();
-#else
     sSurfacePoolSize = 2300;
+#ifdef USE_SYSTEM_MALLOC
+    if (sSurfaceNodePool == NULL) {
+        sSurfaceNodePool = calloc(SURFACE_NODE_POOL_SIZE + SURFACE_NODE_POOL_SPARE, sizeof(struct SurfaceNode));
+        sSurfacePool = calloc(SURFACE_POOL_SIZE + SURFACE_POOL_SPARE, sizeof(struct Surface));
+        if (sSurfaceNodePool == NULL || sSurfacePool == NULL) {
+            abort();
+        }
+        sSurfaceNodePoolEnd = sSurfaceNodePool + SURFACE_NODE_POOL_SIZE + SURFACE_NODE_POOL_SPARE;
+        sSurfacePoolEnd = sSurfacePool + SURFACE_POOL_SIZE + SURFACE_POOL_SPARE;
+    }
+#else
     sSurfaceNodePool = main_pool_alloc(7000 * sizeof(struct SurfaceNode), MEMORY_POOL_LEFT);
     sSurfacePool = main_pool_alloc(sSurfacePoolSize * sizeof(struct Surface), MEMORY_POOL_LEFT);
 #endif
@@ -629,17 +665,8 @@ void load_area_terrain(s16 index, s16 *data, s8 *surfaceRooms, s16 *macroObjects
     unused8038BE90 = 0;
     gSurfaceNodesAllocated = 0;
     gSurfacesAllocated = 0;
-#ifdef USE_SYSTEM_MALLOC
-    alloc_only_pool_clear(sStaticSurfaceNodePool);
-    alloc_only_pool_clear(sStaticSurfacePool);
-    alloc_only_pool_clear(sDynamicSurfaceNodePool);
-    alloc_only_pool_clear(sDynamicSurfacePool);
-    sStaticSurfaceLoadComplete = FALSE;
-
-    // Originally they forgot to clear this matrix,
-    // results in segfaults if this is not done.
-    clear_dynamic_surfaces();
-#endif
+    // (The dynamic partition is not cleared here, as on the N64: until the next frame clears it,
+    // it lists the last area's dynamic surfaces, whose entries are still in the pools.)
 
     clear_static_surfaces();
 
@@ -682,10 +709,6 @@ void load_area_terrain(s16 index, s16 *data, s8 *surfaceRooms, s16 *macroObjects
 
     gNumStaticSurfaceNodes = gSurfaceNodesAllocated;
     gNumStaticSurfaces = gSurfacesAllocated;
-
-#ifdef USE_SYSTEM_MALLOC
-    sStaticSurfaceLoadComplete = TRUE;
-#endif
 }
 
 /**
@@ -693,15 +716,6 @@ void load_area_terrain(s16 index, s16 *data, s8 *surfaceRooms, s16 *macroObjects
  */
 void clear_dynamic_surfaces(void) {
     if (!(gTimeStopState & TIME_STOP_ACTIVE)) {
-#ifdef USE_SYSTEM_MALLOC
-        if (gSurfacesAllocated > gNumStaticSurfaces) {
-            alloc_only_pool_clear(sDynamicSurfacePool);
-        }
-        if (gSurfaceNodesAllocated > gNumStaticSurfaceNodes) {
-            alloc_only_pool_clear(sDynamicSurfaceNodePool);
-        }
-#endif
-
         gSurfacesAllocated = gNumStaticSurfaces;
         gSurfaceNodesAllocated = gNumStaticSurfaceNodes;
 
