@@ -5,8 +5,8 @@ All three packages (Rust `sm64-binds`, Python `sm64-binds`, JavaScript
 
 ## 2.1.2
 
-**The game build changes** (build id 897378b4... -> 4a657a09...), so a state or replay from 2.1.1 is not
-interchangeable with this one where the difference below shows. No API change.
+**The game build changes** (build id 897378b4... -> 73f3e66d...), so a state or replay from 2.1.1 is not
+interchangeable with this one where the differences below show. No API change.
 
 - Game fix, port vs N64: `bhv_small_water_wave_loop` (water_objs.inc.c) and `bhv_object_bubble_loop`
   (bubble.inc.c) guarded their splash spawns with `#ifdef USE_SYSTEM_MALLOC` (always defined here) instead of
@@ -14,8 +14,18 @@ interchangeable with this one where the difference below shows. No API change.
   one more unimportant object) that the N64 refuses, and the RNG and object list parted from there. Found by
   replaying a 107,931-frame cycle in Mupen64Plus; now identical to the N64. Runs that never fill the pool in water
   are unaffected.
-- The WASM payloads, the precompiled module, the Mupen and portable-state tables (only their build ids change) and
-  the browser translator were regenerated for the new build.
+- Game fix, port vs N64: the object and effects memory pools (`gObjectMemoryPool`, 0x800 bytes;
+  `gEffectsMemoryPool`, 0x4000) had no limit with `USE_SYSTEM_MALLOC`. They now run the N64's allocator
+  (memory.c: first fit over the free list, 8-byte block headers, sizes rounded to 4, the same pool sizes), so every
+  allocation succeeds or fails, at the same offset, as on the N64. The Wiggler never frees its 4 chain segments:
+  on the N64 its 24th spawn in one level finds no room, and that Wiggler stays hidden and uninitialized (no body,
+  no star fight; it retries every frame), where the port kept spawning it. Chain chomps free theirs and are unaffected unless the pool is full. The port-only goddard heap (size 0) keeps
+  the unlimited allocator. `struct MemoryPool` grows by the N64 fields (offsets instead of pointers, so states need
+  no translation for them).
+- Mupen64 states: the object memory pool is copied block for block (free list included), so allocations after a
+  load succeed or fail as on the N64; chain segments are placed at the N64's offsets in it.
+- The WASM payloads, the precompiled module, the Mupen and portable-state tables (build ids; the `MemoryPool`
+  layout) and the browser translator were regenerated for the new build.
 
 ## 2.1.1
 

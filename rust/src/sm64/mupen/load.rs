@@ -266,7 +266,14 @@ impl SM64Game {
         learn_behaviors(&mut tr, &snap);
         let level_copies = learn_tables(&mut tr, st, &snap, &mut report);
         let surfaces = learn_surfaces(&mut tr, st, &snap, &mut report, fresh);
-        let object_heap = learn_objects(&mut tr, st, &snap, &mut report);
+        let object_pool = learn_object_pool(&mut tr, st, &snap, &mut report);
+        let object_heap = learn_objects(
+            &mut tr,
+            st,
+            &snap,
+            &mut report,
+            object_pool.as_ref().map(|p| p.space),
+        );
         let paintings = learn_paintings(&mut tr, st, &snap, level);
         report.pairs_learned = tr.pair_count();
 
@@ -339,7 +346,11 @@ impl SM64Game {
             }
         }
 
-        // What objects allocated (chain segments).
+        // The object memory pool as the N64 has it (where its blocks are, which
+        // are free), then what objects allocated in it (chain segments).
+        if let Some(pool) = object_pool {
+            writes.extend(pool.writes);
+        }
         if let Some((size, layout)) = named("ChainSegment") {
             for &(n, p, len) in &object_heap {
                 debug_assert_eq!(len, size);
@@ -979,11 +990,100 @@ fn learn_surfaces(
 /// Object slots running the same behavior on both sides pair their pointers
 /// into level data (animations, collision, model, spawn info), which other
 /// slots with the same objects can then use.
+/// The object memory pool (`gObjectMemoryPool`), copied block for block.
+struct ObjectPool {
+    /// Its space: (N64 address, length, port address).
+    space: (u32, u32, u32),
+    /// The port's pool header and space, as the N64 has them.
+    writes: Vec<(u32, Vec<u8>)>,
+}
+
+/// The port's object memory pool runs the N64's allocator on the same 0x800
+/// bytes (memory.c), so the N64's pool is copied as it is: the same blocks at
+/// the same offsets, the same free list (the N64's links are addresses, the
+/// port's offsets from the pool), so that later allocations succeed or fail
+/// as on the N64. Allocated blocks' contents are swapped as words here; the
+/// chain segments in them are then copied by their layout. Pointers into the
+/// space translate by offset.
+fn learn_object_pool(
+    tr: &mut Translator,
+    st: &MupenState,
+    snap: &[u8],
+    report: &mut MupenLoadReport,
+) -> Option<ObjectPool> {
+    let v = var("gObjectMemoryPool")?;
+    let (n_pool, p_pool) = (st.u32(v.n64)?, p32(snap, v.port));
+    let (size, _) = named("MemoryPool")?;
+    if n_pool == 0 || p_pool == 0 {
+        return None;
+    }
+    // N64: totalSpace, firstBlock, freeList {next, size}, then the space.
+    // Port: the same four words at the end of its struct, offsets for pointers.
+    let fixed = p_pool + size - 16;
+    let n_total = st.u32(n_pool)?;
+    let n_space = st.u32(n_pool + 4)?;
+    let (p_total, p_first) = (p32(snap, fixed), p32(snap, fixed + 4));
+    if n_total != p_total || n_total == 0 || n_space != n_pool + 16 || p_first != size {
+        report.notes.push(format!(
+            "object memory pool not copied: N64 {n_total:#x} bytes at {n_space:#x}, port {p_total:#x} at offset {p_first:#x}"
+        ));
+        return None;
+    }
+    let p_space = p_pool + p_first;
+    let offset = |a: u32| {
+        if a >= n_space && a - n_space < n_total {
+            a - n_space + p_first
+        } else {
+            0
+        }
+    };
+    let mut free = std::collections::HashSet::new();
+    let mut at = st.u32(n_pool + 8)?;
+    while at != 0 && free.len() < 1024 {
+        if offset(at) == 0 || !free.insert(at - n_space) {
+            break;
+        }
+        at = st.u32(at)?;
+    }
+    let mut space = vec![0u8; n_total as usize];
+    let mut off = 0u32;
+    while off < n_total {
+        let (next, len) = (st.u32(n_space + off)?, st.u32(n_space + off + 4)?);
+        if len < 8 || len % 4 != 0 || off + len > n_total {
+            report.notes.push(format!(
+                "object memory pool not copied: a block of {len:#x} bytes at offset {off:#x}"
+            ));
+            return None;
+        }
+        let o = off as usize;
+        space[o..o + 4].copy_from_slice(&offset(next).to_le_bytes());
+        space[o + 4..o + 8].copy_from_slice(&len.to_le_bytes());
+        if !free.contains(&off) {
+            for w in (8..len).step_by(4) {
+                space[o + w as usize..o + w as usize + 4]
+                    .copy_from_slice(&st.u32(n_space + off + w)?.to_le_bytes());
+            }
+        }
+        off += len;
+    }
+    // (freeList.size, never read, stays the port's.)
+    let mut head = Vec::with_capacity(12);
+    for w in [n_total, p_first, offset(st.u32(n_pool + 8)?)] {
+        head.extend_from_slice(&w.to_le_bytes());
+    }
+    tr.region(n_space, n_total, p_space);
+    Some(ObjectPool {
+        space: (n_space, n_total, p_space),
+        writes: vec![(fixed, head), (p_space, space)],
+    })
+}
+
 fn learn_objects(
     tr: &mut Translator,
     st: &MupenState,
     snap: &[u8],
     report: &mut MupenLoadReport,
+    pool: Option<(u32, u32, u32)>,
 ) -> Vec<(u32, u32, u32)> {
     let mut heap = Vec::new();
     let Some((n_pool, p_pool, _)) = super::translate::target_by_name("gObjectPool") else {
@@ -1028,19 +1128,29 @@ fn learn_objects(
         }
         let name = bhv_name(tr, nb);
         // Chain segments, which these objects allocate from the object
-        // memory pool (the port: malloc): the same allocation on both sides,
-        // whose contents are copied too.
+        // memory pool: where the pool was copied, at the same offset in the
+        // port's; otherwise the port object's own allocation. Their contents
+        // are copied too.
         for &(bhv, slot, count) in CHAIN_SEGMENTS {
             let o = 0x88 + 4 * slot;
-            if name == Some(bhv) && super::layout::looks_like_pointer(n(o)) && p(o) != 0 {
-                tr.region(n(o), count * CHAIN_SEGMENT_SIZE, p(o));
-                for k in 0..count {
-                    heap.push((
-                        n(o) + k * CHAIN_SEGMENT_SIZE,
-                        p(o) + k * CHAIN_SEGMENT_SIZE,
-                        CHAIN_SEGMENT_SIZE,
-                    ));
+            if name != Some(bhv) || !super::layout::looks_like_pointer(n(o)) {
+                continue;
+            }
+            let len = count * CHAIN_SEGMENT_SIZE;
+            let at = match pool {
+                Some((ns, nl, ps)) if n(o) >= ns && n(o) - ns + len <= nl => ps + (n(o) - ns),
+                _ if p(o) != 0 => {
+                    tr.region(n(o), len, p(o));
+                    p(o)
                 }
+                _ => continue,
+            };
+            for k in 0..count {
+                heap.push((
+                    n(o) + k * CHAIN_SEGMENT_SIZE,
+                    at + k * CHAIN_SEGMENT_SIZE,
+                    CHAIN_SEGMENT_SIZE,
+                ));
             }
         }
     }
