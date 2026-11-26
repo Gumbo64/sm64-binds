@@ -66,6 +66,14 @@ struct AllocatedNode {
     s32 bin;
     s32 pad;
 };
+
+// A block of a fixed-size pool (below), as on the N64: 8 bytes on every
+// build, with the next free block given by its offset from the pool (0 for
+// none) instead of a pointer.
+struct MemoryBlock {
+    u32 next;
+    u32 size;
+};
 #else
 struct MemoryBlock {
     struct MemoryBlock *next;
@@ -75,8 +83,16 @@ struct MemoryBlock {
 
 struct MemoryPool {
 #ifdef USE_SYSTEM_MALLOC
+    // NULL for a pool of a fixed size (the object and effects pools): the
+    // fields below and the N64's first-fit allocator, so that an allocation
+    // succeeds or fails as on the N64 (the Wiggler's segments, which it never
+    // frees, run out at its 24th spawn in a level). Pools made with size 0 (the
+    // port's goddard heap) have no limit: allocOnlyPool and the bins.
     struct AllocOnlyPool *allocOnlyPool;
     struct FreeListNode *bins[27];
+    u32 totalSpace;
+    u32 firstBlock;
+    struct MemoryBlock freeList;
 #else
     u32 totalSpace;
     struct MemoryBlock *firstBlock;
@@ -602,18 +618,114 @@ void *alloc_only_pool_alloc(struct AllocOnlyPool *pool, s32 size) {
     return addr;
 }
 
-struct MemoryPool *mem_pool_init(UNUSED u32 size, UNUSED u32 side) {
+// The blocks of a fixed pool, by offset from the pool (0 is none).
+#define POOL_BLOCK(pool, offset) ((offset) == 0 ? NULL : (struct MemoryBlock *) ((u8 *) (pool) + (offset)))
+#define POOL_OFFSET(pool, block) ((u32) ((u8 *) (block) - (u8 *) (pool)))
+
+struct MemoryPool *mem_pool_init(u32 size, UNUSED u32 side) {
     struct MemoryPool *pool;
-    void *addr = main_pool_alloc(sizeof(struct MemoryPool), NULL);
+    struct MemoryBlock *block;
+    void *addr;
     u32 i;
 
+    // As on the N64 (non-malloc version below), with the space after the pool.
+    size = ALIGN4(size);
+    addr = main_pool_alloc(sizeof(struct MemoryPool) + size, NULL);
+
     pool = (struct MemoryPool *) addr;
-    pool->allocOnlyPool = alloc_only_pool_init();
+    pool->allocOnlyPool = NULL;
     for (i = 0; i < ARRAY_COUNT(pool->bins); i++) {
         pool->bins[i] = NULL;
     }
+    pool->totalSpace = size;
+    pool->firstBlock = 0;
+    pool->freeList.next = 0;
+    pool->freeList.size = 0;
+    if (size == 0) {
+        pool->allocOnlyPool = alloc_only_pool_init();
+        return pool;
+    }
+    // Cleared, so that what the game never wrote is the same in every build.
+    memset((u8 *) addr + sizeof(struct MemoryPool), 0, size);
+    pool->firstBlock = sizeof(struct MemoryPool);
+    pool->freeList.next = sizeof(struct MemoryPool);
 
+    block = POOL_BLOCK(pool, pool->firstBlock);
+    block->next = 0;
+    block->size = pool->totalSpace;
     return pool;
+}
+
+/**
+ * The N64's mem_pool_alloc (below), on offsets: the first free block that is
+ * large enough, split unless the rest would be no larger than a header.
+ * Return NULL if there is not enough space.
+ */
+static void *fixed_pool_alloc(struct MemoryPool *pool, u32 size) {
+    struct MemoryBlock *freeBlock = &pool->freeList;
+    void *addr = NULL;
+
+    size = ALIGN4(size) + sizeof(struct MemoryBlock);
+    while (freeBlock->next != 0) {
+        struct MemoryBlock *next = POOL_BLOCK(pool, freeBlock->next);
+        if (next->size >= size) {
+            addr = (u8 *) next + sizeof(struct MemoryBlock);
+            if (next->size - size <= sizeof(struct MemoryBlock)) {
+                freeBlock->next = next->next;
+            } else {
+                struct MemoryBlock *newBlock = (struct MemoryBlock *) ((u8 *) next + size);
+                newBlock->size = next->size - size;
+                newBlock->next = next->next;
+                next->size = size;
+                freeBlock->next = POOL_OFFSET(pool, newBlock);
+            }
+            break;
+        }
+        freeBlock = next;
+    }
+    return addr;
+}
+
+/**
+ * The N64's mem_pool_free (below), on offsets.
+ */
+static void fixed_pool_free(struct MemoryPool *pool, void *addr) {
+    struct MemoryBlock *block = (struct MemoryBlock *) ((u8 *) addr - sizeof(struct MemoryBlock));
+    struct MemoryBlock *freeList = POOL_BLOCK(pool, pool->freeList.next);
+
+    if (pool->freeList.next == 0) {
+        pool->freeList.next = POOL_OFFSET(pool, block);
+        block->next = 0;
+    } else {
+        if (block < freeList) {
+            if ((u8 *) freeList == (u8 *) block + block->size) {
+                block->size += freeList->size;
+                block->next = freeList->next;
+                pool->freeList.next = POOL_OFFSET(pool, block);
+            } else {
+                block->next = pool->freeList.next;
+                pool->freeList.next = POOL_OFFSET(pool, block);
+            }
+        } else {
+            while (freeList->next != 0) {
+                if (freeList < block && block < POOL_BLOCK(pool, freeList->next)) {
+                    break;
+                }
+                freeList = POOL_BLOCK(pool, freeList->next);
+            }
+            if ((u8 *) freeList + freeList->size == (u8 *) block) {
+                freeList->size += block->size;
+                block = freeList;
+            } else {
+                block->next = freeList->next;
+                freeList->next = POOL_OFFSET(pool, block);
+            }
+            if (block->next != 0 && (u8 *) POOL_BLOCK(pool, block->next) == (u8 *) block + block->size) {
+                block->size = block->size + POOL_BLOCK(pool, block->next)->size;
+                block->next = POOL_BLOCK(pool, block->next)->next;
+            }
+        }
+    }
 }
 
 void *mem_pool_alloc(struct MemoryPool *pool, u32 size) {
@@ -623,6 +735,9 @@ void *mem_pool_alloc(struct MemoryPool *pool, u32 size) {
     u32 itemSize;
     u32 i;
 
+    if (pool->allocOnlyPool == NULL) {
+        return fixed_pool_alloc(pool, size);
+    }
     for (i = 3; i < 30; i++) {
         if (size <= (1U << i)) {
             bin = i;
@@ -646,9 +761,17 @@ void *mem_pool_alloc(struct MemoryPool *pool, u32 size) {
 }
 
 void mem_pool_free(struct MemoryPool *pool, void *addr) {
-    struct AllocatedNode *an = ((struct AllocatedNode *) addr) - 1;
-    struct FreeListNode *node = (struct FreeListNode *) an;
-    s32 bin = an->bin;
+    struct AllocatedNode *an;
+    struct FreeListNode *node;
+    s32 bin;
+
+    if (pool->allocOnlyPool == NULL) {
+        fixed_pool_free(pool, addr);
+        return;
+    }
+    an = ((struct AllocatedNode *) addr) - 1;
+    node = (struct FreeListNode *) an;
+    bin = an->bin;
     node->next = pool->bins[bin - 3];
     pool->bins[bin - 3] = node;
 }
